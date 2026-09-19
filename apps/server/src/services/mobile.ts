@@ -1,7 +1,7 @@
 import { randomInt, randomUUID } from 'node:crypto'
 
 import { PHONE_SIGNAL, PhoneMotion } from '@heli/contracts'
-import type { PhoneSnapshot, Signal } from '@heli/contracts'
+import type { MobileBlocklist, PhoneSnapshot, Signal } from '@heli/contracts'
 
 import { childLogger } from '../logger.js'
 import { prisma } from '../lib/prisma.js'
@@ -315,4 +315,27 @@ export async function openSessionId(): Promise<string | null> {
     select: { id: true },
   })
   return row?.id ?? null
+}
+
+/**
+ * The phone's blocklist: the open session's goal's `blockedApps`, active only when that goal
+ * allows changing things. Nothing open, or no permission, is an inactive empty list.
+ */
+export async function phoneBlocklist(): Promise<MobileBlocklist> {
+  const row = await prisma.session.findFirst({
+    where: { endedAt: null },
+    orderBy: { startedAt: 'desc' },
+    select: { id: true, goal: { select: { objective: true, blockedApps: true, permissions: true } } },
+  })
+  const goal = row?.goal ?? null
+  const strings = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+  const allowed = strings(goal?.permissions).includes('automate')
+  const apps = strings(goal?.blockedApps).slice(0, 50)
+  return {
+    active: !!row && allowed && apps.length > 0,
+    sessionId: row?.id ?? null,
+    goal: goal?.objective ?? null,
+    apps: allowed ? apps : [],
+  }
 }

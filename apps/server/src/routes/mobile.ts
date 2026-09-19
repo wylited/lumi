@@ -4,6 +4,7 @@ import {
   MobilePairCodeResponse,
   MobilePairRequest,
   MobilePairResponse,
+  MobileBlocklist,
   MobileSignalBatch,
   PhoneListResponse,
   SignalBatchResponse,
@@ -20,6 +21,7 @@ import {
   issuePairCode,
   listPhones,
   openSessionId,
+  phoneBlocklist,
   redeemPairCode,
 } from '../services/mobile.js'
 import { ingestSignals } from '../services/signals.js'
@@ -74,6 +76,13 @@ const mobileRoutes: FastifyPluginAsync = async (app) => {
       applyPhoneSignals(phoneId, request.body.signals, sessionId)
       return ingestSignals(phoneId, sessionId, request.body.signals)
     },
+  )
+
+  /** What the phone blocks now. Polled by the app; see `MobileBlocklist`. */
+  app.get(
+    '/mobile/blocklist',
+    { preHandler: requireMobile, schema: { response: { 200: MobileBlocklist } } },
+    async () => phoneBlocklist(),
   )
 
   /** The paired phones, newest first. The desktop's setup screen reads this. */

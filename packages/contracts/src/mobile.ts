@@ -125,6 +125,26 @@ export type MobileAck = z.infer<typeof MobileAck>
 export const ApiToMobile = z.union([MobileAck, ApiAudioOut, ApiNudge, ApiError])
 export type ApiToMobile = z.infer<typeof ApiToMobile>
 
+/* ---- blocking ------------------------------------------------------------- */
+
+/**
+ * What the phone should block right now, polled by the app. Android only: the app's
+ * accessibility service sends the person home from a listed app and says so in a notification
+ * with undo. `active` is true only while a session is open and its goal allows changing things,
+ * so a phone never blocks outside a session the person started.
+ */
+export const MobileBlocklist = z
+  .object({
+    active: z.boolean(),
+    sessionId: z.string().nullable(),
+    /** The goal's own words, for the notification. */
+    goal: z.string().nullable(),
+    /** App names as the goal lists them ("Instagram"), matched against Android's app labels. */
+    apps: z.array(z.string()).max(50),
+  })
+  .strict()
+export type MobileBlocklist = z.infer<typeof MobileBlocklist>
+
 /* ---- the signal vocabulary ------------------------------------------------ */
 
 /**
@@ -150,6 +170,11 @@ export const PHONE_SIGNAL = {
    * as the desktop reports it.
    */
   nudgeResponse: 'phone.nudge_response',
+  /**
+   * `{ action: 'sent_home'|'undone', app }` — the phone's blocker acted on a listed app, or the
+   * person undid it. Android only; the counterpart of the desktop's `automation.*` signals.
+   */
+  automation: 'phone.automation',
 } as const
 
 export const PhoneMotion = z.enum(['still', 'walking', 'running', 'driving', 'unknown'])
