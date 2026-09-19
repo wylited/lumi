@@ -105,7 +105,7 @@ export const live = {
    */
   async start(goalId: string): Promise<void> {
     const open = (await api.sessions()).find((s) => s.endedAt === null)
-    if (!open && !(await api.openSession({ goalId }))) throw new Error('The session did not open.')
+    if (!open && !(await api.openSessionFor(goalId))) throw new Error('The session did not open.')
     if (!(await live.attach())) throw new Error('The session opened, but its live channel did not.')
   },
 

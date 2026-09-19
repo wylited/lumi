@@ -99,6 +99,24 @@ class HttpError extends Error {
   }
 }
 
+/** A refusal in words: the server's own error and its first issue, else the status. */
+async function refusal(res: Response, what: string): Promise<string> {
+  try {
+    const body = (await res.json()) as {
+      error?: string
+      message?: string
+      issues?: { path?: string; message?: string }[]
+    }
+    const issue = body.issues?.[0]
+    const detail = issue ? `${issue.path ? `${issue.path}: ` : ''}${issue.message ?? ''}` : null
+    const said = [body.message ?? body.error, detail].filter(Boolean).join(' — ')
+    if (said) return `The server refused ${what} (${res.status}): ${said}`
+  } catch {
+    // not JSON: the status is all there is
+  }
+  return `The server refused ${what} (${res.status}).`
+}
+
 async function call<S extends z.ZodTypeAny>(
   method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   path: string,
@@ -123,7 +141,7 @@ async function call<S extends z.ZodTypeAny>(
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs),
     })
-    if (!res.ok) throw new HttpError(`${method} ${path} ${res.status}`, res.status)
+    if (!res.ok) throw new HttpError(await refusal(res, `${method} ${path}`), res.status)
     setSource('online')
     return schema.parse(await res.json())
   } catch (error) {
@@ -170,6 +188,19 @@ export const api = {
     call('POST', `/sessions/${encodeURIComponent(id)}/close`, z.unknown(), () => null, {}),
   openSession: (body: OpenSessionRequest) =>
     call('POST', '/sessions', OpenSessionResponse.nullable(), () => null, body),
+  /** Open a session for a goal; the server resolves its own machine. */
+  openSessionFor: async (goalId: string) => {
+    try {
+      return await api.openSession({ goalId })
+    } catch (error) {
+      // A server from before it resolved its own machine refuses without `deviceId`, and has no
+      // way to name one: it is older than this app, and restarting it is the fix.
+      if (error instanceof HttpError && error.status === 400 && error.message.includes('deviceId')) {
+        throw new Error('The server is older than this app. Restart it: pnpm --filter @heli/server dev')
+      }
+      throw error
+    }
+  },
   renameDesk: (body: DeskRegistration) =>
     call('POST', '/desks', DeskRegisterResponse.nullable(), () => null, body),
   deskAction: (deskId: string, body: DeskActionRequest) =>

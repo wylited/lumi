@@ -41,7 +41,7 @@ export function SetupRoute({ onFinish }: { onFinish: () => void }) {
     // The server resolves its own seeded machine; the desktop never names a device.
     try {
       const open = (await api.sessions()).find((s) => s.endedAt === null)
-      const opened = open ? null : await api.openSession({ goalId: goal.id })
+      const opened = open ? null : await api.openSessionFor(goal.id)
       setSessionId(open?.id ?? opened?.session.id ?? null)
     } catch (e) {
       log.warn('could not open a session for the preview', String(e))
