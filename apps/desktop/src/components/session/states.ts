@@ -25,7 +25,7 @@ export const VERB: Record<number, string> = {
   1: 'Light',
   2: 'Nudged',
   3: 'Spoke',
-  4: 'Changed',
+  4: 'Pointed',
   5: 'Summary',
 }
 

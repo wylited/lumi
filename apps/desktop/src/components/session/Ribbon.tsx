@@ -52,6 +52,7 @@ export function Ribbon({
               lg ? 'rounded-[3px]' : 'first:rounded-l-[2px] last:rounded-r-[2px]',
               FILL[o ? stateOf(o) : 'empty'],
             )}
+            title={o ? `${i + 1}m · ${o.assessment?.because ?? o.reason ?? ''}` : undefined}
           />
         ))}
       </div>

@@ -225,8 +225,10 @@ export async function frameUrl(
         signal: AbortSignal.timeout(TIMEOUT_MS),
       },
     )
-    if (!res.ok) return null
-    return URL.createObjectURL(await res.blob())
+    // 204 is "no frame yet": an empty body is not an image.
+    if (!res.ok || res.status === 204) return null
+    const blob = await res.blob()
+    return blob.size ? URL.createObjectURL(blob) : null
   } catch {
     return null
   }

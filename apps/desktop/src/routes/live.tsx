@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
 import type { Goal } from '@heli/contracts'
 import { Button } from '@heli/ui'
-import { Dot, Figure, SectionTitle } from '../components/kit'
+import { SectionTitle } from '../components/kit'
 import { Actions } from '../components/session/Actions'
-import { dur, mm } from '../components/session/format'
+import { Attention } from '../components/session/Attention'
 import { Ribbon, RibbonLegend } from '../components/session/Ribbon'
+import { Signals } from '../components/session/Signals'
+import { Thinking } from '../components/session/Thinking'
+import { Viewport } from '../components/session/Viewport'
+import { desk } from '../lib/desk'
 import { loadGoal } from '../lib/goals'
 import { derive, live, settledOutcome, useLive } from '../lib/live'
 
@@ -18,11 +22,29 @@ function breakMarks(goal: Goal | null, total: number): number[] {
   return out
 }
 
+/** m:ss since the session started, ticking every second. */
+function useClock(startedAt: string | null) {
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  if (!startedAt) return null
+  const s = Math.max(0, Math.floor((now - Date.parse(startedAt)) / 1000))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = String(s % 60).padStart(2, '0')
+  return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`
+}
+
 export function LiveRoute() {
   const snap = useLive()
   const d = derive(snap)
   const [looking, setLooking] = useState(false)
   const [goal, setGoal] = useState<Goal | null>(null)
+  const [frames, setFrames] = useState(0)
+  const demo = snap.source === 'demo'
+  const clock = useClock(demo ? null : (snap.session?.startedAt ?? null))
 
   useEffect(() => {
     void loadGoal().then(setGoal)
@@ -33,6 +55,17 @@ export function LiveRoute() {
     setLooking(true)
     void live.attach().finally(() => setLooking(false))
   }, [])
+
+  // Frames read, from the desk status the rest of the app already polls.
+  useEffect(() => {
+    if (snap.status !== 'live' || demo) return
+    const stop = desk.watch()
+    const t = setInterval(() => setFrames(desk.get()?.frames ?? 0), 2000)
+    return () => {
+      stop()
+      clearInterval(t)
+    }
+  }, [snap.status, demo])
 
   if (snap.status !== 'live') {
     return (
@@ -59,70 +92,43 @@ export function LiveRoute() {
 
   const sessionGoal = snap.goal
   const budget = sessionGoal?.timeBudgetMinutes ?? null
-  const latest = d.latest
-  const a = latest?.assessment
-  const where = latest?.signals.topSites[0]?.title ?? latest?.signals.topApps[0]?.app ?? null
-  const speaking = snap.deviceState === 'speaking'
-  const state = !a
-    ? 'Starting'
-    : speaking
-      ? 'Speaking'
-      : a.activity === 'break'
-        ? 'On a break'
-        : a.onTask
-          ? 'On the goal'
-          : 'Off task'
-  const drifting = !!a && !a.onTask && a.activity !== 'break'
+  const interruptions = snap.observations.filter((o) => o.tier >= 2).length
 
   return (
-    <div className="mx-auto flex max-w-[980px] flex-col gap-10 px-10 pb-12 pt-2">
+    <div className="mx-auto flex max-w-[1100px] flex-col gap-8 px-8 pb-12 pt-2">
       <header className="flex items-start justify-between gap-8">
         <h1 className="text-title-1 font-semibold tracking-tight text-balance text-text">
           {sessionGoal?.objective ?? 'Session'}
         </h1>
         <div className="flex shrink-0 flex-col items-end">
           <span className="tnum text-title-1 font-semibold tracking-tight text-text">
-            {d.minutes}m
+            {clock ?? `${d.minutes}m`}
           </span>
           <span className="tnum text-small text-text-faint">
-            {budget ? `of ${budget}` : 'no budget'}
+            {budget ? `of ${budget} min` : 'no budget'}
           </span>
         </div>
       </header>
 
-      <section className="flex flex-col gap-4">
-        <div className="flex items-center gap-2.5">
-          <Dot tone={drifting ? 'drift' : 'focus'} />
-          <span className="text-body-strong font-semibold text-text">{state}</span>
-          {where && a?.activity !== 'break' ? (
-            <span className="text-body text-text-faint">{where}</span>
-          ) : null}
-          {drifting && a ? (
-            <span className="tnum ml-auto text-body-strong font-semibold text-warn">
-              {dur(a.driftSeconds)}
-            </span>
-          ) : null}
-        </div>
+      <Viewport sessionId={snap.session?.id ?? null} demo={demo} />
+
+      <div className="grid gap-4 lg:grid-cols-[1.15fr_1fr]">
+        <Thinking
+          latest={d.latest}
+          since={snap.session?.startedAt ?? null}
+          frames={demo ? d.minutes : frames}
+          interruptions={interruptions}
+        />
+        <Attention observations={snap.observations} goal={sessionGoal ?? goal} />
+      </div>
+
+      <section className="flex flex-col gap-3">
         <Ribbon
           observations={snap.observations}
           minutes={budget}
           breaks={breakMarks(sessionGoal, Math.max(budget ?? 0, d.minutes))}
         />
         <RibbonLegend />
-      </section>
-
-      <section className="flex gap-14">
-        <Figure value={mm(d.focusedMinutes * 60)} label="Focused" />
-        <Figure
-          value={mm(d.offTaskMinutes * 60)}
-          label="Off task"
-          tone={d.offTaskMinutes >= 5 ? 'warn' : undefined}
-        />
-        <Figure value={mm(d.longestRunSeconds)} label="Longest run" />
-        <Figure
-          value={d.minutes ? (d.switches / d.minutes).toFixed(1) : '0'}
-          label="Switches / min"
-        />
       </section>
 
       <section className="flex flex-col gap-2">
@@ -136,7 +142,9 @@ export function LiveRoute() {
         />
       </section>
 
-      {snap.source === 'demo' ? (
+      <Signals />
+
+      {demo ? (
         <button
           type="button"
           onClick={() => live.end()}
