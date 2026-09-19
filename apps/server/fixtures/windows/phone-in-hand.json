@@ -1,0 +1,34 @@
+{
+  "id": "phone-in-hand",
+  "note": "Third consecutive off-goal window: phone in hand while the desk frame is present; the prior nudge went unresolved.",
+  "window": {
+    "from": "2026-01-15T09:00:00.000Z",
+    "to": "2026-01-15T09:01:00.000Z",
+    "windowMs": 60000,
+    "focusedSeconds": 0,
+    "offTaskSeconds": 60,
+    "idleSeconds": 55,
+    "contextSwitches": 2,
+    "longestFocusRunSeconds": 0,
+    "inputRate": 15,
+    "onTaskRatio": 0,
+    "topApps": [
+      {
+        "app": "Instagram",
+        "seconds": 50,
+        "onTask": false
+      }
+    ],
+    "topSites": [
+      {
+        "title": "Feed",
+        "seconds": 45,
+        "onTask": false
+      }
+    ],
+    "focusMode": false,
+    "lastFrameRef": "phone-in-hand",
+    "lastScreenRef": null
+  },
+  "goalKind": "study"
+}

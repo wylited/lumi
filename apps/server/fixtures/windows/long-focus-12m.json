@@ -1,0 +1,28 @@
+{
+  "id": "long-focus-12m",
+  "note": "A twelve-minute focus run, longest continuous run 715 s.",
+  "window": {
+    "from": "2026-01-15T09:00:00.000Z",
+    "to": "2026-01-15T09:12:00.000Z",
+    "windowMs": 720000,
+    "focusedSeconds": 715,
+    "offTaskSeconds": 5,
+    "idleSeconds": 120,
+    "contextSwitches": 2,
+    "longestFocusRunSeconds": 715,
+    "inputRate": 95,
+    "onTaskRatio": 0.9930555555555556,
+    "topApps": [
+      {
+        "app": "Code",
+        "seconds": 700,
+        "onTask": true
+      }
+    ],
+    "topSites": [],
+    "focusMode": false,
+    "lastFrameRef": "long-focus-12m",
+    "lastScreenRef": null
+  },
+  "goalKind": "work"
+}

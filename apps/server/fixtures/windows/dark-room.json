@@ -1,0 +1,22 @@
+{
+  "id": "dark-room",
+  "note": "Dark room; the frame carries almost no information.",
+  "window": {
+    "from": "2026-01-15T09:00:00.000Z",
+    "to": "2026-01-15T09:01:00.000Z",
+    "windowMs": 60000,
+    "focusedSeconds": 0,
+    "offTaskSeconds": 60,
+    "idleSeconds": 60,
+    "contextSwitches": 0,
+    "longestFocusRunSeconds": 0,
+    "inputRate": 0,
+    "onTaskRatio": 0,
+    "topApps": [],
+    "topSites": [],
+    "focusMode": false,
+    "lastFrameRef": "dark-room",
+    "lastScreenRef": null
+  },
+  "goalKind": "study"
+}

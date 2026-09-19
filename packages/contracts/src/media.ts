@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SpeechProviderName } from './provider.js'
 
 export const MEDIA_TAG = {
   video: 0x01,
@@ -97,3 +98,24 @@ export const MediaControlMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('bargein'), ts: z.string() }),
 ])
 export type MediaControlMessage = z.infer<typeof MediaControlMessage>
+
+/**
+ * The speech bridge. `local` needs no credentials so the device -> loop ->
+ * `audio.out` path is always exercisable; `elevenlabs` is key gated.
+ */
+export const SpeechSynthesisRequest = z.object({
+  text: z.string().min(1).max(500),
+  voice: z.string().nullable().default(null),
+  language: z.string().default('en'),
+})
+export type SpeechSynthesisRequest = z.infer<typeof SpeechSynthesisRequest>
+
+export const SpeechSynthesisResult = z.object({
+  provider: SpeechProviderName,
+  sampleRate: z.number().int().positive(),
+  channels: z.number().int().min(1).max(2),
+  durationMs: z.number().int().nonnegative(),
+  /** Base64 PCM S16LE. */
+  pcmBase64: z.string().nullable(),
+})
+export type SpeechSynthesisResult = z.infer<typeof SpeechSynthesisResult>

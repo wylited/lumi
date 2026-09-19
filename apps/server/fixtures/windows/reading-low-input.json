@@ -1,0 +1,28 @@
+{
+  "id": "reading-low-input",
+  "note": "Head down reading; low input rate but on task.",
+  "window": {
+    "from": "2026-01-15T09:00:00.000Z",
+    "to": "2026-01-15T09:05:00.000Z",
+    "windowMs": 300000,
+    "focusedSeconds": 280,
+    "offTaskSeconds": 20,
+    "idleSeconds": 240,
+    "contextSwitches": 2,
+    "longestFocusRunSeconds": 180,
+    "inputRate": 8,
+    "onTaskRatio": 0.9333333333333333,
+    "topApps": [
+      {
+        "app": "Books",
+        "seconds": 270,
+        "onTask": true
+      }
+    ],
+    "topSites": [],
+    "focusMode": true,
+    "lastFrameRef": "reading-low-input",
+    "lastScreenRef": null
+  },
+  "goalKind": "study"
+}

@@ -1,0 +1,34 @@
+{
+  "id": "off-task-social-40s",
+  "note": "First off-goal window: 40 s on a social feed.",
+  "window": {
+    "from": "2026-01-15T09:00:00.000Z",
+    "to": "2026-01-15T09:01:00.000Z",
+    "windowMs": 60000,
+    "focusedSeconds": 20,
+    "offTaskSeconds": 40,
+    "idleSeconds": 2,
+    "contextSwitches": 6,
+    "longestFocusRunSeconds": 20,
+    "inputRate": 140,
+    "onTaskRatio": 0.3333333333333333,
+    "topApps": [
+      {
+        "app": "Safari",
+        "seconds": 40,
+        "onTask": false
+      }
+    ],
+    "topSites": [
+      {
+        "title": "Social feed",
+        "seconds": 35,
+        "onTask": false
+      }
+    ],
+    "focusMode": false,
+    "lastFrameRef": "off-task-social-40s",
+    "lastScreenRef": null
+  },
+  "goalKind": "study"
+}

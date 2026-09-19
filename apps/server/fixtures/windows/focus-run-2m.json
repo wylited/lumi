@@ -1,0 +1,28 @@
+{
+  "id": "focus-run-2m",
+  "note": "A two-minute focus run, still on task.",
+  "window": {
+    "from": "2026-01-15T09:00:00.000Z",
+    "to": "2026-01-15T09:02:00.000Z",
+    "windowMs": 120000,
+    "focusedSeconds": 120,
+    "offTaskSeconds": 0,
+    "idleSeconds": 10,
+    "contextSwitches": 0,
+    "longestFocusRunSeconds": 120,
+    "inputRate": 90,
+    "onTaskRatio": 1,
+    "topApps": [
+      {
+        "app": "Code",
+        "seconds": 120,
+        "onTask": true
+      }
+    ],
+    "topSites": [],
+    "focusMode": false,
+    "lastFrameRef": "focus-run-2m",
+    "lastScreenRef": null
+  },
+  "goalKind": "study"
+}

@@ -1,0 +1,28 @@
+{
+  "id": "recovery-after-nudge",
+  "note": "The window right after a nudge; back on task.",
+  "window": {
+    "from": "2026-01-15T09:00:00.000Z",
+    "to": "2026-01-15T09:02:00.000Z",
+    "windowMs": 120000,
+    "focusedSeconds": 110,
+    "offTaskSeconds": 10,
+    "idleSeconds": 20,
+    "contextSwitches": 3,
+    "longestFocusRunSeconds": 110,
+    "inputRate": 105,
+    "onTaskRatio": 0.9166666666666666,
+    "topApps": [
+      {
+        "app": "Code",
+        "seconds": 105,
+        "onTask": true
+      }
+    ],
+    "topSites": [],
+    "focusMode": true,
+    "lastFrameRef": "recovery-after-nudge",
+    "lastScreenRef": null
+  },
+  "goalKind": "study"
+}

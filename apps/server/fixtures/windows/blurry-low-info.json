@@ -1,0 +1,22 @@
+{
+  "id": "blurry-low-info",
+  "note": "A blurry, low-information frame; should not be acted on.",
+  "window": {
+    "from": "2026-01-15T09:00:00.000Z",
+    "to": "2026-01-15T09:01:00.000Z",
+    "windowMs": 60000,
+    "focusedSeconds": 0,
+    "offTaskSeconds": 60,
+    "idleSeconds": 50,
+    "contextSwitches": 1,
+    "longestFocusRunSeconds": 0,
+    "inputRate": 5,
+    "onTaskRatio": 0,
+    "topApps": [],
+    "topSites": [],
+    "focusMode": false,
+    "lastFrameRef": "blurry-low-info",
+    "lastScreenRef": null
+  },
+  "goalKind": "study"
+}

@@ -1,0 +1,28 @@
+{
+  "id": "focused-desk-10m",
+  "note": "Ten minutes at the desk, editor frontmost, steady input.",
+  "window": {
+    "from": "2026-01-15T09:00:00.000Z",
+    "to": "2026-01-15T09:10:00.000Z",
+    "windowMs": 600000,
+    "focusedSeconds": 585,
+    "offTaskSeconds": 15,
+    "idleSeconds": 45,
+    "contextSwitches": 4,
+    "longestFocusRunSeconds": 300,
+    "inputRate": 110,
+    "onTaskRatio": 0.975,
+    "topApps": [
+      {
+        "app": "Code",
+        "seconds": 540,
+        "onTask": true
+      }
+    ],
+    "topSites": [],
+    "focusMode": false,
+    "lastFrameRef": "focused-desk-10m",
+    "lastScreenRef": null
+  },
+  "goalKind": "study"
+}

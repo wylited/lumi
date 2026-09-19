@@ -1,0 +1,22 @@
+{
+  "id": "away-idle",
+  "note": "Away from the desk, screen idle.",
+  "window": {
+    "from": "2026-01-15T09:00:00.000Z",
+    "to": "2026-01-15T09:05:00.000Z",
+    "windowMs": 300000,
+    "focusedSeconds": 30,
+    "offTaskSeconds": 270,
+    "idleSeconds": 270,
+    "contextSwitches": 1,
+    "longestFocusRunSeconds": 30,
+    "inputRate": 0,
+    "onTaskRatio": 0.1,
+    "topApps": [],
+    "topSites": [],
+    "focusMode": false,
+    "lastFrameRef": "away-idle",
+    "lastScreenRef": null
+  },
+  "goalKind": "life"
+}
