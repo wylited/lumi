@@ -26,6 +26,7 @@ from typing import Any
 
 import httpx
 import websockets
+from websockets.exceptions import InvalidStatus
 
 from .camera import CameraUnavailable, Frame, FrameSource
 from .config import Config
@@ -266,25 +267,95 @@ async def _desk_socket(rig: Rig, report: Report) -> None:
         report.add(WARN, "desk socket", "not opened: there is no desk token", None)
         return
     try:
+        raw = await _try_socket(rig, token, desk_id)
+    except _Refused as refusal:
+        # A 401 on a token the rig holds is the one refusal it can fix itself: the desk row may
+        # have been cleared (a `db:reset`, a database thrown away) while `rig.json` still holds
+        # the token minted against the old one. The socket refreshes once and reconnects, so the
+        # doctor must ask the same question the socket asks — reporting FAIL here would call a
+        # rig broken that starts and recovers on its own within a second.
+        if not refusal.refreshable:
+            report.add(
+                FAIL,
+                "desk socket",
+                f"{rig.cfg.ws_url} refused the connection: {refusal}",
+                "the desk socket takes the desk token (not the user one) and the subprotocol "
+                "heli.v1; a 404 means the server on this port is not the desk server",
+            )
+            return
+        try:
+            fresh = rig.desk_tokens.token(refresh=True)
+            desk_id = rig.desk_tokens.desk_id()
+        except Exception as exc:
+            fresh, why = None, str(exc)
+        else:
+            why = "registration answered without a desk token"
+        if not fresh:
+            report.add(
+                FAIL,
+                "desk socket",
+                f"{rig.cfg.ws_url} refused the desk token, and refreshing it failed: {why}",
+                "the desk row is gone from the server (a db:reset does that) and re-registering "
+                "did not put it back: check the server's log, then run this again",
+            )
+            return
+        try:
+            raw = await _try_socket(rig, fresh, desk_id)
+        except Exception as exc:
+            report.add(
+                FAIL,
+                "desk socket",
+                f"{rig.cfg.ws_url} refused a freshly minted desk token too: {exc}",
+                "re-registering produced a token the server will not take, which is a server-side "
+                "fault: check that the desk route and /ws/desk agree on the signing key",
+            )
+            return
+        report.add(
+            OK,
+            "desk socket",
+            f"{rig.cfg.ws_url} took the desk token after refreshing it once (the token in "
+            f"{rig.cfg.heli_dir} named a desk the server no longer had, which is what a db:reset "
+            "leaves behind)",
+        )
+        return
+    if raw is _QUIET:
+        report.add(OK, "desk socket", f"{rig.cfg.ws_url} took the desk token and accepted hello")
+        return
+    report.add(WARN, "desk socket", f"hello drew an answer: {str(raw)[:200]}", None)
+
+
+#: `_try_socket` answers this when the server said nothing, which is it agreeing.
+_QUIET = object()
+
+
+class _Refused(Exception):
+    """A socket the server would not open, with whether a fresher token could change its mind."""
+
+    def __init__(self, message: str, *, refreshable: bool) -> None:
+        super().__init__(message)
+        self.refreshable = refreshable
+
+
+async def _try_socket(rig: Rig, token: str, desk_id: str) -> Any:
+    """One `/ws/desk` handshake and `hello`. Returns the answer, or `_QUIET`, or raises `_Refused`."""
+    try:
         async with websockets.connect(
             f"{rig.cfg.ws_url}?token={token}", subprotocols=[SUBPROTOCOL], open_timeout=SOCKET_TIMEOUT_S
         ) as ws:
             await ws.send(json.dumps(hello_frame(desk_id, _describe(rig.source), _describe(rig.arm))))
             try:
-                raw = await asyncio.wait_for(ws.recv(), timeout=HELLO_QUIET_S)
+                return await asyncio.wait_for(ws.recv(), timeout=HELLO_QUIET_S)
             except asyncio.TimeoutError:
-                report.add(OK, "desk socket", f"{rig.cfg.ws_url} took the desk token and accepted hello")
-                return
+                return _QUIET
+    except InvalidStatus as exc:
+        # 401 is a credential the server would not take, and a fresh one may be taken; anything
+        # else (404 on the path, a proxy in the way) is not something a new token fixes.
+        raise _Refused(
+            f"HTTP {exc.response.status_code} {exc.response.reason_phrase}",
+            refreshable=exc.response.status_code == 401,
+        ) from exc
     except Exception as exc:
-        report.add(
-            FAIL,
-            "desk socket",
-            f"{rig.cfg.ws_url} refused the connection: {exc}",
-            "the desk socket takes the desk token (not the user one) and the subprotocol heli.v1; "
-            "a 404 means the server on this port is not the desk server",
-        )
-        return
-    report.add(WARN, "desk socket", f"hello drew an answer: {str(raw)[:200]}", None)
+        raise _Refused(f"{type(exc).__name__}: {exc}", refreshable=False) from exc
 
 
 async def _camera(rig: Rig, report: Report) -> Frame | None:
