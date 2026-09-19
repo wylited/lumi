@@ -98,9 +98,15 @@ interface ChatMessage {
   content: string | ContentPart[]
 }
 
-type ResponseFormat =
-  | { type: 'json_schema'; name: 'Assessment'; schema: typeof ASSESSMENT_JSON_SCHEMA }
-  | { type: 'json_object' }
+type ResponseFormat = {
+  /**
+   * DeepSeek's Chat Completions endpoint does **not** offer `json_schema`
+   * ("This response_format type is unavailable now", verified 2026-09), and
+   * `json_object` requires the word "json" in the prompt. So the real path is
+   * JSON mode plus the schema in the system prompt plus zod as the judge.
+   */
+  type: 'json_object'
+}
 
 interface ChatCompletionUsage {
   prompt_tokens?: number
@@ -122,6 +128,13 @@ const FALLBACK_SYSTEM_PROMPT =
 let cachedSystemPrompt: string | null = null
 
 function systemPrompt(): string {
+  const base = cachedSystemPrompt ?? readPrompt()
+  // JSON mode needs the shape in the prompt: the endpoint will not enforce a
+  // schema, so the schema travels as text and zod is the final judge.
+  return `${base}\n\nReturn only a JSON object matching this JSON Schema exactly, with no prose and no markdown fences:\n${JSON.stringify(ASSESSMENT_JSON_SCHEMA)}`
+}
+
+function readPrompt(): string {
   if (cachedSystemPrompt !== null) return cachedSystemPrompt
   try {
     cachedSystemPrompt = readFileSync(
@@ -297,37 +310,15 @@ export function createDeepSeekVisionProvider(
     async assess(input: AssessInput): Promise<Assessment> {
       const started = Date.now()
       const built = buildMessages(input)
-      let fallbackUsed = false
       let lastUsage: ChatCompletionUsage | null = null
       let lastFailure = 'unknown error'
 
-      const callOnce = async (format: ResponseFormat): Promise<CallResult> => {
-        const result = await callDeepSeek(
+      const callOnce = (format: ResponseFormat): Promise<CallResult> =>
+        callDeepSeek(
           { model, messages: built.messages, temperature: 0, stream: false, response_format: format },
           apiKey,
           timeoutMs,
         )
-        if (!result.ok && format.type === 'json_schema' && result.status === 400) {
-          // DeepSeek may not accept json_schema; json_object is the documented fallback.
-          fallbackUsed = true
-          logger.warn(
-            { provider: 'deepseek', model, status: result.status },
-            'deepseek rejected json_schema, retrying with json_object',
-          )
-          return callDeepSeek(
-            {
-              model,
-              messages: built.messages,
-              temperature: 0,
-              stream: false,
-              response_format: { type: 'json_object' } satisfies ResponseFormat,
-            },
-            apiKey,
-            timeoutMs,
-          )
-        }
-        return result
-      }
 
       const attempt = async (format: ResponseFormat): Promise<Assessment | null> => {
         const result = await callOnce(format)
@@ -343,12 +334,10 @@ export function createDeepSeekVisionProvider(
         return parsed
       }
 
-      // First attempt with json_schema, one retry with json_object on a parse failure.
-      let assessment = await attempt({
-        type: 'json_schema',
-        name: 'Assessment',
-        schema: ASSESSMENT_JSON_SCHEMA,
-      })
+      // JSON mode only: `json_schema` is unavailable on this endpoint, so the
+      // schema is in the system prompt and zod validates the reply. One retry
+      // covers a transient malformed response.
+      let assessment = await attempt({ type: 'json_object' })
 
       if (!assessment) {
         logger.warn(
@@ -370,7 +359,7 @@ export function createDeepSeekVisionProvider(
           provider: 'deepseek',
           model,
           latencyMs: Date.now() - started,
-          jsonSchemaFallback: fallbackUsed,
+          format: 'json_object',
           tiling: built.tiled ? 'tiled' : built.approximated ? 'approximated' : 'none',
           images: built.imageCount,
           promptTokens: usage?.prompt_tokens ?? null,

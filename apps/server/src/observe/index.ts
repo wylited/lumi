@@ -29,7 +29,12 @@ export interface LoopConfig {
   historyLimit: number
 }
 
-export const DEFAULT_LOOP_CONFIG: LoopConfig = { budgetMs: 4000, historyLimit: 20 }
+/**
+ * `budgetMs` is the hard cap on one pass. It is 6 s rather than 4 s because a
+ * hosted vision call that also reads an image lands around 4–6 s, and a late
+ * interruption is worse than none — past the cap we record silence.
+ */
+export const DEFAULT_LOOP_CONFIG: LoopConfig = { budgetMs: 6000, historyLimit: 20 }
 
 export interface WindowResult {
   observationId: string
