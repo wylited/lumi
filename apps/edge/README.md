@@ -109,13 +109,36 @@ re-plugged device is picked up without restarting the rig.
 | `HELI_SPEAKER` | `true` | play the spoken line on this Mac |
 | `HELI_LOG_LEVEL` | `info` | `debug` \| `info` \| `warning` \| `error` \| `critical` |
 | `HELI_DIR` | `~/.heli` | where the desk id, token and arm calibration are kept |
+| `HELI_DESK_RECT` | — | the desk rectangle in millimetres (`x,y,w,h`) that `--calibrate` records |
 | `HELI_DESK_TOKEN` | — | a desk token handed to this rig; otherwise it registers one |
 | `HELI_EMAIL` | — | the seeded user's address, for the dev-login bootstrap |
 
-Flags: `--once`, `--camera-index`, `--console`, `--fps`, `--log-level`, `--api-url`. A flag beats the
-environment.
+Flags: `--once`, `--calibrate`, `--rect`, `--camera-index`, `--console`, `--fps`, `--log-level`,
+`--api-url`. A flag beats the environment.
 
 `uv run heli-rig --help` prints them.
+
+---
+
+## Calibrating the desk
+
+`arm.point(x, y)` is a least-squares fit over measured pairs — the arm holding a pose, and a person
+saying which point on the desk the camera is looking at. No amount of looking at the camera invents
+those pairs, so the rig records them once:
+
+```
+uv run heli-rig --calibrate --rect 0,0,300,220    # millimetres: x,y,w,h, the area you watch
+```
+
+It walks the rectangle's four corners and its centre. For each one, aim the camera at that point —
+with the console, or whatever is holding the arm; this process only reads the pose back — then press
+Enter. `s` skips a point, `q` stops. Three pairs are the minimum and five are the default, and they
+are written to `~/.heli/rig.json` beside the desk id and token, so a later run adds to them rather
+than starting over.
+
+Until that file has three pairs, `arm.point` refuses with `calibration needs three poses` and
+`arm.aim` still works: aiming at an absolute pan and tilt needs no calibration, and only the
+desk-plane mapping does. This is the rig's half of the app's "aim here" step.
 
 ---
 

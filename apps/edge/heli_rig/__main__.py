@@ -14,6 +14,7 @@ import json
 import logging
 import sys
 from functools import partial
+from pathlib import Path
 from typing import Callable, Sequence
 
 import httpx
@@ -40,11 +41,58 @@ def main(argv: Sequence[str] | None = None) -> int:
     log = logging.getLogger("heli_rig")
     log.debug("heli-rig %s: api=%s ws=%s camera=%s", AGENT_VERSION, cfg.api_url, cfg.ws_url, cfg.camera_source)
     try:
+        if cfg.calibrate:
+            return _calibrate(cfg, log)
         if cfg.once:
             return asyncio.run(_once(cfg, log))
         asyncio.run(run_rig(cfg, log))
     except KeyboardInterrupt:
         log.info("stopped")
+    return 0
+
+
+def _calibrate(cfg: Config, log: logging.Logger) -> int:
+    """Record the desk plane: the rectangle, and the poses that frame it.
+
+    This is the rig's half of the desktop's "aim here". The rectangle decides
+    which part of the desk the rig watches, and the five pairs it records are
+    what make `arm.point(x, y)` an arithmetic answer instead of a guess -- the
+    frontend can drag the rectangle, but only the arm can say which pose looks
+    at which corner, so the recording happens here.
+
+    Nobody drives the arm from this process: the operator aims with the console
+    (or whatever holds the bus) and this reads the pose back, so it can run
+    beside the thing that is actually moving the arm.
+    """
+    if not cfg.rect:
+        log.error("calibration needs the rectangle: --rect x,y,w,h in millimetres, or HELI_DESK_RECT")
+        return 2
+
+    if not _landed("heli_rig.arm"):
+        log.error("calibration needs the arm adapter, which is not in this tree")
+        return 2
+    from .arm import open_arm
+    from .arm.calibrate import Calibrator, parse_rect
+    from .arm.calibration import RIG_FILE, Calibration
+
+    try:
+        rect = parse_rect(cfg.rect)
+    except ValueError as exc:
+        log.error("%s", exc)
+        return 2
+
+    arm = open_arm(cfg, log)
+    if arm is None:
+        log.error("calibration needs an arm; none answered -- nothing was written")
+        return 3
+    try:
+        path = Path(cfg.heli_dir) / RIG_FILE
+        recorded = Calibrator(arm, Calibration.load(path), log=log).run(rect)
+    finally:
+        arm.close()
+    if recorded == 0:
+        log.error("calibration recorded nothing; the file is unchanged in all but its rectangle")
+        return 1
     return 0
 
 

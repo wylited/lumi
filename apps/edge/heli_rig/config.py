@@ -58,6 +58,9 @@ class Config:
     log_level: str
     heli_dir: Path
     once: bool
+    calibrate: bool
+    #: The desk rectangle in millimetres (`x,y,w,h`) that `--calibrate` records.
+    rect: str | None
 
 
 def websocket_url(api_url: str) -> str:
@@ -99,6 +102,8 @@ def load(env: Mapping[str, str] | None = None, argv: Sequence[str] | None = None
         log_level=_choice(source, "HELI_LOG_LEVEL", "info", LOG_LEVELS),
         heli_dir=Path(_text(source, "HELI_DIR", HELI_DIR_DEFAULT)).expanduser(),
         once=False,
+        calibrate=False,
+        rect=_optional(source, "HELI_DESK_RECT"),
     )
     checked = _apply_argv(cfg, list(sys.argv[1:] if argv is None else argv))
     _check(checked)
@@ -115,6 +120,16 @@ def _apply_argv(cfg: Config, argv: list[str]) -> Config:
         "--once",
         action="store_true",
         help="take one frame, upload it, print the outcome as one JSON line and exit",
+    )
+    parser.add_argument(
+        "--calibrate",
+        action="store_true",
+        help="record the desk plane: five prompts, five arm poses, one file, then exit",
+    )
+    parser.add_argument(
+        "--rect",
+        metavar="X,Y,W,H",
+        help="the desk rectangle in millimetres that --calibrate records (or HELI_DESK_RECT)",
     )
     parser.add_argument("--camera-index", type=int, help="the AVFoundation device index to open")
     parser.add_argument("--console", metavar="URL", help="the tracking console that holds the camera")
@@ -133,6 +148,10 @@ def _apply_argv(cfg: Config, argv: list[str]) -> Config:
     changes: dict[str, object] = {}
     if args.once:
         changes["once"] = True
+    if args.calibrate:
+        changes["calibrate"] = True
+    if args.rect:
+        changes["rect"] = args.rect
     if args.camera_index is not None:
         changes["camera_index"] = args.camera_index
     if args.console:
