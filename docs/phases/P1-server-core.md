@@ -7,7 +7,7 @@ into one session, and the web/desktop can watch it live.
 
 **Depends:** all of P0.
 **Parallelism:** `010` first (it creates the server). Then `011–018` are disjoint files and run in
-parallel. **Owner B** takes this phase end to end.
+parallel. **Owner 2 · server** takes this phase end to end.
 
 ---
 

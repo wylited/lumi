@@ -98,7 +98,7 @@ mode lives, and how to rotate a device code.
 **Done when:** someone who has never seen the repo gets `pnpm dev` running from the README alone.
 
 ### HELI-009 · docs(edge): the device contract
-**Depends:** — **Parallel-safe:** yes **Owner:** hardware
+**Depends:** — **Parallel-safe:** yes **Owner:** 4 · hardware
 **Touches:** `docs/03-device-contract.md`
 **Do:** The single document the hardware person needs, written independently of the rest of the
 build: responsibilities, the `heli.v1` handshake and pairing, the full device→api and api→device

@@ -11,13 +11,13 @@ notes for every commit below. Read your phase before you claim anything.
 | phase | doc | owner |
 |---|---|---|
 | P0 | [`phases/P0-foundations.md`](./phases/P0-foundations.md) | all four, the night before |
-| P1 | [`phases/P1-server-core.md`](./phases/P1-server-core.md) | **B** |
-| P2 | [`phases/P2-observer-loop.md`](./phases/P2-observer-loop.md) | **A** (critical path) |
-| P3 | [`phases/P3-desktop.md`](./phases/P3-desktop.md) | **C** |
-| P4 | [`phases/P4-edge-media.md`](./phases/P4-edge-media.md) | **D** + hardware |
-| P5 | [`phases/P5-web.md`](./phases/P5-web.md) | **D** |
+| P1 | [`phases/P1-server-core.md`](./phases/P1-server-core.md) | **2 · server** |
+| P2 | [`phases/P2-observer-loop.md`](./phases/P2-observer-loop.md) | **1 · the loop** (critical path) |
+| P3 | [`phases/P3-desktop.md`](./phases/P3-desktop.md) | **3 · desktop + web** |
+| P4 | [`phases/P4-edge-media.md`](./phases/P4-edge-media.md) | **4 · hardware + edge** |
+| P5 | [`phases/P5-web.md`](./phases/P5-web.md) | **3 · desktop + web** |
 | P6 | [`phases/P6-hackathon-day.md`](./phases/P6-hackathon-day.md) | all four |
-| policy | [`02-intervention-policy.md`](./02-intervention-policy.md) | A |
+| policy | [`02-intervention-policy.md`](./02-intervention-policy.md) | 1 |
 
 **How a person works with agents.** Each owner runs one agent per commit, not per phase. An agent
 gets exactly one row: the phase doc entry, its `Touches`, and that entry's `Done when`. It commits
@@ -128,13 +128,17 @@ of that chain.
 
 ## Suggested split for four people
 
-| who | claim | notes |
-|---|---|---|
-| **A** (critical path) | 020, 021, 023, 024, 025 | the loop and the policy. Protect this person. |
-| **B** | 010–018 | server core. Start the moment P0 lands. |
-| **C** | 030–038 | the desktop app and the native signals. The base experience. |
-| **D** | 040–043, 050–054 | edge, media, and web. The demo surfaces. |
-| **hardware** | 009, 040, 042 | never touches `apps/`; 009 lands first so they can start day one |
-| **shared** | 001–008 | do P0 together, the night before. |
+Four of you. Five phases. So **desktop and web sit together** — they are the same person's surfaces
+and share `@heli/tokens` and `@heli/ui` — and the loop is its own person because it is the critical
+path.
 
-P0 is eight commits; after 001 lands, 002–008 run in parallel. Do it before the day, not on it.
+| who | phase(s) | claim | notes |
+|---|---|---|---|
+| **1 · the loop** | P2 | 020, 021, 023, 024, 025, 026 | the critical path. Protect this person from everything else. |
+| **2 · server** | P1 (+ media relay) | 010–018, 041 | server core. Start the moment P0 lands. |
+| **3 · desktop + web** | P3 + P5 | 030–038, 050–054, 063 | the base app and the after-the-fact review, one design system. |
+| **4 · hardware + edge** | P4 + the contract | 009, 040, 042, 043 | owns `docs/03-device-contract.md`; never touches `apps/` except `apps/edge`. |
+| **all four** | P0 | 001–008 | 001 alone first, then 002–008 in parallel, the night before. |
+
+`022` (speech out) and `041` (media relay) are the two server-side pieces the loop and edge depend
+on, so they land inside P1/P2 as written and are called out in each phase doc.

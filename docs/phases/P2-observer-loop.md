@@ -5,7 +5,7 @@ sentence, or an automatic change — and it only happened because the **policy**
 phase is the product. Everything else is scaffolding.
 
 **Depends:** P1.
-**Parallelism:** `020` and `021` are the critical path and go to **Owner A**. `022–026` run
+**Parallelism:** `020` and `021` are the critical path and go to **1 · the loop**. `022–026` run
 alongside.
 
 > **Read before starting.** The model never decides what to do. It returns a structured
@@ -16,7 +16,7 @@ alongside.
 ---
 
 ### HELI-020 · feat(server): deepseek client and the assess step
-**Depends:** P1 **Parallel-safe:** no, 021 waits on it **Owner:** A
+**Depends:** P1 **Parallel-safe:** no, 021 waits on it **Owner:** 1
 **Touches:** `apps/server/src/models/deepseek.ts`, `apps/server/src/models/provider.ts`, `apps/server/src/observe/assess.ts`, `apps/server/src/observe/prompts/assess.md`
 **Do:** A provider interface `assessVision(request) → Assessment` with two adapters: `deepseek`
 (primary, OpenAI-compatible, `response_format: json_schema`, images in a **user** message, `detail:
@@ -32,7 +32,7 @@ valid, and each in under 4 s. With no key, the `local` adapter returns a schema-
 the loop still runs.
 
 ### HELI-021 · feat(server): the intervention policy
-**Depends:** 020 **Parallel-safe:** no **Owner:** A
+**Depends:** 020 **Parallel-safe:** no **Owner:** 1
 **Touches:** `apps/server/src/observe/policy.ts`
 **Do:** Turn an `Assessment` into `{ tier, channel, message, action, reversible }` or into silence.
 Tiers: `0 silent`, `1 ambient`, `2 nudge`, `3 speak`, `4 automate`, `5 summary`. The rules:
@@ -47,7 +47,7 @@ outcome so the outcome can later be judged.
 `maxTier:2` never produces a speak.
 
 ### HELI-022 · feat(server): speech out and the local adapter
-**Depends:** 012 **Parallel-safe:** yes **Owner:** B
+**Depends:** 012 **Parallel-safe:** yes **Owner:** 1
 **Touches:** `apps/server/src/voice/speech.ts`, `apps/server/src/voice/push.ts`, `apps/server/src/voice/token.ts`
 **Do:** A `SpeechProvider` with `local` (generates real PCM with no credentials so the path always
 works) and `elevenlabs` (key-gated, clear error when the key is missing). On a tier-3 intervention,
@@ -60,7 +60,7 @@ policy. Keep the provider key inside this module.
 and `grep -r ELEVENLABS apps/desktop apps/web apps/edge` returns nothing.
 
 ### HELI-023 · feat(server): the orchestrator
-**Depends:** 020, 021, 022 **Parallel-safe:** no **Owner:** A
+**Depends:** 020, 021, 022 **Parallel-safe:** no **Owner:** 1
 **Touches:** `apps/server/src/observe/index.ts`
 **Do:** Wire it: on a cadence (default every 10 s) and on a strong signal, take the session's window
 → `assess` → `policy` → act → persist an `Observation` with the assessment, tier, action and
@@ -71,7 +71,7 @@ Idempotent per window: never assess the same window twice.
 4 s per window, visible on SSE, with at least one non-silent tier.
 
 ### HELI-024 · feat(server): session summary
-**Depends:** 021 **Parallel-safe:** yes **Owner:** A
+**Depends:** 021 **Parallel-safe:** yes **Owner:** 1
 **Touches:** `apps/server/src/observe/summary.ts`
 **Do:** On session close, build the tier-5 summary: focused minutes, off-task minutes, the longest
 focus run, the top distraction, the interventions that actually worked (tier + outcome), and one
@@ -82,7 +82,7 @@ encouraging.
 endpoints, and the desktop receives it.
 
 ### HELI-025 · test(server): the loop harness
-**Depends:** 023 **Parallel-safe:** yes **Owner:** A
+**Depends:** 023 **Parallel-safe:** yes **Owner:** 1
 **Touches:** `apps/server/test/policy.test.ts`, `apps/server/test/loop.test.ts`
 **Do:** `policy.test.ts` covers the rules: silence on a self-resolving window, escalation on a
 sustained one, the nudge gap, the speak gap, `maxTier`, one automate per window, and the
@@ -93,7 +93,7 @@ latency. Add a `test` script so `pnpm test` runs it.
 expected assessments match.
 
 ### HELI-026 · feat(server): fixtures and expected assessments
-**Depends:** P1 **Parallel-safe:** yes **Owner:** D
+**Depends:** P1 **Parallel-safe:** yes **Owner:** 1
 **Touches:** `apps/server/fixtures/**`, `apps/server/fixtures/expected.json`
 **Do:** Photograph or synthesise at least 12 real windows: focused at the desk, phone in hand, away
 from the desk, head down reading, a second person, a dark room, a distracting tab open in the

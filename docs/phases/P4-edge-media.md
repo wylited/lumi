@@ -5,7 +5,7 @@ audio to the server, the server fans it out and samples frames into the loop, an
 
 **Depends:** P0; `041` also on P1/014, `043` on P2/022.
 **Parallelism:** `040` first (it produces the agent). `041–043` then run in parallel.
-**Owner D** takes this phase, with the **hardware person** on `040` and `042`.
+**Owner 4 · hardware + edge** takes this phase.
 
 > The device holds **no provider key** and stores nothing. Video and audio come to the API as
 > tagged binary on the device socket; the API processes them. See `docs/03-device-contract.md`.
@@ -13,7 +13,7 @@ audio to the server, the server fans it out and samples frames into the loop, an
 ---
 
 ### HELI-040 · feat(edge): camera and audio agent
-**Depends:** P0/009 **Parallel-safe:** yes **Owner:** D + hardware
+**Depends:** P0/009 **Parallel-safe:** yes **Owner:** 4
 **Touches:** `apps/edge/**`
 **Do:** The Python agent on the Pi (3.11 + uv), built to `docs/03-device-contract.md` (which lands
 in P0 as `HELI-009` — do not rewrite it here; if the contract and reality disagree, fix the contract
@@ -28,7 +28,7 @@ streams media in media mode, and every line of the §10 acceptance checklist in 
 passes.
 
 ### HELI-041 · feat(server): media relay and mjpeg
-**Depends:** P1/014 **Parallel-safe:** yes **Owner:** D
+**Depends:** P1/014 **Parallel-safe:** yes **Owner:** 2
 **Touches:** `apps/server/src/routes/media.ts`, `apps/server/src/media/token.ts`, `apps/server/src/media/audio.ts`
 **Do:** `GET /v1/sessions/:id/media-token` mints a short-lived, session-scoped token (about 60 s)
 so a browser can open the media socket without a cookie header. `GET /v1/sessions/:id/media`
@@ -42,7 +42,7 @@ speechQueueDepth, lastFrameAt, bytesIn, bytesOut }`.
 video and audio with the right tags and metadata, and a forced sample produces a real observation.
 
 ### HELI-042 · feat(edge): led and shutter
-**Depends:** 040 **Parallel-safe:** yes **Owner:** hardware
+**Depends:** 040 **Parallel-safe:** yes **Owner:** 4
 **Touches:** `apps/edge/agent/led.py`, `apps/edge/agent/shutter.py`
 **Do:** The LED ring is the only feedback a screenless device has. `idle` off, `watching` a single
 dim dot, `flagged` **nothing** — do not telegraph that it noticed before the voice speaks —
@@ -54,7 +54,7 @@ person is concentrating is worse than no ring.
 within 200 ms and is reported, and no state animates while `watching`.
 
 ### HELI-043 · feat(edge): barge-in and playback
-**Depends:** 040, P2/022 **Parallel-safe:** yes **Owner:** D
+**Depends:** 040, P2/022 **Parallel-safe:** yes **Owner:** 4
 **Touches:** `apps/edge/agent/audio.py`, `apps/server/src/media/speech.ts`
 **Do:** Receive `audio.out` followed by a tagged `0x02` chunk and play it on the speaker with a
 small buffer; report `spoken` with the moment id when playback finishes. Detect the person speaking
