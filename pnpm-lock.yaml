@@ -316,6 +316,9 @@ importers:
       '@types/react':
         specifier: 19.3.0
         version: 19.3.0
+      babel-preset-expo:
+        specifier: ~54.0.12
+        version: 54.0.12(@babel/core@7.29.7(supports-color@7.2.0))(@babel/runtime@7.29.7)(expo@54.0.37)(react-refresh@0.14.2)(supports-color@7.2.0)
       typescript:
         specifier: 5.9.3
         version: 5.9.3

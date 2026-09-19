@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "expo start",
     "start": "expo start",
-    "android": "expo start --android",
-    "typecheck": "tsc --noEmit"
+    "android": "expo run:android",
+    "typecheck": "tsc --noEmit",
+    "ios": "expo run:ios"
   },
   "dependencies": {
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",
@@ -34,6 +35,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.17",
+    "babel-preset-expo": "~54.0.12",
     "typescript": "5.9.3"
   }
 }
