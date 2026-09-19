@@ -8,11 +8,8 @@ export function Viewport({ sessionId, demo }: { sessionId: string | null; demo: 
         sessionId={demo ? null : sessionId}
         source="camera"
         label="Desk"
-        empty={
-          demo
-            ? 'The demo has no camera. Lumi One’s frames appear here.'
-            : 'No frame from Lumi One yet.'
-        }
+        empty="No frame from Lumi One yet."
+        idle={demo ? 'The demo has no camera. Lumi One’s frames appear here.' : undefined}
         className="aspect-[16/10]"
       />
       <FramePane
@@ -20,11 +17,8 @@ export function Viewport({ sessionId, demo }: { sessionId: string | null; demo: 
         source="screen"
         label="Screen"
         everyMs={3000}
-        empty={
-          demo
-            ? 'The demo has no screen frames.'
-            : 'No screen frame yet — Screen Recording may be off.'
-        }
+        empty="No screen frame yet — Screen Recording may be off."
+        idle={demo ? 'The demo has no screen frames.' : undefined}
         className="aspect-[16/10]"
       />
     </div>

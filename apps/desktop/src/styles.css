@@ -39,3 +39,14 @@
     outline-offset: 2px;
   }
 }
+
+/* Presenter mode, for a projector across the room (Settings, or ⌘⇧P). Projectors crush light greys
+   and thin lines: everything is a quarter larger, faint text is lifted to muted, hairlines darken. */
+:root[data-presenter] body {
+  zoom: 1.25;
+}
+:root[data-presenter] {
+  --text-faint: var(--text-muted);
+  --border: var(--ink-200);
+  --border-strong: var(--ink-300);
+}

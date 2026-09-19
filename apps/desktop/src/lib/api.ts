@@ -86,6 +86,9 @@ function auth(): Promise<string | null> {
   return token
 }
 
+/** The server's base URL, for checks that are not API calls (preflight). */
+export const serverBase = () => BASE
+
 /** The bearer and the socket base, for `lib/socket`. Null when there is no server. */
 export async function socketTarget(): Promise<{ url: string; token: string } | null> {
   const bearer = await auth()
@@ -170,6 +173,8 @@ export const api = {
   draftGoal: (sentence: string) =>
     // The model takes seconds, not milliseconds; the screen shows "Reading your sentence…" meanwhile.
     call('POST', '/goals/draft', GoalDraft.nullable(), () => null, { sentence }, 20_000),
+  closeSession: (id: string) =>
+    call('POST', `/sessions/${encodeURIComponent(id)}/close`, z.unknown(), () => null, {}),
   openSession: (body: OpenSessionRequest) =>
     call('POST', '/sessions', OpenSessionResponse.nullable(), () => null, body),
   renameDesk: (body: DeskRegistration) =>

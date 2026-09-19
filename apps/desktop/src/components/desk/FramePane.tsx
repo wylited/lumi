@@ -12,6 +12,7 @@ export function FramePane({
   label,
   empty,
   everyMs = 1000,
+  idle = 'Frames appear once a session is open.',
   className,
   children,
 }: {
@@ -20,6 +21,8 @@ export function FramePane({
   label: string
   empty: string
   everyMs?: number
+  /** Shown when there is no session to read frames from. */
+  idle?: string
   className?: string
   /** Drawn over the image, e.g. the aim rectangle. */
   children?: ReactNode
@@ -80,7 +83,7 @@ export function FramePane({
         />
       ) : (
         <div className="grid h-full min-h-[140px] place-items-center p-6 text-center text-small text-text-faint">
-          {sessionId ? empty : 'Frames appear once a session is open.'}
+          {sessionId ? empty : idle}
         </div>
       )}
       {url && !stale ? children : null}

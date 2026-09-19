@@ -238,7 +238,7 @@ decision note in `phases/P5-web.md`. Retired rows stay, struck through.
 | ☐ | HELI-060 | `chore(repo): one-command boot` | P0–P5 | **no** | — |
 | ☐ | HELI-061 | `feat(server): demo replay mode` | 060 | yes | — |
 | ☐ | HELI-062 | `docs(repo): the run of show` | 060 | yes | — |
-| ☐ | HELI-063 | `fix(desktop): projector pass` | P3, 074 | yes | desktop+web |
+| ☑ | HELI-063 | `fix(desktop): projector pass` (presenter mode; not yet seen on a real projector) | P3, 074 | yes | desktop+web |
 | ☐ | HELI-064 | `test(repo): end-to-end rehearsal` | all | **no** | — |
 
 ## P7 · Onboarding and the live monitor
@@ -255,7 +255,7 @@ the specification. `071` and `072` unblock it. Full `Do` and `Done when` in
 | ☑ | HELI-073 | `feat(server): the loop's line reaches the desktop` | 044, 048 | **no** | 1 · the loop |
 | ☑ | HELI-074 | `feat(desktop): the live monitor, split` (camera pane verified empty-and-honest; needs the rig for a desk frame; bbox overlay waits on a contracts field) | 071, 032 | yes | 3 · desktop + web |
 | ☑ | HELI-075 | `feat(desktop): the focused element, and a consent screen that matches reality` | 033, 046 | yes, after 046 | 3 · desktop + web |
-| ☐ | HELI-076 | `chore(desktop): preflight and demo reset` | 046 | yes, after 046 | 3 · desktop + web |
+| ☑ | HELI-076 | `chore(desktop): preflight and demo reset` (deep link verified on the bundled app) | 046 | yes, after 046 | 3 · desktop + web |
 
 `047` and `048` belong to P4 and are on `main` now — merged in `a8170fb` and `53d12d3` after sitting
 ticked on their branches. **`073` landed in `345ea06`**: `ws/live-desktop.ts` indexes a desktop by the

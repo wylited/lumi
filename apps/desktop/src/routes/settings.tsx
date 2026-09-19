@@ -4,8 +4,10 @@ import { Button } from '@heli/ui'
 import { Switch } from '../components/goal/Controls'
 import { NeverCapture } from '../components/settings/NeverCapture'
 import { DeskPanel } from '../components/desk/DeskPanel'
+import { Preflight } from '../components/settings/Preflight'
 import { Group, PageTitle, Row } from '../components/kit'
 import { audio, useAudio } from '../lib/audio'
+import { presenterOn, setPresenter } from '../lib/presenter'
 import { native, useRecentSignals, type PermissionState } from '../lib/native'
 
 const STATE: Record<PermissionState['state'], { label: string; className: string }> = {
@@ -19,6 +21,12 @@ export function SettingsRoute() {
   const [deny, setDeny] = useState<string[]>([])
   const [showSignals, setShowSignals] = useState(false)
   const { muted } = useAudio()
+  const [presenter, setPresenterState] = useState(presenterOn())
+  useEffect(() => {
+    const sync = () => setPresenterState(presenterOn())
+    window.addEventListener('lumi:presenter', sync)
+    return () => window.removeEventListener('lumi:presenter', sync)
+  }, [])
   const signals = useRecentSignals()
 
   const check = useCallback(async () => setPerms(await native.permissions()), [])
@@ -34,6 +42,8 @@ export function SettingsRoute() {
   return (
     <div className="mx-auto flex max-w-[720px] flex-col gap-8 px-10 pb-16 pt-2">
       <PageTitle>Settings</PageTitle>
+
+      <Preflight />
 
       <DeskPanel />
 
@@ -60,6 +70,12 @@ export function SettingsRoute() {
             </Row>
           ))
         )}
+      </Group>
+
+      <Group title="Display">
+        <Row label="Presenter mode" detail="Larger, higher contrast — for a projector. ⌘⇧P">
+          <Switch label="Presenter mode" checked={presenter} onChange={(on) => setPresenter(on)} />
+        </Row>
       </Group>
 
       <Group title="Voice">

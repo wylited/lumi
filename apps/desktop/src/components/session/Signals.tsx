@@ -17,7 +17,7 @@ export function Signals() {
       </button>
       {open ? (
         <ol
-          className="flex flex-col gap-0.5 rounded-md bg-surface px-4 py-3 font-mono text-[11.5px] text-text-muted"
+          className="flex flex-col gap-0.5 rounded-md bg-surface px-4 py-3 font-mono text-[12px] text-text-muted"
           data-selectable
         >
           {signals.length === 0 ? (

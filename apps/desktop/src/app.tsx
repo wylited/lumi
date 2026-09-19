@@ -4,14 +4,17 @@ import { Sidebar, ROUTES, type Route, type SidebarStatus } from './components/sh
 import { TitleBar } from './components/shell/TitleBar'
 import { useDataSource } from './lib/api'
 import { audio } from './lib/audio'
-import { derive, useLive } from './lib/live'
+import { derive, live, useLive } from './lib/live'
 import { native } from './lib/native'
 import { setTray } from './lib/tray'
 import { GoalRoute } from './routes/goal'
 import { HistoryRoute } from './routes/history'
 import { SettingsRoute } from './routes/settings'
 import { SetupRoute } from './routes/setup'
-import { setupDone } from './lib/setup'
+import { markSetupDone, setupDone } from './lib/setup'
+import { presenterOn, setPresenter } from './lib/presenter'
+import { onOpenUrl } from '@tauri-apps/plugin-deep-link'
+import { isTauri } from '@tauri-apps/api/core'
 import { LiveRoute } from './routes/live'
 
 const LAST_ROUTE = 'heli.route'
@@ -37,6 +40,24 @@ export function App() {
   }, [])
   const source = useDataSource()
 
+  // heli://demo?scenario=drifting (or lumi://) starts that scenario, for a shortcut on the demo Mac.
+  useEffect(() => {
+    if (!isTauri()) return
+    const unlisten = onOpenUrl((urls) => {
+      for (const raw of urls) {
+        const url = new URL(raw)
+        if (url.hostname !== 'demo') continue
+        const scenario = url.searchParams.get('scenario') === 'focused' ? 'focused' : 'drifting'
+        markSetupDone()
+        setSetup(false)
+        setRoute('live')
+        live.end()
+        live.startDemo(scenario)
+      }
+    })
+    return () => void unlisten.then((u) => u())
+  }, [])
+
   const navigate = useCallback((next: Route) => {
     setRoute(next)
     try {
@@ -44,6 +65,18 @@ export function App() {
     } catch {
       // per-viewer convenience only
     }
+  }, [])
+
+  // ⌘⇧P toggles presenter mode, for the projector.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey && e.shiftKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault()
+        setPresenter(!presenterOn())
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   // ⌘1–4, like every Mac app with a sidebar.
