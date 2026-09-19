@@ -1,8 +1,8 @@
 # Lumi
 
 <!--
-  TODO(hero): one wide image, around 1600x900. The unit on a desk, the desktop app open behind it,
-  the phone beside it. Save it as docs/media/hero.png and the line below starts working.
+  TODO(hero): one wide image, approximately 1600x900. The unit on a desk, the desktop app open
+  behind it, the phone beside it. Save it as docs/media/hero.png and the line below will render.
 
   Material already in the tree:
     apps/web/public/unit/    stills of the unit
@@ -12,29 +12,29 @@
 
 ![the desk robot](docs/media/hero.png)
 
-A desk robot for one person trying to finish one thing. It watches you work, and when you drift away from the goal you set, it does something about it.
+Lumi is a desk robot that helps one person finish what they sat down to do. It observes the desk through a camera and the computer through a desktop app, with a phone app covering the hours spent away from both. When the work drifts away from the goal that was set, it intervenes.
 
-The camera is on a robotic arm, and that's the reason it can do more than record. The arm turns to point at the page you're stuck on, and it can follow you around the room instead of staring at an empty chair. There's a speaker for the moments when a notification isn't enough, and the frames it captures land on your own server.
+The camera is mounted on a robotic arm, and the arm is what separates this from a webcam. It can turn to point at the page being worked on, and it can follow the person around the room rather than holding on an empty chair. A speaker carries the spoken reminders, and every frame it captures is stored on your own server.
 
-The desktop app is where your goal lives, and it's the half that watches the computer: which app is in front, what the window title says, how much you're typing, whether you've gone idle. Counts and titles, never keystrokes, never the contents of a page. The live view fills in one minute at a time so you can watch it make up its mind.
+The desktop app holds the goal and observes the computer: the frontmost application, the window title, how much typing is happening, and whether the machine has gone idle. It reads counts and titles, never keystrokes and never the contents of a page. The live view fills in one minute at a time, so each decision can be inspected as it is made.
 
-Your phone covers the hours the desk can't see. On Android it reads app time and unlock counts, and if you open something the goal blocks it sends you Home with an undo sitting right there on the notification. iOS doesn't hand an app other apps' usage, so the phone tells you what it can't see instead of guessing.
+The phone covers the hours the desk cannot see. On Android it reads per-app time and unlock counts, and an application the goal blocks is sent to the Home screen with an Undo on the notification for when the decision was wrong. iOS does not expose other applications' usage, so the app states what it cannot see rather than implying otherwise.
 
-## When you drift
+## Intervention
 
-Most minutes it does nothing, which is the point; a quiet session means it's working, not that it's asleep.
+Most minutes produce nothing, and that is intended. A quiet session is evidence that the system is working, not that it has stopped paying attention.
 
-When it does act it starts small. The tray icon changes colour; if that doesn't bring you back, you get a notification with a button on it; after that it says a sentence out loud. Touching your computer is the last resort, and only where the goal allowed it. The app shows anything that changes your machine, undoes it in a click, and records what you did next. That last part is how `/v1/analytics/tiers` can tell you which channel actually works on you.
+When it does act, it begins quietly. The tray icon changes colour; if the drift continues, a notification arrives with an action attached to it; only after that does it speak a sentence aloud. Changing something on the computer is the last resort, and the goal must permit it. Anything that changes the machine is displayed in the app, reversed in one click, and recorded alongside what happened next, which is how `/v1/analytics/tiers` can report which channel actually resolves a drift.
 
-## Worth knowing
+## Implementation notes
 
-The boundary between TypeScript and Python is one file. `packages/contracts` is zod, compiled to TypeScript for the server and the apps and to JSON Schema for the rig, so the two sides can't quietly disagree; a drift turns up as a failing test instead of as a mystery in a socket.
+The boundary between TypeScript and Python is a single file. `packages/contracts` is zod, compiled to TypeScript for the server and the clients and to JSON Schema for the rig, so the two sides cannot disagree without a test failing first.
 
-One arm, one driver. `arm.aim`, `arm.point` and `arm.home` pause the pose tracker while they run, and the rig refuses to track while the operator console is driving the arm. Two things commanding one servo chain is the failure this avoids.
+One arm has one driver at a time. `arm.aim`, `arm.point` and `arm.home` pause the pose tracker for as long as they run, and the rig refuses to track while the operator console is driving the arm; two things commanding one servo chain is the failure this prevents.
 
-The tracker ignores anything under 4% of the frame, so a person sitting still doesn't get chased by a camera twitching at keypoint noise.
+The tracker ignores movement below 4% of the frame, so a person sitting still is not chased by a camera reacting to keypoint noise.
 
-There's no demo mode and no offline stand-in, on purpose. Without a DeepSeek key the server still serves HTTP, and the log names the key it's missing.
+There is no demo mode and no offline stand-in. Without a DeepSeek key the server still serves HTTP, and the log names the key that is missing.
 
 ## Running it
 
@@ -42,13 +42,13 @@ There's no demo mode and no offline stand-in, on purpose. Without a DeepSeek key
 ./scripts/demo.sh
 ```
 
-It brings up Postgres and MinIO, pushes the schema, seeds the one user and the machine, starts the API, the storefront and the desktop app, then prints the URLs. Run it again whenever: it stops what it started last time rather than stacking up processes.
+The script brings up Postgres and MinIO, applies the schema, seeds the single user and the machine, starts the API, the storefront and the desktop app, and prints the URLs. Re-running it is safe: it stops the processes it started previously instead of leaving duplicates behind.
 
-`./scripts/verify.sh` runs lint, typecheck and the tests, then hits the routes and checks both UIs. When a check can't run it exits 3 instead of 0, so a green result actually means something.
+`./scripts/verify.sh` runs lint, typecheck and the tests, then checks the routes and both interfaces. It exits 3 rather than 0 when a check cannot run, so a passing result means every check was actually performed.
 
-Keys go in `apps/server/.env`, and only the server holds one.
+Keys belong in `apps/server/.env`, and no component other than the server holds one.
 
-## Where things live
+## Repository layout
 
 ```
 apps/edge            the rig. Python, camera, arm, speaker
@@ -59,4 +59,4 @@ apps/web             the storefront. Next.js
 packages/contracts   the schemas both languages share
 ```
 
-The npm scope is still `@heli` and the repo is still called Helicopter; the product got a name and the packages didn't. `AGENTS.md` is the working agreement, `docs/00-architecture.md` has the drawings, and `docs/COMMITS.md` is the ledger.
+The npm scope remains `@heli` and the repository is still named Helicopter; the product name changed and the packages did not. `AGENTS.md` is the working agreement, `docs/00-architecture.md` contains the drawings, and `docs/COMMITS.md` is the ledger.
