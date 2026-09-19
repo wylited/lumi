@@ -1,12 +1,12 @@
 # Commit ledger
 
-Every unit of work, claimable. Read `AGENTS.md` first — especially **one commit owns a file; two
-open commits never touch the same path.**
+Every unit of work, with what it touches and what it needs. Read `AGENTS.md` first — especially
+**one commit owns a file; two works in progress never touch the same path.**
 
 ## Start here
 
 The phase docs are the atomic specification — full `Do`, `Done when`, exact `Touches`, and handoff
-notes for every commit below. Read your phase before you claim anything.
+notes for every commit below. Read your phase entry before you start.
 
 | phase | doc | owner |
 |---|---|---|
@@ -20,22 +20,21 @@ notes for every commit below. Read your phase before you claim anything.
 | P7 | [`phases/P7-onboarding-and-live.md`](./phases/P7-onboarding-and-live.md) | **2 · server** and **3 · desktop + web** |
 | policy | [`02-intervention-policy.md`](./02-intervention-policy.md) | 1 |
 
-**How a person works with agents.** Each owner runs one agent per commit, not per phase. An agent
-gets exactly one row: the phase doc entry, its `Touches`, and that entry's `Done when`. It commits
-only inside those paths. If two rows in your phase share a file, they are sequential — the ledger
-says so — so give them to the same agent in order. You review and merge. You do not let an agent
-pick its own scope, and you do not let two agents touch one file.
+**How a person works with agents.** Each owner runs one agent per row, not per phase. An agent gets
+exactly one row: the phase doc entry, its `Touches`, and that entry's `Done when`. It commits only
+inside those paths. If two rows in your phase share a file, they are sequential — the ledger says so
+— so give them to the same agent in order. You do not let an agent pick its own scope, and you do not
+let two agents touch one file.
 
 ---
 
-## How to claim
+## How to work
 
-1. Pick a row whose **Depends** are ticked and whose **Owner** is `—`.
-2. Put your name in Owner. Commit that one-line edit immediately: `chore(ledger): claim HELI-021`.
-3. `git checkout -b heli-021`, do only that commit, PR titled exactly the commit message.
-4. Merge, then tick **Done**.
+1. Pick a row whose **Depends** are done.
+2. Do it, straight on `main` — no branch, no claim step, no PR.
+3. Commit, then tick **Done**.
 
-Blocked more than 15 minutes? Drop the claim and say so out loud.
+Blocked more than 15 minutes? Say so out loud.
 
 **Critical path:** `001 → 010 → 020 → 021 → 025`. Everything else exists to keep other people out
 of that chain.
@@ -281,7 +280,7 @@ Four of you. Five phases. So **desktop and web sit together** — the product an
 sharing `@heli/tokens` and `@heli/ui` — and the loop is its own person because it is the critical
 path.
 
-| who | phase(s) | claim | notes |
+| who | phase(s) | rows | notes |
 |---|---|---|---|
 | **1 · the loop** | P2 | 020, 021, 023, 024, 025, 026 | the critical path. Protect this person from everything else. |
 | **2 · server** | P1 (+ media relay) | 010–018, 041 | server core. Start the moment P0 lands. |
@@ -295,18 +294,18 @@ Reading order for each person. Everything above is either ticked or listed here.
 
 | who | next | why |
 |---|---|---|
-| **1 · the loop** | P2 is done. Take **`061`** (replay mode) — the demo fallback drives the same bus the loop already publishes on — then **`062`** (the run of show). | The critical path is clear; the demo fallback is the highest-value unclaimed work. |
+| **1 · the loop** | P2 is done. Take **`061`** (replay mode) — the demo fallback drives the same bus the loop already publishes on — then **`062`** (the run of show). | The critical path is clear; the demo fallback is the highest-value open work. |
 | **2 · server** | **`071`** (per-source frames), then **`072`** (goal drafting) — both start immediately. Then **`060`** (one-command boot). | `071` is the bug that would show a screenshot as the page; `072` is what `046` renders. |
 | **3 · desktop + web** | **`046`** (the three screens, after `072`), then **`074`** (the monitor, after `071`), then **`075`** and **`076`**, then **`063`**. | The onboarding and the monitor are the demo; everything else in this lane is done. |
-| **4 · hardware + rig** | **`042`** (record the calibration rect, then `point(x, y)`), then **`045`** end-to-end: `044` has landed, so a real action can arrive from this server. | Both rows are unclaimed because their `Done when` lines are not met; the remaining distance is one bench session. |
-| **all four** | P6: `060` one-command boot, `061` replay, `062` run of show, `063` projector, `064` rehearsal. Claim these early. | They are what make the demo survive the room. |
+| **4 · hardware + rig** | **`042`** (record the calibration rect, then `point(x, y)`), then **`045`** end-to-end: `044` has landed, so a real action can arrive from this server. | Both rows are open because their `Done when` lines are not met; the remaining distance is one bench session. |
+| **all four** | P6: `060` one-command boot, `061` replay, `062` run of show, `063` projector, `064` rehearsal. Start these early. | They are what make the demo survive the room. |
 
 `022` (speech out) is the server-side piece the loop needs; it lands inside P2 as written. The old
 `041` media relay is retired with the Pi — frame intake is now `041` in the new P4.
 
-## Unclaimed, and what is left
+## What is left
 
-`042` and `045` are back to **unclaimed** on the row's own owner slot, because their `Done when`
+`042` and `045` are still open, because their `Done when`
 lines are not met and whoever takes them next should not have to argue with a tick:
 
 - **`042`** — the arm adapter, the aiming, and now the calibration recording all landed and are

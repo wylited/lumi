@@ -1,6 +1,6 @@
 # Runbook
 
-Operations for a four-person team. Read `AGENTS.md` first, claim from `docs/COMMITS.md`.
+Operations for a four-person team. Read `AGENTS.md` first; the ledger is `docs/COMMITS.md`.
 This file is the only place we keep the "why is it broken on my machine" answers.
 
 ---

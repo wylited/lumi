@@ -4,7 +4,7 @@
 your greys.
 
 This phase is not feature work. Every commit here is about the demo surviving contact with a real
-room. Claim these early in the day, not at hour 34.
+room. Start these early in the day, not at hour 34.
 
 ---
 

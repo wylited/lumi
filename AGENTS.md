@@ -37,22 +37,18 @@ then frozen. Extending them is its own commit.
 
 ---
 
-## Claiming work
+## How work lands
 
-`docs/COMMITS.md` is the ledger. Every commit has an id (`HELI-###`), a dependency list and an
-owner column.
+`docs/COMMITS.md` is the ledger. Every commit has an id (`HELI-###`), a dependency list and a lane.
 
 ```
-1. Pick a commit whose Depends are all merged and whose Owner is unclaimed.
-2. Put your name in the Owner column. Commit that edit alone, immediately:
-   chore(ledger): claim HELI-023
-3. Branch: git checkout -b heli-023
-4. Do only that commit. Nothing else. No drive-by fixes.
-5. PR titled exactly the commit message. Merge. Tick it in the ledger.
+1. Pick a row whose Depends are all done.
+2. Do it. Only it — no drive-by fixes.
+3. `pnpm lint` and `pnpm typecheck` pass at the root, its `Done when` line is literally true.
+4. Commit straight to main and push. Tick the row.
 ```
 
-Four people are working at once. If you are blocked for more than 15 minutes, drop the claim and
-say so.
+No branches, no claim step, no PR. If you are blocked for more than 15 minutes, say so.
 
 ---
 
@@ -72,7 +68,7 @@ HELI-021
 Types: `feat` `fix` `refactor` `chore` `docs` `test` `style`.
 Scopes: `server` `desktop` `rig` `web` `contracts` `tokens` `ui` `repo` `ledger`.
 
-One commit = one entry in the ledger = one PR.
+One commit = one entry in the ledger. Work on main.
 
 ---
 
@@ -97,7 +93,7 @@ hand-write a type that duplicates one in contracts.
 gets a short-lived token at most. If you are about to put a provider key in a client, you have
 taken a wrong turn.
 
-**No raw colour.** Every colour comes from `@heli/tokens`. A hardcoded `#0FA36B` in a PR is a
+**No raw colour.** Every colour comes from `@heli/tokens`. A hardcoded `#0FA36B` in a diff is a
 request for change, not a nitpick. Same for spacing and radii.
 
 **The model proposes; the policy disposes.** Every observation is a schema-validated
