@@ -232,6 +232,15 @@ export const MobileSession = z
     /** The latest judgement of the session: on the goal, off it, or none yet. */
     state: z.enum(['focused', 'off_goal', 'waiting']),
     judgedAt: z.string().nullable(),
+    /**
+     * The session so far, oldest first, one entry per judged window (a minute): whether it was on
+     * the goal (null when nothing could be judged) and the tier that followed. The phone draws it
+     * as the ring.
+     */
+    timeline: z
+      .array(z.object({ on: z.boolean().nullable(), tier: z.number().int().min(0).max(5) }).strict())
+      .max(240)
+      .default([]),
     blocklist: MobileBlocklist,
     /** Null before this phone's first signal reaches a server that is still up. */
     phone: PhoneSnapshot.nullable(),

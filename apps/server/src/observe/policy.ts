@@ -250,12 +250,17 @@ function ambientReason(canNudge: boolean, nudgeDue: boolean): string {
   return 'max_tier'
 }
 
+/** The goal in the person's words, quoted once: a goal that already carries quotes is not wrapped. */
+function quoted(objective: string): string {
+  return /["“”]/.test(objective) ? objective : `"${objective}"`
+}
+
 function nudgeMessage(goal: Goal): string {
-  return `You have drifted from "${goal.objective}". Want to get back to it?`
+  return `You have drifted from ${quoted(goal.objective)}. Want to get back to it?`
 }
 
 function speechMessage(goal: Goal): string {
-  return `You have been off task for a bit. Let's return to "${goal.objective}".`
+  return `You have been off task for a bit. Let's return to ${quoted(goal.objective)}.`
 }
 
 function automationMessage(action: Automation): string {

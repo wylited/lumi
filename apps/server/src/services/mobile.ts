@@ -351,8 +351,8 @@ export async function phoneSession(phoneId: string): Promise<MobileSession> {
       goal: { select: { objective: true, timeBudgetMinutes: true } },
       observations: {
         orderBy: { ts: 'desc' },
-        take: 1,
-        select: { ts: true, assessment: true },
+        take: 240,
+        select: { ts: true, assessment: true, tier: true },
       },
     },
   })
@@ -369,6 +369,10 @@ export async function phoneSession(phoneId: string): Promise<MobileSession> {
       : null,
     state: typeof onTask === 'boolean' ? (onTask ? 'focused' : 'off_goal') : 'waiting',
     judgedAt: latest ? latest.ts.toISOString() : null,
+    timeline: [...(row?.observations ?? [])].reverse().map((o) => {
+      const on = (o.assessment as { onTask?: unknown } | null)?.onTask
+      return { on: typeof on === 'boolean' ? on : null, tier: Math.max(0, Math.min(5, o.tier)) }
+    }),
     blocklist: await phoneBlocklist(),
     phone: phoneSnapshot(phoneId),
   }
