@@ -134,3 +134,36 @@ async def test_a_refusal_that_is_not_401_is_not_refreshed(tmp_path):
         assert [h["token"] for h in desk.handshakes] == ["stale"]
     finally:
         await desk.close()
+
+
+# ------------------------------------------------------------------ the verdict
+
+def test_the_verdict_is_the_worst_finding():
+    """The exit code is what a setup script gates on, so it has to be the whole report's verdict.
+
+    0 ready, 1 runs but degraded, 2 blocked — and `--doctor`'s docstring, `SETUP.md` and the
+    `Exit code:` line it prints all promise exactly this. A verdict that took the *last* finding, or
+    that counted warnings as failures, would send an agent down a path that does not exist: a rig
+    with no arm is a rig that works, and a rig whose camera never opened is not.
+    """
+    from heli_rig.doctor import FAIL, OK, WARN
+
+    ready = Report()
+    ready.add(OK, "server", "answered")
+    assert ready.verdict == 0
+
+    degraded = Report()
+    degraded.add(OK, "server", "answered")
+    degraded.add(WARN, "arm", "no arm", "plug one in")
+    assert degraded.verdict == 1, "a warning is not a blocker"
+
+    blocked = Report()
+    blocked.add(WARN, "arm", "no arm", None)
+    blocked.add(FAIL, "camera", "no frame", "check the permission")
+    assert blocked.verdict == 2, "a failure is the verdict whatever came before it"
+
+    # And order does not matter: the verdict is a property of the set, not of the last line printed.
+    reversed_order = Report()
+    reversed_order.add(FAIL, "camera", "no frame", None)
+    reversed_order.add(WARN, "arm", "no arm", None)
+    assert reversed_order.verdict == 2

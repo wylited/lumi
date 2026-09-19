@@ -1,5 +1,10 @@
 # `apps/edge` — the rig
 
+> **Setting this up on a machine that has never run it? Read [`SETUP.md`](./SETUP.md) instead of
+> this file.** It is the ordered guide — install, permissions, starting the rig, opening a session,
+> and what the desktop app should look like at each step — with the command that fixes each failure.
+> This file is the reference: what the rig is, every setting, and what it cannot do.
+
 The Mac's half of Helicopter. It takes one frame at a time off the camera and posts it to the
 server, and the rest of the rig hangs off the same settings: the arm that aims the camera, and the
 speaker that plays the line. Python 3.12+, headless, managed by `uv`.
@@ -43,125 +48,29 @@ uv run --env-file .env heli-rig             # from the file you copied .env.exam
 ```
 
 `--doctor` is the machine check: it walks every requirement in the order they fail and prints the
-command that fixes each wrong line. The setup guide below is the same thing in prose.
+command that fixes each wrong line. [`SETUP.md`](./SETUP.md) is the same thing in prose, in order.
 
 ## Setting up a machine that has never run this
 
-The whole rig is one directory and one command. What follows is the order that works, and what each
-step is actually waiting for.
-
-### 1. The stack (server + database + app)
-
-From the repo root, on the machine that will hold the database:
-
-```bash
-./scripts/demo.sh --detach      # Docker, the schema, the seed, the API, the storefront, the desktop
-```
-
-It prints the URLs when it is up. If the observe loop reports `OFF — missing: <key>`, that is the
-server telling you which provider key it wants; the rig does not need one.
-
-### 2. The rig
+See **[`SETUP.md`](./SETUP.md)** — the ordered guide, with the check and the fix for each step. The
+short version, for a machine whose stack is already up:
 
 ```bash
 cd apps/edge
-uv sync                         # Python 3.12+; uv fetches the interpreter if the machine has none
-uv run heli-rig --doctor        # what this machine has, and the command that fixes what it has not
+uv sync                       # the camera, the pose model, the control law, the desk socket
+uv run heli-rig --doctor      # read it top to bottom; the first `fail` is the thing to fix
+HELI_CAMERA_SOURCE=opencv uv run heli-rig
 ```
 
-`uv sync` is the whole install. It brings the camera, the pose model (`models/yolo11n-pose.onnx`,
-committed in the tree), the control law and the desk socket — no torch, no second virtualenv, no
-system Python packages.
+Three things about that are not obvious, and each is a step in `SETUP.md`:
 
-`--doctor` then walks every requirement in the order they fail, and under each wrong line prints the
-command that fixes it. Read it top to bottom; the first `fail` is the thing to fix.
-
-### 3. The two things the repo cannot install for you
-
-Everything above is in the tree. Two things are not, and the doctor names whichever is missing.
-
-**macOS Camera permission.** The process that opens the device needs it: System Settings → Privacy &
-Security → Camera, for the terminal (or app) that runs the rig. Without it the camera opens and
-returns nothing, which reads as a broken camera.
-
-**An arm.** This is the real dependency, and it is worth being blunt about it. The rig can *aim* an
-arm through one of two routes, and both need something outside this repo:
-
-| route | what it needs | how to point the rig at it |
-|---|---|---|
-| the operator console | the `tracking` project running `bun ui/server.ts` — it owns the serial bus and supervises `armd` | `HELI_CONSOLE_URL` (default `http://127.0.0.1:8643`). `HELI_ARM_DRIVER=auto` prefers it whenever it answers |
-| the serial bridge | the same project, plus an interpreter with `lerobot` in it | `HELI_BRIDGE_DIR` (default `~/Repos/tracking`) and `HELI_BRIDGE_PYTHON` if its `.venv` is elsewhere |
-
-That project is **not** in this repo and has no remote, so a machine that has never had it cannot
-`git clone` it: it has to be copied across (`scp -r`, a shared drive) along with its two virtualenvs,
-and then started with `bun ui/server.ts` from its own directory. The rig's arm half is otherwise
-complete and tested — it is the bus, and only the bus, that lives outside.
-
-`lerobot` is what knows this arm's Feetech STS3215 chain, its homing offsets and its EEPROM travel
-limits. It is not vendored here on purpose: it drags in torch and pins `numpy<2.3`, which would slow
-the detector down for every rig that has no arm. It is declared as an optional extra
-(`uv sync --extra arm`) for the slice that owns the bus directly; today the rig reaches the arm
-through the console or a bridge process, both of which are the tracking project.
-
-**Without either route the rig is still a rig.** `HELI_ARM_DRIVER=none` (or nothing answering)
-registers `arm: null`, the server sends it no `arm.*` action, and the camera, the frames, the upload
-and the spoken line all keep working. What does not work is aiming, pointing and following.
-
-### 4. Watch something
-
-The seed is the bootstrap — one person, one machine — and no session. A session is what frames attach
-to, so open one from the app: **the desktop's setup flow opens it when you press Start watching**
-(`apps/desktop/src/routes/setup.tsx`). Until then every frame is answered `409 no_open_session` and
-the rig slows to a fifth of its cadence rather than stopping.
-
-### 5. The camera
-
-`HELI_CAMERA_SOURCE` decides, and the answer for lumi is **`opencv`**:
-
-- **`opencv`** opens the UVC device itself (`HELI_CAMERA_INDEX`, `0` on this Mac) and uploads clean
-  footage. **Use this one.**
-- `console` takes the frame the tracking console serves at `http://127.0.0.1:8643/api/frame.jpg`,
-  which has the tracker's green bounding box, magenta chest crosshair and its `id … fps … ms` text
-  **drawn into the pixels**. The rig uploads exactly the bytes it is handed, so an observer's frame
-  from the console arrives with another program's annotations on it (verified on this bench: same
-  desk, overlay visible; `opencv` gives the same desk clean).
-- `auto` (the default) prefers the console's frame when one is less than 5 s old and falls back to
-  the device, and says which it took:
-
-```
-camera: the console's frame, 640x480 camera: USB Camera
-camera: no console frame (no console at http://127.0.0.1:8643: ...); opening AVFoundation index 0 instead
-```
-
-Any camera the console is not holding can be opened directly — `[1] FaceTime HD` is free on this Mac,
-so it works with the console still running:
-
-```bash
-HELI_CAMERA_SOURCE=opencv HELI_CAMERA_INDEX=1 uv run heli-rig
-```
-
-```
-camera: AVFoundation index 1, 1920x1080 camera: AVFoundation camera 1
-```
-
-The device delivers 1920×1080; the rig downscales by a whole factor (2) and uploads 960×540, because
-the server refuses anything over `HELI_MAX_EDGE_PX` (1600 by default) or 2 MB.
-
-OpenCV does not report a device name through AVFoundation, so a directly-opened camera is named by
-its index. That is thin, but it is true — the console's frames come with the device's real name.
-
-**When the camera goes away** — unplug it, or stop the console — the rig logs the reason once and
-keeps running, retrying every 5 s:
-
-```
-WARNING heli_rig.capture: camera USB Camera: the console did not answer /api/frame.jpg: ...; retrying every 5s
-INFO    heli_rig.capture: camera is back: 640x480 camera: USB Camera
-```
-
-It never exits on a camera. It reopens the source on every retry, so a console restart or a
-re-plugged device is picked up without restarting the rig.
-
----
+- **The rig is a program you start.** The desktop app has no camera code; it polls
+  `GET /v1/sessions/:id/frame.jpg` and draws what comes back. Nothing starts the rig for you —
+  not `demo.sh`, not the app — so an empty desk pane is nearly always "the rig is not running".
+- **`HELI_CAMERA_SOURCE=opencv`, not the default `auto`.** `auto` prefers the tracking console's
+  frame, which has another program's bounding box, crosshair and text drawn into the pixels.
+- **An arm needs the `tracking` project**, which is not in this repo and has no remote. Without it
+  the rig is still complete — it registers `arm: null` and frames, uploads and speech all work.
 
 ## Settings
 
