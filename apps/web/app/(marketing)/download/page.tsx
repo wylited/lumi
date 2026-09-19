@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Tour } from '@/components/marketing/Tour'
-import { DOWNLOAD } from '@/lib/product'
+import { DOWNLOAD, PHONE } from '@/lib/product'
 
 export const metadata: Metadata = {
   title: 'Desktop app',
@@ -12,6 +12,12 @@ const PERMISSIONS = [
   { name: 'Screen Recording', reads: 'Window titles, and a small screen frame at most every ten seconds.', never: 'Password managers, banking apps, or the lock screen.' },
   { name: 'Input Monitoring', reads: 'How often you type and click, counted per 30 seconds.', never: 'Which keys. Not one character.' },
   { name: 'Accessibility', reads: 'Which part of the front app has focus.', never: 'What is written in it.' },
+] as const
+
+const PHONE_STEPS = [
+  { step: 'Install', detail: 'Download the app on the phone and open it. One tap past Android’s warning about an unknown source.' },
+  { step: 'Get a code', detail: 'In the desktop app, open setup or Settings and ask for a pairing code.' },
+  { step: 'Pair', detail: 'Type the Mac’s address and the six digits. The desktop shows the phone the moment it lands.' },
 ] as const
 
 export default function DownloadPage() {
@@ -50,6 +56,43 @@ export default function DownloadPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="mx-auto flex max-w-[var(--max-content)] flex-col gap-10 px-5 pt-32">
+        <div className="flex flex-col gap-3">
+          <span className="text-body text-text-faint">{PHONE.version} · Android</span>
+          <h2 className="text-display-2 font-semibold text-text">The desk follows you to the phone.</h2>
+          <p className="max-w-[56ch] text-body text-text-muted">
+            The Lumi app pairs with the desk over your Wi-Fi. It reports what Android honestly allows —
+            time in each app, unlocks, still or walking — and receives nudges and spoken lines when you
+            carry the phone away from the screen.
+          </p>
+        </div>
+
+        <div className="grid gap-px overflow-hidden rounded-[20px] border border-border bg-border md:grid-cols-3">
+          {PHONE_STEPS.map((s, i) => (
+            <div key={s.step} className="flex flex-col gap-4 bg-bg p-7">
+              <span className="tnum text-caption text-text-faint">Step {i + 1}</span>
+              <span className="text-title-3 font-semibold text-text">{s.step}</span>
+              <p className="text-body text-text-muted">{s.detail}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-col items-start gap-3 md:flex-row md:items-center">
+          <a
+            href={PHONE.url}
+            className="rounded-pill bg-text px-6 py-3 text-body-strong font-medium text-bg hover:opacity-85"
+          >
+            Download for Android
+          </a>
+          <span className="text-small text-text-faint">{PHONE.requires}</span>
+        </div>
+
+        <p className="max-w-[62ch] text-small text-text-faint">
+          Android sees app time and unlocks; iOS does not allow that without Apple’s Screen Time
+          entitlement, so on iPhone the app speaks and nudges and says exactly what it cannot see.
+        </p>
       </section>
 
       <section className="mx-auto max-w-[var(--max-content)] px-5 py-32">

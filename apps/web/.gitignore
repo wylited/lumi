@@ -2,3 +2,7 @@
 next-env.d.ts
 *.tsbuildinfo
 .data/
+
+# Built from apps/mobile and served locally; too large for the repo, and it is
+# a build artifact, not a source file.
+public/downloads/*.apk
