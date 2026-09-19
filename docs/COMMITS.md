@@ -151,10 +151,27 @@ server owns intake, actions and persistence. Full detail, including the Python i
 | ☐ | HELI-044 | `feat(server): desks, the desk socket, and actions with acks` | 043, 041 | **no** | 2 |
 | ☐ | HELI-045 | `feat(edge): the action client and audio playback` | 042, 044 | yes | 4 · hardware + rig |
 | ☐ | HELI-046 | `chore(desktop): desk setup and the desk panel` | 044 | yes | 3 |
+| ☐ | HELI-047 | `feat(contracts): the line reaches the desk` | 043 | yes | 4 · hardware + rig |
+| ☐ | HELI-048 | `feat(server): the observe loop starts` | 020 | **no** | 4 · hardware + rig |
 
 `041` landed in `879a5d9` as a draft and was reviewed and finished by owner 2; its `Done when` is
 proved with curl uploads, so it does not wait on `040`'s rig agent. `043` is the contracts gate: nothing desk-shaped should be
 written before it lands.
+
+`047` is an addendum to `043` (`b7ae2cd`), which carries actions down `/ws/desk` and no audio.
+`docs/03-desk-capture.md` says the rig plays the line — "Speech is played on the Mac" — and `045`
+is written against that, so the desk socket gains `ApiDeskAudioOut` (an `audio.out` header and then
+the tagged `0x02` PCM that follows it, exactly as the device contract had it) and `result.durationMs`
+on the ack. Additive: nothing that already read `ApiToDesk` or `DeskActionResult` changes shape.
+**`044` owes the send**, on its own row: with the socket connected, an `audio.out` header then the
+`0x02`-tagged PCM, one line at a time. The rig half is `045`.
+
+`048` starts the loop, which no commit did: `createLoopRuntime(...)` and `scheduler.start()` were
+never called, so nothing was ever assessed outside a test. `outbound.ts` (from `d2c84a7`) builds the
+senders from one lookup — session id in, live desk socket out — and **nothing in the tree can answer
+it yet**: the desk socket is `044`'s and `ws/desktop.ts` keeps its connections private behind no
+session index. Until one of them exposes that lookup the loop records every line as undelivered,
+which is what its log says, one line per drop.
 
 ## P5 · Web — the storefront
 
