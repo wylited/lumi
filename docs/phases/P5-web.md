@@ -11,7 +11,7 @@ landing page. Read-only over the session.
 
 ### HELI-050 · feat(web): next app shell
 **Depends:** P0 **Parallel-safe:** no, blocks P5 **Owner:** 3
-**Touches:** `apps/web/app/layout.tsx`, `apps/web/app/globals.css`, `apps/web/next.config.ts`, `apps/web/postcss.config.mjs`, `apps/web/package.json`
+**Touches:** `apps/web/app/layout.tsx`, `apps/web/app/globals.css`, `apps/web/app/(app)/layout.tsx`, `apps/web/app/kitchen-sink/**`, `apps/web/next.config.ts`, `apps/web/postcss.config.mjs`, `apps/web/package.json`, `apps/web/tsconfig.json`, `apps/web/components/shell/**`, `apps/web/lib/api.ts`, `apps/web/lib/format.ts`, `apps/web/.gitignore`
 **Do:** Next 15 App Router. Tailwind v4 using `@heli/tokens` (`@theme inline`, so the role colours
 follow the live theme). Import `tokens.css` and `tailwind.css` in the root layout. The two brand
 fonts via `@fontsource-variable`. A `data-surface="console"` surface for anything dark-pinned.
@@ -58,6 +58,18 @@ feed (the media relay) and the command panel (capture, stream, led, identify), r
 plane.
 **Done when:** the QR pairs a device in one scan, rotating invalidates the old code, and the live
 feed shows real frames.
+
+### HELI-055 · feat(fixtures): contract-shaped demo data
+**Depends:** 004 **Parallel-safe:** yes **Owner:** 3
+**Touches:** `packages/fixtures/**`
+**Do:** `@heli/fixtures` — every read the desktop and web make, as data that parses through the
+`@heli/contracts` schemas: the seeded goal, the 40-minute study session (the same story as
+`prisma/seed.ts`), a week of history, the analytics responses, the devices, and a live drift
+generator that emits `LiveEvent`s. Both apps read through their `api` module, which falls back to
+these when `NEXT_PUBLIC_HELI_API` / `VITE_HELI_API` is unset or the server is unreachable — so the
+surfaces are demoable before P1 lands and after the wifi dies.
+**Done when:** a test parses every fixture through its contract schema, and removing the server
+leaves both apps fully populated.
 
 ---
 

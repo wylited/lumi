@@ -17,7 +17,7 @@ modules; all parallel. **Owner 3 · desktop + web** takes this phase.
 
 ### HELI-030 · feat(desktop): tauri shell and layout
 **Depends:** P0 **Parallel-safe:** no, blocks P3 **Owner:** 3
-**Touches:** `apps/desktop/package.json`, `apps/desktop/tsconfig.json`, `apps/desktop/vite.config.ts`, `apps/desktop/index.html`, `apps/desktop/src/main.tsx`, `apps/desktop/src/app.tsx`, `apps/desktop/src-tauri/Cargo.toml`, `apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/src-tauri/build.rs`, `apps/desktop/src-tauri/src/main.rs`
+**Touches:** `apps/desktop/package.json`, `apps/desktop/tsconfig.json`, `apps/desktop/vite.config.ts`, `apps/desktop/index.html`, `apps/desktop/src/main.tsx`, `apps/desktop/src/app.tsx`, `apps/desktop/src/styles.css`, `apps/desktop/src/components/shell/**`, `apps/desktop/src/lib/api.ts`, `apps/desktop/src/lib/log.ts`, `apps/desktop/src/routes/placeholder.tsx`, `apps/desktop/src-tauri/Cargo.toml`, `apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/src-tauri/build.rs`, `apps/desktop/src-tauri/capabilities/**`, `apps/desktop/src-tauri/icons/**`, `apps/desktop/src-tauri/src/main.rs`, `apps/desktop/src-tauri/src/tray.rs`, `apps/desktop/.gitignore`
 **Do:** Tauri 2 with a React + Vite webview. Tailwind v4 using `@heli/tokens`. A single-column
 shell with a left rail: **Goal · Live · History · Settings**. A menubar/tray item whose icon colour
 reflects state (idle, watching, off-task, speaking). The window is a real app: no browser chrome,
@@ -111,6 +111,16 @@ focus by hour. A session detail that replays the observation timeline with the a
 tier. Present the numbers honestly — no praise, no streaks, no confetti.
 **Done when:** the seeded history renders non-zero charts, a session detail lists its interventions
 with outcomes, and the tier table names the intervention that worked most.
+
+### HELI-039 · feat(ui): metrics kit
+**Depends:** 007 **Parallel-safe:** yes **Owner:** 3
+**Touches:** `packages/ui/src/components/Stat.tsx`, `packages/ui/src/components/Sparkline.tsx`, `packages/ui/src/components/KeyValue.tsx`, `packages/ui/src/components/TierBadge.tsx`, `packages/ui/src/components/Meter.tsx`, `packages/ui/src/index.ts`
+**Do:** The four components `007` listed but did not ship, plus a `Meter`: `Stat` (label, tabular
+value, unit, delta), `Sparkline` (inline SVG, 0–1 series, optional threshold line), `KeyValue`,
+`TierBadge` (tiers 0–5: silent, ambient, nudge, speak, automate, summary — tone rises with the
+tier) and `Meter` (a ratio bar). Tokens only, both themes, no chart library.
+**Done when:** each is exported from `@heli/ui`, renders in both themes in the web kitchen sink,
+and `pnpm --filter @heli/ui typecheck` passes.
 
 ---
 
