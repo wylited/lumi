@@ -89,6 +89,15 @@ export const DeskAction = z.discriminatedUnion('type', [
   z.object({ ...ActionBase, id: z.string(), type: z.literal('arm.point'), payload: z.object({ x: z.number(), y: z.number() }).strict() }).strict(),
   z.object({ ...ActionBase, id: z.string(), type: z.literal('arm.nod'), payload: z.object({ times: z.number().int().min(1).max(3) }).strict() }).strict(),
   z.object({ ...ActionBase, id: z.string(), type: z.literal('arm.home'), payload: z.object({}).strict() }).strict(),
+  /**
+   * Follow the person at the desk, or stop following them.
+   *
+   * The rig closes this loop on the pixels — a pose model finds the person, a control
+   * law turns their chest's offset from the frame's centre into pan and tilt — so it
+   * needs no calibration and no rectangle, and it is the one action that keeps moving
+   * after its ack. `on: false` stops it and leaves the arm where it is.
+   */
+  z.object({ ...ActionBase, id: z.string(), type: z.literal('arm.track'), payload: z.object({ on: z.boolean() }).strict() }).strict(),
 ])
 export type DeskAction = z.infer<typeof DeskAction>
 export type DeskActionType = DeskAction['type']
@@ -140,6 +149,8 @@ export const DeskHealth = z
     tempC: z.number().nullable().default(null),
     /** Frames accepted minus rejected since the process started. */
     framesSent: z.number().int().nonnegative().default(0),
+    /** Whether the rig is following the person (`arm.track`). Null from a rig that does not say. */
+    following: z.boolean().nullable().default(null),
   })
   .strict()
 export type DeskHealth = z.infer<typeof DeskHealth>

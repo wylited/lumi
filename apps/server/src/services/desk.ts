@@ -266,7 +266,8 @@ const pending = new Map<string, Pending>()
  * performing it once. `capture` is deliberately absent: retrying it takes a
  * second frame for one request, and the frame the assessment reads is then not
  * the frame the person asked for. `arm.nod` is absent for the same reason in
- * physical form — two nods is a different gesture.
+ * physical form — two nods is a different gesture. `arm.track` is present:
+ * turning the tracker on or off twice is turning it on or off.
  */
 const RETRYABLE: ReadonlySet<string> = new Set([
   'stream.start',
@@ -275,6 +276,7 @@ const RETRYABLE: ReadonlySet<string> = new Set([
   'arm.aim',
   'arm.point',
   'arm.home',
+  'arm.track',
 ])
 
 /**
