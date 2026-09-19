@@ -144,7 +144,7 @@ server owns intake, actions and persistence. Full detail, including the Python i
 
 | ✓ | id | commit | depends | ∥ | owner |
 |---|----|--------|---------|---|-------|
-| ☐ | HELI-040 | `feat(edge): the rig agent, camera capture and frame upload` | 009 | yes | 4 |
+| ☐ | HELI-040 | `feat(edge): the rig agent, camera capture and frame upload` | 009 | yes | 4 · hardware + rig |
 | ☑ | HELI-041 | `feat(server): frame intake and the newest frame` | 040, 014 | **no** | 2 |
 | ☐ | HELI-042 | `feat(edge): the arm adapter and aiming` | 040 | yes | 4 |
 | ☑ | HELI-043 | `feat(contracts): the desk socket, registration and actions` | 004 | **no** | 2 |
