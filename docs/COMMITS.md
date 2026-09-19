@@ -3,6 +3,30 @@
 Every unit of work, claimable. Read `AGENTS.md` first — especially **one commit owns a file; two
 open commits never touch the same path.**
 
+## Start here
+
+The phase docs are the atomic specification — full `Do`, `Done when`, exact `Touches`, and handoff
+notes for every commit below. Read your phase before you claim anything.
+
+| phase | doc | owner |
+|---|---|---|
+| P0 | [`phases/P0-foundations.md`](./phases/P0-foundations.md) | all four, the night before |
+| P1 | [`phases/P1-server-core.md`](./phases/P1-server-core.md) | **B** |
+| P2 | [`phases/P2-observer-loop.md`](./phases/P2-observer-loop.md) | **A** (critical path) |
+| P3 | [`phases/P3-desktop.md`](./phases/P3-desktop.md) | **C** |
+| P4 | [`phases/P4-edge-media.md`](./phases/P4-edge-media.md) | **D** + hardware |
+| P5 | [`phases/P5-web.md`](./phases/P5-web.md) | **D** |
+| P6 | [`phases/P6-hackathon-day.md`](./phases/P6-hackathon-day.md) | all four |
+| policy | [`02-intervention-policy.md`](./02-intervention-policy.md) | A |
+
+**How a person works with agents.** Each owner runs one agent per commit, not per phase. An agent
+gets exactly one row: the phase doc entry, its `Touches`, and that entry's `Done when`. It commits
+only inside those paths. If two rows in your phase share a file, they are sequential — the ledger
+says so — so give them to the same agent in order. You review and merge. You do not let an agent
+pick its own scope, and you do not let two agents touch one file.
+
+---
+
 ## How to claim
 
 1. Pick a row whose **Depends** are ticked and whose **Owner** is `—`.
