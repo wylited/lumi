@@ -68,7 +68,7 @@ of that chain.
 | ☐ | HELI-016 | `feat(server): SSE live channel` | 010 | yes | 2 · server |
 | ☐ | HELI-017 | `feat(server): mock device and mock desktop` | 012, 015 | yes | — |
 | ☐ | HELI-018 | `feat(server): analytics queries` | 013 | yes | — |
-| ☐ | HELI-019 | `feat(server): register websocket route files by folder` | 010 | yes | 2 · server |
+| ☑ | HELI-019 | `feat(server): register websocket route files by folder` | 010 | yes | 2 · server |
 
 ## P2 · The observer loop — this is the product
 
