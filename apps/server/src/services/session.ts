@@ -377,7 +377,8 @@ export async function sessionExists(id: string): Promise<boolean> {
 /* ---- lifecycle ----------------------------------------------------------- */
 
 export interface OpenSessionInput {
-  deviceId: string
+  /** Absent means "the machine on this server" — one seeded user, one machine. */
+  deviceId?: string
   goalId: string | null
 }
 
@@ -398,15 +399,21 @@ export interface OpenSessionInput {
 export async function openSession(input: OpenSessionInput): Promise<OpenSessionResponse> {
   // Checked first, and by hand: `Session.deviceId` is a required foreign key, so
   // an unpaired device id would otherwise be a P2003 — a 500 — instead of "that
-  // device does not exist".
-  const device = await prisma.device.findUnique({
-    where: { id: input.deviceId },
-    select: { id: true },
-  })
+  // device does not exist". No id means the seeded machine: the desktop no
+  // longer lists devices, because there is exactly one.
+  const device =
+    input.deviceId === undefined
+      ? await prisma.device.findFirst({ orderBy: { createdAt: 'asc' }, select: { id: true } })
+      : await prisma.device.findUnique({
+          where: { id: input.deviceId },
+          select: { id: true },
+        })
   if (device === null) {
     throw httpError(
       404,
-      `No device ${input.deviceId}. Pair it with POST /v1/devices/pair before opening a session.`,
+      input.deviceId === undefined
+        ? 'No device is registered on this server. Seed one with `pnpm --filter @heli/server db:seed`.'
+        : `No device ${input.deviceId}.`,
     )
   }
 

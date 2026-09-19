@@ -10,7 +10,7 @@ import { api } from '../lib/api'
 import { loadGoal } from '../lib/goals'
 import { live } from '../lib/live'
 import { logger } from '../lib/log'
-import { markSetupDone, openSession } from '../lib/setup'
+import { markSetupDone } from '../lib/setup'
 
 const log = logger('setup')
 
@@ -38,10 +38,11 @@ export function SetupRoute({ onFinish }: { onFinish: () => void }) {
     setExisting(goal)
     setStep(1)
     // The watch step proves the camera live, and frames only attach to an open session.
-    // Sessions still reference a Device row (not a desk) on the server, so the machine's device is used.
+    // The server resolves its own seeded machine; the desktop never names a device.
     try {
-      const deviceId = (await api.devices())[0]?.id
-      if (deviceId) setSessionId(await openSession(deviceId, goal.id))
+      const open = (await api.sessions()).find((s) => s.endedAt === null)
+      const opened = open ? null : await api.openSession({ goalId: goal.id })
+      setSessionId(open?.id ?? opened?.session.id ?? null)
     } catch (e) {
       log.warn('could not open a session for the preview', String(e))
     }

@@ -72,14 +72,6 @@ export async function saveDraft(draft: GoalDraft, existing: Goal | null): Promis
   return existing ? api.updateGoal(existing.id, body) : api.createGoal(body)
 }
 
-/** Open the session the watch step shows live. Returns its id, or null with no server. */
-export async function openSession(deskId: string, goalId: string): Promise<string | null> {
-  const open = (await api.sessions()).find((s) => s.endedAt === null)
-  if (open) return open.id
-  const res = await api.openSession({ deviceId: deskId, goalId })
-  return res?.session.id ?? null
-}
-
 export interface Region {
   /** Fractions of the preview, 0–1. */
   x: number

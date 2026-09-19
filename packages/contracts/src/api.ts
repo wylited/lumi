@@ -69,7 +69,12 @@ export const GoalListResponse = z.array(Goal)
 export type GoalListResponse = z.infer<typeof GoalListResponse>
 
 export const OpenSessionRequest = z.object({
-  deviceId: z.string(),
+  /**
+   * Optional: the deployment is one seeded machine, so the server resolves its
+   * own device when none is named. A named id must exist — a session attaches to
+   * a real `Device` row.
+   */
+  deviceId: z.string().optional(),
   goalId: z.string().nullable(),
 })
 export type OpenSessionRequest = z.infer<typeof OpenSessionRequest>

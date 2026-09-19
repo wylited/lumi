@@ -20,7 +20,6 @@ import {
   SessionListResponse,
   SignalWindowResponse,
   GoalDraft,
-  DeviceListResponse,
   OpenSessionResponse,
   DeskActionRecord,
   DeskRegisterResponse,
@@ -164,8 +163,6 @@ export const api = {
     call('GET', `/sessions/${sessionId}/window`, SignalWindowResponse.nullable(), () => null),
   /** Unparsed on purpose: `lib/desk` checks it against the contract and tolerates older servers. */
   desk: () => call('GET', '/desk', z.unknown().nullable(), () => null),
-  /** Sessions still attach to a `Device` row, not a desk (server-side, pending); the first one is the machine. */
-  devices: () => call('GET', '/devices', DeviceListResponse, () => []),
   /** A sentence in, a goal draft out. The model takes seconds; the screen says it is reading. */
   draftGoal: (sentence: string) =>
     call('POST', '/goals/draft', GoalDraft.nullable(), () => null, { sentence }, 20_000),

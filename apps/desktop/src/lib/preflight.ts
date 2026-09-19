@@ -1,6 +1,7 @@
 /**
- * Preflight: the night-before checklist. Each line is green, amber or red, and a red line carries
- * the command that fixes it. Run it in this order; it is also the order things break in the room.
+ * Preflight: the checks that decide whether a session can actually run. Each line is green, amber or
+ * red, and a red line carries the command that fixes it. The Settings screen runs this quietly and
+ * says nothing while everything passes — a checklist is a fix for a problem, not a fixture.
  */
 import { DeskStatus } from '@heli/contracts'
 import { api, serverBase } from './api'
@@ -52,14 +53,15 @@ export async function runPreflight(onCheck: (c: Check) => void): Promise<Check[]
   })
   if (!serverUp) return out
 
-  // 2. The database.
-  const [goals, devices] = await Promise.all([api.goals(), api.devices()])
-  const seeded = goals.length > 0 && devices.length > 0
+  // 2. The database. Goals are what a session needs; the machine's device row is
+  //    the server's business now, so it is not counted here.
+  const goals = await api.goals()
+  const seeded = goals.length > 0
   push({
     id: 'seed',
     label: 'The database is seeded',
     state: seeded ? 'ok' : 'fail',
-    detail: `${goals.length} goal${goals.length === 1 ? '' : 's'}, ${devices.length} device${devices.length === 1 ? '' : 's'}`,
+    detail: `${goals.length} goal${goals.length === 1 ? '' : 's'}`,
     fix: seeded ? null : 'pnpm --filter @heli/server db:reset',
   })
 
