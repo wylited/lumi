@@ -30,6 +30,20 @@ const topLevel: Record<string, ZodTypeAny> = {
   ApiToDevice: contracts.ApiToDevice,
   DesktopToApi: contracts.DesktopToApi,
   ApiToDesktop: contracts.ApiToDesktop,
+  // The desk. The rig agent is Python and reads these rather than a copy.
+  DeskRegistration: contracts.DeskRegistration,
+  DeskRegisterResponse: contracts.DeskRegisterResponse,
+  Desk: contracts.Desk,
+  DeskAction: contracts.DeskAction,
+  DeskAck: contracts.DeskAck,
+  DeskHello: contracts.DeskHello,
+  DeskHealth: contracts.DeskHealth,
+  DeskToApi: contracts.DeskToApi,
+  ApiToDesk: contracts.ApiToDesk,
+  DeskFrameResponse: contracts.DeskFrameResponse,
+  DeskStatus: contracts.DeskStatus,
+  DeskActionRecord: contracts.DeskActionRecord,
+  FrameRejectionCode: contracts.FrameRejectionCode,
   LiveEvent: contracts.LiveEvent,
 }
 
