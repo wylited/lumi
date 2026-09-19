@@ -26,7 +26,7 @@ const SECTIONS: Array<{ title: string; body: string[] }> = [
   {
     title: 'The shutter',
     body: [
-      'The desk unit has a mechanical shutter. Slide it shut and no frame leaves the unit within 200 ms; the app shows it as closed, and the ring shows two amber dots.',
+      'The desk unit has a mechanical shutter. Slide it shut and frames stop within 200 ms; none leave the unit while it stays shut. The desktop app shows it as closed, and the ring shows two amber dots.',
     ],
   },
   {

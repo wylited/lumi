@@ -16,10 +16,13 @@ const Scene = dynamic(() => import('./DeviceScene').then((m) => m.DeviceScene), 
 export function Unit({
   state = 'watching',
   live = true,
+  priority = false,
   className,
 }: {
   state?: UnitState
   live?: boolean
+  /** Set where the unit is the largest thing above the fold. */
+  priority?: boolean
   className?: string
 }) {
   const host = useRef<HTMLDivElement>(null)
@@ -57,6 +60,7 @@ export function Unit({
         src={`/unit/${poster}.webp`}
         alt="The Helicopter desk unit"
         fill
+        priority={priority}
         sizes="(min-width: 1024px) 600px, 100vw"
         className={cn('object-contain transition-opacity duration-slow', ready ? 'opacity-0' : 'opacity-100')}
       />
@@ -88,7 +92,7 @@ export function UnitStates({ className }: { className?: string }) {
   return (
     <div className={cn('flex flex-col items-center gap-6', className)}>
       <div className="h-[460px] w-full md:h-[560px]">
-        <Unit state={state} />
+        <Unit state={state} priority />
       </div>
       <div role="radiogroup" aria-label="Unit state" className="inline-flex rounded-pill bg-ink-100 p-1">
         {STATES.map((s) => (

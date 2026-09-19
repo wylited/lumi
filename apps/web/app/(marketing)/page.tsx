@@ -30,7 +30,7 @@ export default function Home() {
         <div className="relative overflow-hidden rounded-[28px] bg-surface">
           <div className="grid items-end md:grid-cols-[0.8fr_1.2fr]">
             <div className="relative order-2 h-[340px] md:order-1 md:h-[560px]">
-              <Unit />
+              <Unit priority />
             </div>
             <div className="order-1 px-5 pt-8 md:order-2 md:py-14 md:pl-0 md:pr-14">
               <MacWindow src="/shots/live-nudge.png" alt="The Helicopter desktop app mid-session: a ribbon of minutes, and a nudge offering to go back to the goal" priority />
@@ -43,7 +43,9 @@ export default function Home() {
       <section className="mx-auto flex max-w-[var(--max-content)] flex-col gap-8 px-5 pt-28 md:pt-36">
         <div className="grid gap-6 md:grid-cols-[1fr_1fr] md:items-end">
           <h2 className="max-w-[18ch] text-display-2 font-semibold text-balance text-text">
-            Forty minutes. It spoke up twice.
+            Forty minutes.
+            <br />
+            It spoke up twice.
           </h2>
           <p className="max-w-[46ch] text-body text-text-muted md:justify-self-end">
             Each cell is a minute. A nudge at minute fourteen was ignored; the spoken line a minute later was not. The rest
@@ -57,9 +59,11 @@ export default function Home() {
       {/* How it decides. */}
       <section className="mx-auto flex max-w-[var(--max-content)] flex-col gap-12 px-5 pt-28 md:pt-36">
         <div className="flex flex-col gap-4">
-          <h2 className="max-w-[20ch] text-display-2 font-semibold text-balance text-text">It earns every step up.</h2>
+          <h2 className="max-w-[20ch] text-display-2 font-semibold text-balance text-text">Quiet first.
+            <br />
+            Louder only if that fails.</h2>
           <p className="max-w-[54ch] text-body text-text-muted">
-            A model reads the desk and the screen. Rules you set decide what happens — and a step up only comes when the step
+            A model reads the desk and the screen; your goal decides what it may do. Each step up happens only because the one
             below it did not work.
           </p>
         </div>
@@ -108,7 +112,7 @@ export default function Home() {
       {/* Close. */}
       <section className="mx-auto max-w-[var(--max-content)] px-5 py-28 md:py-36">
         <div className="flex flex-col items-center gap-6 rounded-[28px] border border-border px-6 py-16 text-center">
-          <h2 className="text-display-2 font-semibold text-balance text-text">Sit down. Say what you are here to do.</h2>
+          <h2 className="text-display-2 font-semibold text-balance text-text">Try it on your next forty minutes.</h2>
           <div className="flex flex-wrap justify-center gap-3">
             <Link href="/order" className="rounded-pill bg-text px-6 py-3 text-body-strong font-medium text-bg hover:opacity-85">
               Order the desk unit

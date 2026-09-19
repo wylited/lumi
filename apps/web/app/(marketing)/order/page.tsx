@@ -11,7 +11,7 @@ export default function OrderPage() {
   return (
     <section className="mx-auto grid max-w-[1280px] gap-10 px-5 py-10 lg:grid-cols-[1.15fr_0.85fr] lg:py-14">
       <div className="h-[380px] rounded-[28px] bg-surface lg:sticky lg:top-20 lg:h-[640px]">
-        <Unit />
+        <Unit priority />
       </div>
       <div className="flex flex-col gap-8 lg:py-6">
         <div className="flex flex-col gap-2">

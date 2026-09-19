@@ -58,7 +58,7 @@ export function RibbonKey() {
       </span>
       <span className="inline-flex items-center gap-2">
         <span className="h-3 w-[2px] rounded-pill bg-text" />
-        Spoken line
+        Voice
       </span>
     </div>
   )

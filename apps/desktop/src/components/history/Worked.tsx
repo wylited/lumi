@@ -1,6 +1,6 @@
 import type { TierEffect } from '../../lib/analytics'
 
-const NAME: Record<number, string> = { 1: 'Tray', 2: 'Nudge', 3: 'Voice', 4: 'Machine change' }
+const NAME: Record<number, string> = { 1: 'Light', 2: 'Nudge', 3: 'Voice', 4: 'Change' }
 
 /** Share of interruptions after which you came back within two minutes. */
 export function Worked({ effects, best }: { effects: TierEffect[]; best: TierEffect | null }) {

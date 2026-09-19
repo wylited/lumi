@@ -20,7 +20,7 @@ export function MacWindow({
         <span className="size-2.5 rounded-pill bg-ink-200" />
         <span className="size-2.5 rounded-pill bg-ink-200" />
       </div>
-      <Image src={src} alt={alt} width={2360} height={1520} priority={priority} className="block h-auto w-full" sizes="(min-width: 1024px) 760px, 100vw" />
+      <Image src={src} alt={alt} width={2080} height={1360} priority={priority} className="block h-auto w-full" sizes="(min-width: 1024px) 760px, 100vw" />
     </figure>
   )
 }

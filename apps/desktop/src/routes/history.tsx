@@ -14,7 +14,7 @@ import { logger } from '../lib/log'
 
 const log = logger('history')
 const INSIGHT: Record<number, string> = {
-  1: 'The tray alone',
+  1: 'The light alone',
   2: 'A nudge',
   3: 'A spoken line',
   4: 'An automatic change',

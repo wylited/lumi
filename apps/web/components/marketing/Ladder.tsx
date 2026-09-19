@@ -2,7 +2,7 @@ import { cn } from '@heli/ui'
 
 const STEPS = [
   { name: 'Silent', does: 'Logs the minute. Most minutes end here.', when: 'You are on the goal', dot: 'bg-ink-300' },
-  { name: 'Tray', does: 'The menu bar and the desk light turn amber.', when: '30 s off the goal', dot: 'bg-jade-400' },
+  { name: 'Light', does: 'The menu-bar icon and the desk light turn amber.', when: '30 s off the goal', dot: 'bg-jade-400' },
   { name: 'Nudge', does: 'A notification: back to the goal, or snooze.', when: 'Still off a minute later', dot: 'bg-warn' },
   { name: 'Voice', does: 'One sentence out loud. Talk over it to stop it.', when: 'The nudge did not work', dot: 'bg-text' },
   { name: 'Change', does: 'Mutes the site or starts the break. Undo in one click.', when: 'Only if you allow it', dot: 'bg-ink-500' },

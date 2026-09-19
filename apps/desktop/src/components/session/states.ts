@@ -22,7 +22,7 @@ export const FILL: Record<MinuteState | 'empty', string> = {
 
 /** What the system did, as a verb. Tiers are an implementation detail; people read verbs. */
 export const VERB: Record<number, string> = {
-  1: 'Tray',
+  1: 'Light',
   2: 'Nudged',
   3: 'Spoke',
   4: 'Changed',

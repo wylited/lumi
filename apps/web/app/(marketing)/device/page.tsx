@@ -16,9 +16,9 @@ const PARTS = [
 ] as const
 
 const NEVER = [
-  'Stores a frame. It sends, the desktop app decides, and nothing stays on the unit.',
+  'Stores a frame. Frames go to your Helicopter server; nothing stays on the unit.',
   'Calls a model or holds a key. It has no idea what it is looking at.',
-  'Sends anything with the shutter closed — within 200 ms of closing it.',
+  'Sends anything with the shutter shut. Frames stop within 200 ms of closing it.',
   'Animates while you are concentrating. A light that moves is a light that interrupts.',
 ] as const
 
@@ -30,7 +30,7 @@ const SPECS: Array<[string, string]> = [
   ['Privacy', 'Mechanical shutter, reported to the app'],
   ['Connection', 'Wi-Fi · pairs with a code from the desktop app'],
   ['Power', 'USB-C'],
-  ['Works with', 'Helicopter desktop'],
+  ['Works with', 'The Helicopter desktop app, macOS 13 or later'],
 ]
 
 export default function DevicePage() {
@@ -39,7 +39,7 @@ export default function DevicePage() {
       <section className="mx-auto flex max-w-[var(--max-content)] flex-col items-center gap-4 px-5 pt-16 text-center md:pt-20">
         <span className="text-body text-text-faint">Desk unit</span>
         <h1 className="max-w-[18ch] text-[40px] font-semibold leading-[1.04] tracking-[-0.03em] text-balance text-text md:text-display-1">
-          It watches the desk, and keeps nothing.
+          Your computer cannot see your desk. This can.
         </h1>
         <div className="mt-2 flex items-center gap-4">
           <Link href="/order" className="rounded-pill bg-text px-6 py-3 text-body-strong font-medium text-bg hover:opacity-85">

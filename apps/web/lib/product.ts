@@ -3,8 +3,7 @@
 export const PRICE = { unit: 79, currency: 'USD' } as const
 
 export const DOWNLOAD = {
-  appleSilicon: 'https://github.com/Mutesa-Cedric/helicopter/releases/latest',
-  intel: 'https://github.com/Mutesa-Cedric/helicopter/releases/latest',
+  url: 'https://github.com/Mutesa-Cedric/helicopter/releases/latest',
   requires: 'macOS 13 Ventura or later',
 } as const
 
