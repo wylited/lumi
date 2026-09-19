@@ -11,12 +11,13 @@ extern "C" {
 extern "C" {
     fn CGPreflightScreenCaptureAccess() -> bool;
     fn CGRequestScreenCaptureAccess() -> bool;
+    fn CGPreflightListenEventAccess() -> bool;
+    fn CGRequestListenEventAccess() -> bool;
 }
 
 #[link(name = "IOKit", kind = "framework")]
 extern "C" {
     fn IOHIDCheckAccess(request: u32) -> u32;
-    fn IOHIDRequestAccess(request: u32) -> bool;
 }
 
 const HID_LISTEN_EVENT: u32 = 1;
@@ -37,8 +38,16 @@ pub fn screen_recording() -> bool {
     unsafe { CGPreflightScreenCaptureAccess() }
 }
 
+/**
+ * Input Monitoring is the CoreGraphics listen-event grant. Asking through IOKit
+ * (`IOHIDRequestAccess`) does not register the app with TCC, so it never appears
+ * in the pane and the grant was unreachable; `CGRequestListenEventAccess` is the
+ * call that both prompts and lists it.
+ */
 pub fn input_monitoring() -> bool {
-    unsafe { IOHIDCheckAccess(HID_LISTEN_EVENT) == HID_GRANTED }
+    let cg = unsafe { CGPreflightListenEventAccess() };
+    // The IOKit answer is kept as a fallback for the tap's own view of the grant.
+    cg || unsafe { IOHIDCheckAccess(HID_LISTEN_EVENT) == HID_GRANTED }
 }
 
 pub fn accessibility() -> bool {
@@ -86,7 +95,7 @@ pub fn permissions() -> Vec<Permission> {
 pub fn request_permission(id: String) -> bool {
     match id.as_str() {
         "screen" => unsafe { CGRequestScreenCaptureAccess() },
-        "input" => unsafe { IOHIDRequestAccess(HID_LISTEN_EVENT) },
+        "input" => unsafe { CGRequestListenEventAccess() },
         _ => false,
     }
 }
