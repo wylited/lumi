@@ -69,9 +69,7 @@ function Act({ o, snap, at }: { o: Observation; snap: LiveSnapshot; at: string }
   return (
     <li className="my-1.5 rounded-md border border-border bg-surface-raised px-4 py-3.5">
       <div className="flex items-center gap-3">
-        <span className="tnum w-11 shrink-0 font-mono text-[11px] text-text-faint">
-          {at}
-        </span>
+        <span className="tnum w-11 shrink-0 font-mono text-[11px] text-text-faint">{at}</span>
         <TierBadge tier={o.tier} />
         <span className="text-small font-medium text-text">
           {act ? (CHANNEL[act.channel] ?? act.channel) : 'Logged'}
