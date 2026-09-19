@@ -5,7 +5,8 @@ a desk; the monitor shows the desk, the screen, and what the observer is thinkin
 
 **Depends:** P0. `071` on `041`; `072` on `004` and `020`; `074` on `071` and `032`.
 **Parallelism:** `071` and `072` can start immediately. `075` needs `046`, `076` needs `046`.
-**Owners:** `071`, `072` are **2 · server**. `075`, `076` are **3 · desktop + web**; `074` too once
+**Owners:** `071`, `072` are **2 · server**. `073` is **1 · the loop**. `075`, `076` are
+**3 · desktop + web**; `074` too once
 `071` lands. The setup journey is **`046`**, extended in place below its P4 entry. The script is
 **`062`** and the projector pass is **`063`**, both extended in P6.
 
@@ -52,6 +53,19 @@ sensible draft and reports `local`; the draft round-trips into `POST /v1/goals` 
 > **The setup journey itself is `046`**, extended where it lives in `P4-desk-capture.md`: it now owns
 > all three screens — the goal, the watch, the desk — and depends on `072` for the drafting call it
 > renders. This doc does not re-cut it; read the P4 entry, which is the atomic spec.
+
+### HELI-073 · feat(server): the loop's line reaches the desktop
+**Depends:** 044, 048, `a23c676` **Parallel-safe:** no, the loop is deaf without it **Owner:** 1 · the loop
+**Touches:** `apps/server/src/ws/live-desktop.ts`, `apps/server/src/ws/desktop.ts`, `apps/server/src/index.ts`, `apps/server/test/live-desktop.test.ts`
+**Do:** The loop decides, and every line is recorded as undelivered: `/ws/desktop` builds its `send`
+per connection and keeps no index, and `index.ts` passes `desk: () => null`. A registry keyed by
+session id — attached when `hello` names a session, moved when a later frame names another, detached
+on close — makes the socket answerable. The handle sends JSON through the existing contract check
+(`ApiToDesktop`, which already carries `nudge` and `audio.out`) and binary as one tagged frame
+(`MEDIA_TAG.audio` + PCM), in that order. `index.ts` replaces the null lookup with the registry.
+**Done when:** a desktop client connected with a session receives a `nudge` and an `audio.out` header
+followed by one tagged PCM frame, in order; closing the socket makes the next line record as
+undelivered; the test proves both without a database.
 
 ### HELI-074 · feat(desktop): the live monitor, split
 
@@ -112,5 +126,5 @@ the aim, the drift, the nudge, the ignored nudge, the spoken line, the arm point
 recovery, the summary — with a fallback line for each. `063` (projector pass) gains **presentation
 mode**: a density for the live monitor that is legible from three metres, landing after `074`.
 
-`073` is deliberately unassigned: the next P7 addendum takes it. `047` and `048` belong to P4 and are
-done; this phase starts at `071`.
+`073` is the delivery row: until it lands, everything the loop decides is recorded as undelivered.
+`047` and `048` belong to P4 and are on `main` now; this phase starts at `071`.
