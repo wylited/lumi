@@ -6,6 +6,8 @@ export default tseslint.config(
       '**/.next/**',
       '**/node_modules/**',
       '**/dist/**',
+      '**/src-tauri/target/**',
+      '**/src-tauri/gen/**',
       '**/*.config.*',
       '**/next-env.d.ts',
       'apps/mobile/**',
