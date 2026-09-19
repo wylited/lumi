@@ -149,7 +149,7 @@ server owns intake, actions and persistence. Full detail, including the Python i
 | ☐ | HELI-042 | `feat(edge): the arm adapter and aiming` | 040 | yes | 4 · hardware + rig |
 | ☑ | HELI-043 | `feat(contracts): the desk socket, registration and actions` | 004 | **no** | 2 |
 | ☐ | HELI-044 | `feat(server): desks, the desk socket, and actions with acks` | 043, 041 | **no** | 2 |
-| ☐ | HELI-045 | `feat(edge): the action client and audio playback` | 042, 044 | yes | 4 |
+| ☐ | HELI-045 | `feat(edge): the action client and audio playback` | 042, 044 | yes | 4 · hardware + rig |
 | ☐ | HELI-046 | `chore(desktop): desk setup and the desk panel` | 044 | yes | 3 |
 
 `041` landed in `879a5d9` as a draft and was reviewed and finished by owner 2; its `Done when` is
