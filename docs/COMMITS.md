@@ -236,7 +236,7 @@ decision note in `phases/P5-web.md`. Retired rows stay, struck through.
 
 | ✓ | id | commit | depends | ∥ | owner |
 |---|----|--------|---------|---|-------|
-| ☐ | HELI-060 | `chore(repo): one-command boot` | P0–P5 | **no** | 1 · the loop |
+| ☐ | HELI-060 | `chore(repo): one-command boot` | P0–P5 | **no** | — |
 | ☐ | HELI-061 | `feat(server): demo replay mode` | 060 | yes | — |
 | ☐ | HELI-062 | `docs(repo): the run of show` | 060 | yes | — |
 | ☐ | HELI-063 | `fix(desktop): projector pass` | P3, 074 | yes | desktop+web |
