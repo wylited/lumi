@@ -1,43 +1,38 @@
-import { TierBadge } from '@heli/ui'
+import { cn } from '@heli/ui'
 
-const RUNGS = [
-  { tier: 0, what: 'Log it. Say nothing.', when: 'By default. Most windows end here.' },
-  {
-    tier: 1,
-    what: 'The tray and the desk light turn amber.',
-    when: 'Drift noticed, not yet worth an interruption.',
-  },
-  {
-    tier: 2,
-    what: 'A notification: back to the goal, or snooze.',
-    when: 'Off the goal for 30 s, two windows running.',
-  },
-  {
-    tier: 3,
-    what: 'One sentence, out loud. Stop it with a word.',
-    when: 'The nudge did not work and the drift continues.',
-  },
-  {
-    tier: 4,
-    what: 'Mute the site, pause the chat, start the break.',
-    when: 'Only if your goal grants it. Undo in one click.',
-  },
-  { tier: 5, what: 'The recap: what worked, what did not.', when: 'When the session closes.' },
-]
+const STEPS = [
+  { name: 'Silent', does: 'Logs the minute. Most minutes end here.', when: 'You are on the goal', dot: 'bg-ink-300' },
+  { name: 'Tray', does: 'The menu bar and the desk light turn amber.', when: '30 s off the goal', dot: 'bg-jade-400' },
+  { name: 'Nudge', does: 'A notification: back to the goal, or snooze.', when: 'Still off a minute later', dot: 'bg-warn' },
+  { name: 'Voice', does: 'One sentence out loud. Talk over it to stop it.', when: 'The nudge did not work', dot: 'bg-text' },
+  { name: 'Change', does: 'Mutes the site or starts the break. Undo in one click.', when: 'Only if you allow it', dot: 'bg-ink-500' },
+] as const
 
-/** Each rung is indented by its tier, so the page draws the escalation instead of describing it. */
+const RISE = 22
+
+/** The escalation as a staircase: each tread is earned by the one below it not working. */
 export function Ladder() {
   return (
-    <ol className="flex flex-col gap-2">
-      {RUNGS.map((r) => (
-        <li
-          key={r.tier}
-          className="grid items-center gap-x-6 gap-y-1 rounded-md border border-border bg-bg px-5 py-4 md:grid-cols-[130px_1fr_1fr]"
-          style={{ marginLeft: `min(${r.tier * 5}%, ${r.tier * 48}px)` }}
-        >
-          <TierBadge tier={r.tier} />
-          <span className="text-body-strong font-medium text-text">{r.what}</span>
-          <span className="text-small text-text-faint">{r.when}</span>
+    <ol className="grid gap-8 sm:grid-cols-5 sm:gap-0">
+      {STEPS.map((s, i) => (
+        <li key={s.name} className="flex flex-col gap-5">
+          <div className="relative hidden h-[112px] sm:block" aria-hidden="true">
+            {/* the tread */}
+            <span className="absolute left-0 right-0 h-px bg-text" style={{ bottom: i * RISE }} />
+            {/* the riser up to the next tread */}
+            {i < STEPS.length - 1 ? (
+              <span className="absolute right-0 w-px bg-text" style={{ bottom: i * RISE, height: RISE }} />
+            ) : null}
+            <span className={cn('absolute left-0 size-2.5 rounded-pill', s.dot)} style={{ bottom: i * RISE - 4.5 }} />
+          </div>
+          <div className="flex flex-col gap-1.5 sm:pr-6">
+            <span className="flex items-baseline gap-2">
+              <span className="tnum text-small text-text-faint">{i}</span>
+              <span className="text-body-strong font-semibold text-text">{s.name}</span>
+            </span>
+            <span className="text-small text-text-muted">{s.does}</span>
+            <span className="text-small text-text-faint">{s.when}</span>
+          </div>
         </li>
       ))}
     </ol>
