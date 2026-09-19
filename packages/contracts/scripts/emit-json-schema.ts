@@ -28,6 +28,8 @@ const topLevel: Record<string, ZodTypeAny> = {
   MediaStreamState: contracts.MediaStreamState,
   DeviceToApi: contracts.DeviceToApi,
   ApiToDevice: contracts.ApiToDevice,
+  DesktopToApi: contracts.DesktopToApi,
+  ApiToDesktop: contracts.ApiToDesktop,
   LiveEvent: contracts.LiveEvent,
 }
 

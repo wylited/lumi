@@ -4,6 +4,7 @@ import { Goal } from './goal.js'
 import { Policy } from './policy.js'
 import { MediaStart, MediaStop, MediaState, AudioOut } from './media.js'
 import { DeviceCommand, CommandAck, DeviceTelemetry } from './control.js'
+import { SignalBatch } from './signal.js'
 
 export const HELI_SOCKET_PROTOCOL = 'heli.v1'
 
@@ -165,3 +166,74 @@ export const ApiToDevice = z.union([
   ApiSessionStop,
 ])
 export type ApiToDevice = z.infer<typeof ApiToDevice>
+
+/* ---- the desktop socket -------------------------------------------------- */
+
+/**
+ * `wss://api/ws/desktop`, protocol `heli.v1` — see `docs/01-contracts.md` §8.
+ *
+ * The desktop watches the machine, the device watches the desk, and both may be
+ * offline or online, so both get a socket and a batched HTTP fallback. The
+ * desktop's socket is a way *in*: observations, interventions and windows reach
+ * it over SSE, so there is nothing here for the server to push except an ack.
+ */
+
+export const DesktopHello = z
+  .object({
+    t: z.literal('hello'),
+    appVersion: z.string(),
+    /** The machine being watched, when the desktop knows which one it is. */
+    deviceId: z.string().nullable(),
+    /** The session to fold live signals into, when one is open. */
+    sessionId: z.string().nullable(),
+  })
+  .strict()
+export type DesktopHello = z.infer<typeof DesktopHello>
+
+/**
+ * Deliberately `SignalBatch` verbatim rather than a shape of its own.
+ *
+ * The same signals arrive at `POST /v1/signals` when the desktop was offline, so
+ * a socket-only payload would be a second definition of the same thing and the
+ * two would drift — which is exactly the failure the `Touches` rule exists to
+ * prevent, one layer down.
+ */
+export const DesktopSignals = z
+  .object({ t: z.literal('signals') })
+  .extend(SignalBatch.shape)
+  .strict()
+export type DesktopSignals = z.infer<typeof DesktopSignals>
+
+/** The desktop's own playback state, and the only other thing it may write. */
+export const DesktopPlayback = z
+  .object({
+    t: z.literal('playback'),
+    playing: z.boolean(),
+    momentId: z.string().nullable(),
+  })
+  .strict()
+export type DesktopPlayback = z.infer<typeof DesktopPlayback>
+
+export const DesktopToApi = z.discriminatedUnion('t', [
+  DesktopHello,
+  DesktopSignals,
+  DesktopPlayback,
+])
+export type DesktopToApi = z.infer<typeof DesktopToApi>
+
+/** How many signals of a batch landed. Mirrors `SignalBatchResponse`. */
+export const DesktopAck = z
+  .object({
+    t: z.literal('ack'),
+    accepted: z.number().int().nonnegative(),
+  })
+  .strict()
+export type DesktopAck = z.infer<typeof DesktopAck>
+
+/**
+ * A union rather than a discriminated union on purpose: `ApiError` is the one
+ * shape both sockets share with the device, and wrapping it would mean two
+ * error types to keep in step.
+ */
+export const ApiToDesktop = z.union([DesktopAck, ApiError])
+export type ApiToDesktop = z.infer<typeof ApiToDesktop>

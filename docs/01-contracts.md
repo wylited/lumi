@@ -218,3 +218,28 @@ tierHistogram }` · `tiers { tier, outcome, count }[]` · `apps { app, seconds, 
 Signals, and its own playback state. It never writes an assessment or an intervention; those are
 the server's. A mutating endpoint that changes the goal or the policy is the user's, from the
 desktop, and is the only other write.
+
+### The desktop socket — `wss://api/ws/desktop`, protocol `heli.v1`
+
+The same signals travel over two transports, because the desktop is sometimes offline and sometimes
+online: `POST /v1/signals` for a batch, and this socket for live ones. That is why the socket's
+signal message is `SignalBatch` verbatim rather than a shape of its own — one payload, one code path
+on the server, and the two cannot drift.
+
+`DesktopToApi` — what the desktop sends:
+
+```
+hello     { appVersion, deviceId, sessionId }   // deviceId/sessionId nullable; binds the socket
+signals   SignalBatch                           // identical to the POST /v1/signals body
+playback  { playing, momentId }                 // its own playback state, nothing else
+```
+
+`ApiToDesktop` — what the server sends back:
+
+```
+ack       { accepted }                          // how many signals of the batch landed
+error     { code, message, ref? }                // same shape the device gets
+```
+
+Anything else the desktop needs to *see* — observations, interventions, windows — arrives on the
+SSE channel (`GET /v1/live/:sessionId`), not here. This socket is a way in, not a way out.
