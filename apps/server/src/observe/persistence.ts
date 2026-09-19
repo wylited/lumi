@@ -11,7 +11,9 @@ import {
 } from '@heli/contracts'
 
 import { prisma as defaultPrisma } from '../lib/prisma.js'
+import type { ObjectRef } from '../lib/storage.js'
 import { getWindow } from '../services/signals.js'
+import { getFrame, latestFrameRef } from '../services/frames.js'
 import type {
   AssessFrame,
   Bus,
@@ -38,7 +40,7 @@ function asJson(value: unknown): unknown {
 }
 
 /** A frame's bytes may not be in memory; the media layer can supply them. */
-export type FrameBytesReader = (ref: string) => Promise<Buffer | null>
+export type FrameBytesReader = (ref: ObjectRef | string) => Promise<Buffer | null>
 
 export function createPrismaReader(
   prisma: PrismaLike = defaultPrisma,
@@ -79,16 +81,18 @@ export function createPrismaReader(
     },
 
     async frames(sessionId: string): Promise<AssessFrame[]> {
-      const window = getWindow(sessionId)
-      const ref = window?.lastFrameRef ?? null
-      if (!ref) return []
-      const bytes = frameBytes ? await frameBytes(ref) : null
+      // The newest frame the rig uploaded wins. The signal window's `lastFrameRef`
+      // is only a hint; the frame store is the truth, and it survives a stream
+      // stopping so the last page can still be assessed.
+      const ref = latestFrameRef(sessionId)
+      if (ref === null) return []
+      const bytes = frameBytes ? await frameBytes(ref) : await getFrame(ref)
       return [
         {
           kind: 'desk',
-          ref,
+          ref: typeof ref === 'string' ? ref : (ref.key ?? String(ref)),
           mediaType: 'image/jpeg',
-          bytes,
+          bytes: bytes ? Buffer.from(bytes) : null,
           width: null,
           height: null,
         },
