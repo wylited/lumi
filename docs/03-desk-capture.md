@@ -1,8 +1,13 @@
 # Desk capture and control
 
-**Audience: whoever wires the Mac rig.** This supersedes `docs/03-device-contract.md`, which
-described a Raspberry Pi unit that we are not building. There is no Pi, no pairing code, no QR, no
-LED ring and no shutter. There is a Mac, a camera, and an arm that can point it.
+**Audience: whoever wires the Mac rig and whoever builds the rig agent.** This supersedes
+`docs/03-device-contract.md`, which described a Raspberry Pi unit we are not building. There is no
+Pi, no pairing code, no QR, no LED ring and no shutter. There is a Mac, a camera, and an arm that can
+point it.
+
+**Two processes on that Mac.** The **rig agent** (`apps/edge`, Python, headless) owns the arm, the
+camera and the speaker. The **desktop app** (Tauri) owns the machine signals and the interface. The
+server owns assessment, policy and persistence. The rig never sees a user id or a session id.
 
 ---
 
@@ -13,13 +18,15 @@ driven from the same Mac. The app captures frames, reads the machine's own signa
 the camera** — which is what "camera control" means here.
 
 ```
-Mac app ──signals──────────────▶ server ──assess──▶ policy ──▶ act
-   │                              │                            │
-   └──camera frames (JPEG)────────▶ latest frame ──▶ loop      └── desk actions back to the app
-   ◀───────────────────────────── arm aim / capture / stream ──┘
+apps/edge (rig) ──frames (JPEG)────────▶ server ──assess──▶ policy ──▶ act
+      ▲                                    │                            │
+      └── actions: capture · stream · arm ─┘        latest frame ──▶ loop │
+                                                                         ▼
+apps/desktop ──signals (app, window, input, idle, screen)──────────▶ server
+             ◀── SSE: state, observation, intervention ─────────────┘
 ```
 
-## What the app is responsible for
+## What the rig agent (`apps/edge`) is responsible for
 
 1. **Capturing frames.** One JPEG at a time, downscaled to ≤1600 px long edge, ≤2 MB, q80. About
    2 fps while a session is live, plus one on demand whenever the server asks for a capture.
@@ -30,6 +37,13 @@ Mac app ──signals──────────────▶ server ──
 4. **Playing the line.** Speech is played on the Mac. There is no device speaker to reach.
 5. **Reporting caps and health.** Camera model and max resolution, arm model and degrees of
    freedom, and a heartbeat with capture fps and the last frame time.
+
+## What the desktop app is responsible for
+
+The machine signals it already sends (frontmost app, window title, input cadence, idle,
+screen), the goal and the live state, and **the setup UI** — the three fields and the aim-here
+rectangle, which it posts to the server and which the server forwards to the rig. It does not
+capture frames and it does not move the arm.
 
 ## What the server is responsible for
 
@@ -51,8 +65,10 @@ Then one **"aim here"** step: the app shows the camera view, the person drags a 
 desk area they want watched, and the app stores the arm pose that frames it. That rectangle is the
 capture region; frames are cropped to it before upload.
 
-`POST /v1/desks` registers the desk with the server once. It is idempotent and keyed by the local
-desk id, so re-running setup updates rather than duplicates.
+`POST /v1/desks` registers the desk with the server once and returns a **desk token**. It is
+idempotent and keyed by the local desk id, so re-running setup updates rather than duplicates. The
+rig uses the desk token for its socket and its uploads, so it never holds the user's credentials. The
+setup fields are typed in the desktop app; the rectangle is stored by the rig in `~/.heli/rig.json`.
 
 ---
 
@@ -68,9 +84,12 @@ x-heli-seq: 17
 <the JPEG bytes>
 ```
 
-Server rules: JPEG only, ≤2 MB, ≤1600 px on the long edge. It keeps **the newest frame per
-session** and stores the moment's `frameRef`. Older frames are dropped, never queued — a stale
-frame is worse than a missing one.
+The rig uploads with `x-heli-captured-at` and `x-heli-seq`; it sends one frame at a time and
+**skips a tick** if the previous upload has not returned. Server rules: JPEG only, ≤2 MB, ≤1600 px on
+the long edge, and it keeps **the newest frame per session**. Older frames are dropped, never queued —
+a stale frame is worse than a missing one. A rejection is `422 { error, code }` with one of
+`frame_not_jpeg`, `frame_too_large`, `frame_too_wide`; `409 no_open_session` means nothing is being
+watched, so the rig backs off instead of spinning.
 
 The loop reads the newest frame through the `frameBytes` reader in
 `apps/server/src/observe/persistence.ts`, so nothing in the loop changes.
@@ -82,7 +101,7 @@ The loop reads the newest frame through the `frameBytes` reader in
 Delivered over the **existing desktop socket** (`ApiToDesktop`), acked by the app. Same ack,
 timeout and retry rules as any command.
 
-| action | payload | what the app does |
+| action | payload | what the rig does |
 |---|---|---|
 | `capture` | `{ reason }` | take one frame now and upload it |
 | `stream.start` | `{ fps }` | begin capturing at that rate |

@@ -58,10 +58,11 @@ Native signals, all requiring consent:
 The desktop app owns the interruption surfaces: menu-bar state, notifications with an action, and
 audio playback.
 
-### rig (the Mac and the arm)
-The camera is mounted on a robotic arm on USB. The app captures frames, uploads the newest one, and
-can **aim** the camera when the server is unsure what it is looking at. No provider key, no device
-pairing. See `docs/03-desk-capture.md`.
+### rig (`apps/edge`, headless)
+The camera is mounted on a robotic arm on USB. A small Python agent on the same Mac captures
+frames, uploads the newest one, plays the spoken line, and can **aim** the camera when the server is
+unsure what it is looking at. It runs without the UI, holds no user id and no session id, and never
+sees a provider key. See `docs/03-desk-capture.md`.
 
 ### server (Fastify)
 Everything that persists; the only holder of a key. Goals and sessions, the observation row, the

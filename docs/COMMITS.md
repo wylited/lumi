@@ -137,13 +137,24 @@ and the shutter are all retired; `docs/03-device-contract.md` is superseded by
 `docs/03-desk-capture.md`. Registration is now a three-field setup in the app, and "camera control"
 means **aiming the arm**. P1/011's pairing routes stay in the tree but nothing calls them.
 
+The rig agent is **`apps/edge`** (Python, headless): it owns the arm, the camera and the speaker, and
+can be restarted without touching the UI. The desktop app owns signals **and the setup UI**; the
+server owns intake, actions and persistence. Full detail, including the Python interfaces, is in
+`phases/P4-desk-capture.md`.
+
 | ✓ | id | commit | depends | ∥ | owner |
 |---|----|--------|---------|---|-------|
-| ☐ | HELI-040 | `feat(desktop): camera capture and frame upload` | 009 | yes | 4 |
-| ☐ | HELI-041 | `feat(server): frame intake and the latest frame` | 040, 014 | **no** | 4 |
-| ☐ | HELI-042 | `feat(desktop): arm control and aiming` | 040 | yes | 4 |
-| ☐ | HELI-043 | `feat(server): desk actions and physical interventions` | 041, 042, 022 | yes | 4 |
-| ☐ | HELI-044 | `chore(desktop): desk setup replaces pairing` | 040, 042 | yes | 4 |
+| ☐ | HELI-040 | `feat(edge): the rig agent, camera capture and frame upload` | 009 | yes | 4 |
+| ☐ | HELI-041 | `feat(server): frame intake and the newest frame` | 040, 014 | **no** | 2 |
+| ☐ | HELI-042 | `feat(edge): the arm adapter and aiming` | 040 | yes | 4 |
+| ☐ | HELI-043 | `feat(contracts): the desk socket, registration and actions` | 004 | **no** | 2 |
+| ☐ | HELI-044 | `feat(server): desks, the desk socket, and actions with acks` | 043, 041 | **no** | 2 |
+| ☐ | HELI-045 | `feat(edge): the action client and audio playback` | 042, 044 | yes | 4 |
+| ☐ | HELI-046 | `chore(desktop): desk setup and the desk panel` | 044 | yes | 3 |
+
+`041` is already drafted in the tree (`879a5d9`, desk frame intake and the loop's frame reader) and
+needs an owner to review and finish it. `043` is the contracts gate: nothing desk-shaped should be
+written before it lands.
 
 ## P5 · Web — the storefront
 
@@ -187,8 +198,20 @@ path.
 | **1 · the loop** | P2 | 020, 021, 023, 024, 025, 026 | the critical path. Protect this person from everything else. |
 | **2 · server** | P1 (+ media relay) | 010–018, 041 | server core. Start the moment P0 lands. |
 | **3 · desktop + web** | P3 + P5 | 030–039, 070, 050–05A, 063 | the product (the desktop app) and the storefront that sells it with the unit. |
-| **4 · hardware + rig** | P4 + the contract | 009, 040–044 | owns `docs/03-desk-capture.md` and the arm adapter; nobody else touches `src-tauri/src/arm/**`. |
+| **4 · hardware + rig** | P4 + the contract | 009, 040, 042, 045 | owns `docs/03-desk-capture.md` and everything under `apps/edge/`; nobody else touches `heli_rig/arm/**`. |
 | **all four** | P0 | 001–008 | 001 alone first, then 002–008 in parallel, the night before. |
+
+## Who does what next
+
+Reading order for each person. Everything above is either ticked or listed here.
+
+| who | next | why |
+|---|---|---|
+| **1 · the loop** | P2 is done. Take **`043`** (contracts) if person 2 is deep in `044`, or **P6/061** (replay mode) — it drives the same bus the loop already publishes on. | The critical path is clear; the demo fallback is the highest-value unclaimed work. |
+| **2 · server** | **`041`** (drafted, review and finish), then **`043`** contracts, then **`044`** desks/socket/actions. Retire the pairing routes and `ws/device.ts` in `044`. | `043` gates the desk work; `041` makes the rig's frames reach the model. |
+| **3 · desktop + web** | **`046`** (desk setup and panel), then **`063`** (projector pass). The storefront is done. | The setup flow is what replaces pairing, and it needs `044` first. |
+| **4 · hardware + rig** | **`040`** (rig agent), then **`042`** (arm), then **`045`** (actions + audio). | You can start `040` today; `042` needs the arm on the bench; `045` waits on `044`. |
+| **all four** | P6: `060` one-command boot, `061` replay, `062` run of show, `063` projector, `064` rehearsal. Claim these early. | They are what make the demo survive the room. |
 
 `022` (speech out) is the server-side piece the loop needs; it lands inside P2 as written. The old
 `041` media relay is retired with the Pi — frame intake is now `041` in the new P4.

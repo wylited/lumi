@@ -124,7 +124,7 @@ roles. Anything else is out of scope and will be reverted.
 | repo | pnpm workspaces + Turborepo; Node 22 |
 | server | Fastify 5, TypeScript, zod, Prisma + Postgres |
 | desktop | Tauri 2 (Rust sidecar + webview), React + Vite, `@heli/tokens` |
-| rig | the Mac app drives a camera mounted on a robotic arm — capture, aiming, playback (see `docs/03-desk-capture.md`) |
+| rig | `apps/edge` — a headless Python agent on the Mac that owns the camera, the arm and the speaker (see `docs/03-desk-capture.md`) |
 | web | Next.js 15 App Router, Tailwind v4, `@heli/tokens`, three.js for the unit — the storefront only |
 | models | DeepSeek Flash (vision + text, structured output) primary; Gemini behind the same adapter as escalation |
 | voice | speech out through the server bridge; a local adapter so the path works with no keys |
@@ -138,7 +138,8 @@ Do not introduce a library that is not already in a `package.json` without it be
 ## Where things live
 
 ```
-apps/desktop    the base app. goal, live state, audio, native signals
+apps/desktop    the base app. goal, live state, audio, native signals, and the setup UI
+apps/edge       the rig agent (Python, headless). camera, arm, playback
 apps/server     the aggregator. the only component that persists or holds a key
 apps/web        the storefront: home, desk unit, download, order — marketing only
 packages/contracts  zod schemas → TS types + JSON Schema for the Python side
