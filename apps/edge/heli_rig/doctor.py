@@ -217,7 +217,40 @@ async def _desk(rig: Rig, report: Report) -> None:
     if not token:
         report.add(FAIL, "desk", "registration answered without a desk token", None)
         return
-    report.add(OK, "desk", f"registered as {desk_id}; its token is the one the socket presents")
+    ours = rig.desk_tokens.desk_id()
+    # A desk row is keyed by the id the rig keeps in its own state file, while `GET /v1/desk`
+    # answers with the *first* row ever registered (`findFirst` by `registeredAt`). A second
+    # rig on one server therefore registers a row that nothing watches, and a person reading
+    # this report has to be able to see that the two ids differ.
+    theirs = await _reported_desk_id(rig)
+    if theirs is not None and theirs != ours:
+        report.add(
+            WARN,
+            "desk",
+            f"registered as {ours}; its token is the one the socket presents, but {DESK_PATH} "
+            f"reports {theirs} — a row from an earlier run, which is the one the loop watches",
+            f"a desk row is keyed by the id the rig keeps in HELI_DIR, and {DESK_PATH} answers with "
+            "the first row ever registered, so a second rig is invisible to it: stop the other rig, "
+            "give this one a server of its own (HELI_API_URL), or clear the desks on a database you "
+            "can throw away",
+        )
+        return
+    report.add(OK, "desk", f"registered as {ours}; its token is the one the socket presents")
+
+
+async def _reported_desk_id(rig: Rig) -> str | None:
+    """The desk id `GET /v1/desk` answers with, or None when it cannot be read."""
+    try:
+        token = rig.user_tokens.token()
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_S) as client:
+            response = await client.get(
+                f"{rig.cfg.api_url}{DESK_PATH}", headers={"authorization": f"Bearer {token}"}
+            )
+        response.raise_for_status()
+        desk = response.json().get("desk") or {}
+        return desk.get("id")
+    except (httpx.HTTPError, ValueError, KeyError):
+        return None
 
 
 async def _desk_socket(rig: Rig, report: Report) -> None:
@@ -311,11 +344,21 @@ async def _upload(rig: Rig, report: Report, frame: Frame) -> None:
 
 def _arm(rig: Rig, report: Report) -> None:
     """Whether the arm can be driven — and, when it cannot, the arm's own words about why."""
+    if rig.arm is None and rig.cfg.arm_driver == "none":
+        # Not a miss: this rig is meant to have no arm. The server is told so at hello,
+        # and sends it nothing that needs one.
+        report.add(
+            OK,
+            "arm",
+            "no arm, by HELI_ARM_DRIVER=none: the desk registers arm: null and every arm.* is "
+            "answered no_arm without being sent",
+        )
+        return
     if rig.arm is None:
         report.add(
             WARN,
             "arm",
-            f"no arm: {rig.arm_note or 'nothing answered'}",
+            f"{rig.arm_note or 'no arm: nothing answered'}",
             "an arm needs either the operator console (which owns the serial bus while it runs) or "
             "the bridge project: HELI_BRIDGE_DIR (default ~/Repos/tracking, the project with "
             "`tracking.bridge` and lerobot) and HELI_BRIDGE_PYTHON if its interpreter is elsewhere. "
