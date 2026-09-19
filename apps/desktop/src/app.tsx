@@ -3,7 +3,9 @@ import { Pill } from '@heli/ui'
 import { Sidebar, ROUTES, type Route, type SidebarStatus } from './components/shell/Sidebar'
 import { TitleBar } from './components/shell/TitleBar'
 import { useDataSource } from './lib/api'
+import { derive, useLive } from './lib/live'
 import { setTray } from './lib/tray'
+import { LiveRoute } from './routes/live'
 import { Placeholder } from './routes/placeholder'
 
 const LAST_ROUTE = 'heli.route'
@@ -45,8 +47,18 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [navigate])
 
-  const status: SidebarStatus = { dot: 'idle', title: 'Idle', detail: 'No session running.' }
-  useEffect(() => setTray('idle'), [])
+  const snap = useLive()
+  const d = derive(snap)
+  useEffect(() => setTray(d.tray), [d.tray])
+  const status: SidebarStatus =
+    snap.status !== 'live'
+      ? { dot: 'idle', title: 'Idle', detail: 'No session running.' }
+      : {
+          dot: d.tray === 'speaking' ? 'speaking' : 'live',
+          title:
+            d.tray === 'off_task' ? 'Drifting' : d.tray === 'speaking' ? 'Speaking' : 'Watching',
+          detail: snap.goal?.objective ?? 'Session running',
+        }
 
   const current = ROUTES.find((r) => r.id === route) ?? ROUTES[1]!
 
@@ -72,7 +84,7 @@ export function App() {
       <main className="flex min-w-0 flex-1 flex-col">
         <TitleBar title={current.label} />
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <Placeholder title={current.label} />
+          {route === 'live' ? <LiveRoute /> : <Placeholder title={current.label} />}
         </div>
       </main>
     </div>
