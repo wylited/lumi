@@ -63,7 +63,7 @@ of that chain.
 | ☑ | HELI-011 | `feat(server): auth and device pairing` | 010 | yes | 2 · server |
 | ☐ | HELI-012 | `feat(server): device websocket and signal intake` | 010 | yes | 2 · server |
 | ☐ | HELI-013 | `feat(server): goal and session lifecycle` | 010 | yes | 2 · server |
-| ☐ | HELI-014 | `feat(server): media intake and object store` | 010 | yes | 2 · server |
+| ☑ | HELI-014 | `feat(server): media intake and object store` | 010 | yes | 2 · server |
 | ☐ | HELI-015 | `feat(server): desktop signal ingestion` | 010 | yes | 2 · server |
 | ☐ | HELI-016 | `feat(server): SSE live channel` | 010 | yes | 2 · server |
 | ☐ | HELI-017 | `feat(server): mock device and mock desktop` | 012, 015 | yes | — |
