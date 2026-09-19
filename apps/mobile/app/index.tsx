@@ -4,6 +4,7 @@ import { Redirect, router } from 'expo-router'
 
 import { space } from '@heli/tokens'
 
+import { BlockerCard } from '@/components/BlockerCard'
 import { Button, Card, Dot, Label, Row, Screen, Text } from '@/components/ui'
 import { clearPairing, usePairing } from '@/lib/store'
 import { useTheme } from '@/lib/theme'
@@ -175,6 +176,8 @@ export default function PhoneScreen() {
             </Text>
           </Card>
         )}
+
+        {Platform.OS === 'android' ? <BlockerCard serverUrl={pairing.serverUrl} token={pairing.token} /> : null}
 
         {notice !== null ? (
           <Text variant="caption" tone="faint" numberOfLines={2}>

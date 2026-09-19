@@ -1,0 +1,28 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!--
+    The blocker is an accessibility service the person turns on in Settings → Accessibility. It
+    reads one thing, the package of the window that just came to the front, and does one thing,
+    Home, for an app the open session's goal lists. It never reads window content.
+  -->
+  <application>
+    <service
+      android:name="expo.modules.appblocker.BlockerService"
+      android:exported="false"
+      android:label="@string/lumi_blocker_label"
+      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+      <intent-filter>
+        <action android:name="android.accessibilityservice.AccessibilityService" />
+      </intent-filter>
+      <meta-data
+        android:name="android.accessibilityservice"
+        android:resource="@xml/lumi_blocker" />
+    </service>
+    <activity
+      android:name="expo.modules.appblocker.UndoActivity"
+      android:exported="false"
+      android:excludeFromRecents="true"
+      android:noHistory="true"
+      android:taskAffinity=""
+      android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+  </application>
+</manifest>

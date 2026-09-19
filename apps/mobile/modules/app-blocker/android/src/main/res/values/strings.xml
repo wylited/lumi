@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="lumi_blocker_label">Lumi blocking</string>
+  <string name="lumi_blocker_description">During a Lumi session whose goal allows it, Lumi sends you to the home screen from apps your goal blocks, and tells you in a notification you can undo. Lumi sees only which app came to the front, never what is in it.</string>
+</resources>

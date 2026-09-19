@@ -3,6 +3,7 @@ import { Accelerometer } from 'expo-sensors'
 
 import { PHONE_SIGNAL, type PhoneMotion, type Signal } from '@heli/contracts'
 
+import { blockerEvents } from './blocker'
 import { usageSinceLast } from './usage'
 
 /**
@@ -99,6 +100,8 @@ export function createSignalSampler(): SignalSampler {
         }
         if (usage.unlocks > 0) push(PHONE_SIGNAL.unlock, { count: usage.unlocks })
       }
+
+      for (const e of await blockerEvents()) push(PHONE_SIGNAL.automation, e)
 
       const drained = buffer.splice(0, buffer.length)
       return drained
