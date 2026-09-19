@@ -10,6 +10,8 @@ import {
 } from './observe/runtime.js'
 import { buildServer } from './server.js'
 import { desktopSocketFor } from './ws/live-desktop.js'
+import { mobileSocketFor } from './ws/live-mobile.js'
+import { phoneAway } from './services/mobile.js'
 
 const app = await buildServer()
 
@@ -18,14 +20,17 @@ const loopLog = childLogger({ module: 'observe.runtime' })
 /**
  * Where a line goes.
  *
- * `observe/outbound.ts` builds the senders from one lookup — session id in, the
- * live desktop socket out — and the index in `ws/live-desktop.ts` answers it:
- * a desktop that has sent `hello` with a session id is attached to that session.
- * With nobody attached the lookup is `null`, the sender answers `false`, and
- * `createDeskSenders` logs the line as undelivered, which is the honest report:
- * a spoken line nobody heard is not a delivery.
+ * Two surfaces, one routing rule: the desk (`ws/live-desktop.ts`, or the rig —
+ * the same lookup shape) is where the person sits, and the phone is what they
+ * take with them. `observe/outbound.ts` decides per line: speech follows the
+ * person when motion says they left, a nudge prefers the phone, and everything
+ * falls back to the other surface. With nobody attached the lookup is `null`,
+ * the sender answers `false`, and the line is recorded as undelivered — which
+ * is the honest report: a spoken line nobody heard is not a delivery.
  */
 const desk: DeskSocketLookup = (sessionId) => desktopSocketFor(sessionId)
+const phone: DeskSocketLookup = (sessionId) => mobileSocketFor(sessionId)
+const away = (sessionId: string): boolean => phoneAway(sessionId)
 
 /** Every session being watched right now. The loop assesses only these. */
 const activeSessions = async (): Promise<string[]> => {
@@ -51,6 +56,8 @@ try {
   runtime = createLoopRuntime({
     env,
     desk,
+    phone,
+    away,
     activeSessions,
     publish,
     logger: loopLog,

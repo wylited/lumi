@@ -98,3 +98,74 @@ test('the no-op senders never claim to have delivered', () => {
   assert.equal(noopSenders.sendBinaryToSession?.('s1', Buffer.from([0x02])), false)
   assert.equal(noopSenders.sendNotification('s1', 'hello'), false)
 })
+
+/* ---- the phone, and the routing rule ------------------------------------- */
+
+test('a spoken line follows the phone when motion says the person left the desk', () => {
+  const desk: Sent = { payloads: [], binaries: [] }
+  const phone: Sent = { payloads: [], binaries: [] }
+  const senders = createDeskSenders({
+    desk: () => fakeSocket(desk),
+    phone: () => fakeSocket(phone),
+    away: () => true,
+  })
+
+  assert.equal(senders.sendToSession('s1', audioOut), true)
+  assert.equal(senders.sendBinaryToSession?.('s1', Buffer.from([0x02, 9])), true)
+
+  assert.equal(desk.payloads.length, 0, 'the empty desk hears nothing')
+  assert.equal(phone.payloads.length, 1)
+  assert.equal(phone.binaries.length, 1)
+})
+
+test('a spoken line stays at the desk while the person is sitting there', () => {
+  const desk: Sent = { payloads: [], binaries: [] }
+  const phone: Sent = { payloads: [], binaries: [] }
+  const senders = createDeskSenders({
+    desk: () => fakeSocket(desk),
+    phone: () => fakeSocket(phone),
+    away: () => false,
+  })
+
+  assert.equal(senders.sendToSession('s1', audioOut), true)
+  assert.equal(desk.payloads.length, 1)
+  assert.equal(phone.payloads.length, 0)
+})
+
+test('a nudge prefers the phone, because it leaves the room with the person', () => {
+  const desk: Sent = { payloads: [], binaries: [] }
+  const phone: Sent = { payloads: [], binaries: [] }
+  const senders = createDeskSenders({
+    desk: () => fakeSocket(desk),
+    phone: () => fakeSocket(phone),
+    away: () => false,
+  })
+
+  assert.equal(senders.sendNotification('s1', 'Back to it.'), true)
+  assert.equal(phone.payloads.length, 1)
+  assert.equal(desk.payloads.length, 0)
+  assert.deepEqual(ApiNudge.safeParse(phone.payloads[0]).success, true)
+})
+
+test('nudges and speech fall back to the desk when no phone is paired', () => {
+  const desk: Sent = { payloads: [], binaries: [] }
+  const senders = createDeskSenders({ desk: () => fakeSocket(desk), phone: () => null })
+
+  assert.equal(senders.sendNotification('s1', 'Back to it.'), true)
+  assert.equal(senders.sendToSession('s1', audioOut), true)
+  assert.equal(desk.payloads.length, 2)
+})
+
+test('an away phone that cannot carry audio refuses it rather than speaking to the empty desk', () => {
+  const desk: Sent = { payloads: [], binaries: [] }
+  const phone: Sent = { payloads: [], binaries: [] }
+  const senders = createDeskSenders({
+    desk: () => fakeSocket(desk),
+    phone: () => fakeSocket(phone, false),
+    away: () => true,
+  })
+
+  assert.equal(senders.sendBinaryToSession?.('s1', Buffer.from([0x02, 1])), false)
+  assert.equal(desk.binaries.length, 0)
+  assert.equal(phone.binaries.length, 0)
+})

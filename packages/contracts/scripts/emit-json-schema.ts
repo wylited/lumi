@@ -49,6 +49,16 @@ const topLevel: Record<string, ZodTypeAny> = {
   DeskStatus: contracts.DeskStatus,
   DeskActionRecord: contracts.DeskActionRecord,
   FrameRejectionCode: contracts.FrameRejectionCode,
+  // The phone. The app imports the package directly, but the schema is the
+  // record of what crosses the socket, and the Python-side tools read this file.
+  MobilePairCodeResponse: contracts.MobilePairCodeResponse,
+  MobilePairRequest: contracts.MobilePairRequest,
+  MobilePairResponse: contracts.MobilePairResponse,
+  MobileToApi: contracts.MobileToApi,
+  ApiToMobile: contracts.ApiToMobile,
+  PhoneMotion: contracts.PhoneMotion,
+  PhoneSnapshot: contracts.PhoneSnapshot,
+  PhoneListResponse: contracts.PhoneListResponse,
   LiveEvent: contracts.LiveEvent,
 }
 

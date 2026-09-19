@@ -26,6 +26,10 @@ export interface LoopRuntimeInput {
    * drives the whole runtime without a socket.
    */
   desk?: DeskSocketLookup
+  /** The phone, when one is paired. Speech follows it only when `away` says so. */
+  phone?: DeskSocketLookup
+  /** True when the person is away from the desk — the phone's motion decides. */
+  away?: (sessionId: string) => boolean
   senders?: LoopSenders
   /** Every session the scheduler should assess. */
   activeSessions: () => Promise<string[]>
@@ -53,6 +57,8 @@ export function createLoopRuntime(input: LoopRuntimeInput): LoopRuntime {
     input.senders ??
     createDeskSenders({
       desk: input.desk ?? (() => null),
+      phone: input.phone,
+      away: input.away,
       logger: input.logger,
     })
 

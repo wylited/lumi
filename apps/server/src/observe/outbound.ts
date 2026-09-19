@@ -35,7 +35,20 @@ export interface DeskSocket {
 export type DeskSocketLookup = (sessionId: string) => DeskSocket | null
 
 export interface SenderDeps {
+  /** The desk the person is sitting at: the desktop app or the rig. */
   desk: DeskSocketLookup
+  /**
+   * The phone, when one is paired and connected. It is the surface that leaves
+   * the room with the person, so a nudge prefers it and speech follows it when
+   * motion says the desk was left — see `away`.
+   */
+  phone?: DeskSocketLookup
+  /**
+   * True when the person is away from the desk. The phone's motion decides; an
+   * unknown phone is never away, because a stale signal must not move a spoken
+   * line to a pocket in another room.
+   */
+  away?: (sessionId: string) => boolean
   logger?: {
     info(obj: unknown, msg?: string): void
     warn(obj: unknown, msg?: string): void
@@ -46,24 +59,41 @@ export interface SenderDeps {
  * Every sender answers honestly. A missing socket, a closed one, or a transport
  * that cannot carry audio returns `false`, and the caller records the line as
  * undelivered rather than pretending it spoke.
+ *
+ * Where a line goes is a routing question, not a policy one: the policy decided
+ * the tier, and this decides which surface carries it.
+ *   - speech follows the person: away → the phone, otherwise the desk first;
+ *   - a nudge prefers the phone, because it is with them either way, and falls
+ *     back to the desk.
  */
 export function createDeskSenders(deps: SenderDeps): LoopSenders {
   const log = deps.logger
+  const phone = deps.phone ?? (() => null)
+  const away = deps.away ?? (() => false)
 
-  function socketFor(sessionId: string): DeskSocket | null {
+  function homeFor(sessionId: string, intent: 'speech' | 'nudge'): DeskSocket | null {
+    const phoneSocket = safeLookup(phone, sessionId)
+    const deskSocket = safeLookup(deps.desk, sessionId)
+
+    if (intent === 'nudge') return phoneSocket ?? deskSocket
+    if (away(sessionId)) return phoneSocket ?? deskSocket
+    return deskSocket ?? phoneSocket
+  }
+
+  function safeLookup(lookup: DeskSocketLookup, sessionId: string): DeskSocket | null {
     try {
-      return deps.desk(sessionId)
+      return lookup(sessionId)
     } catch (error) {
-      log?.warn({ sessionId, err: error }, 'outbound: the desk lookup threw')
+      log?.warn({ sessionId, err: error }, 'outbound: a socket lookup threw')
       return null
     }
   }
 
   return {
     sendToSession(sessionId, payload) {
-      const socket = socketFor(sessionId)
+      const socket = homeFor(sessionId, 'speech')
       if (!socket) {
-        log?.warn({ sessionId }, 'outbound: no desk connected, dropping payload')
+        log?.warn({ sessionId }, 'outbound: no surface connected, dropping payload')
         return false
       }
       // A malformed payload is a bug here, not a transient failure: say so in the
@@ -85,9 +115,9 @@ export function createDeskSenders(deps: SenderDeps): LoopSenders {
     },
 
     sendBinaryToSession(sessionId, bytes) {
-      const socket = socketFor(sessionId)
+      const socket = homeFor(sessionId, 'speech')
       if (!socket?.sendBinary) {
-        log?.warn({ sessionId }, 'outbound: no binary channel to the desk, audio dropped')
+        log?.warn({ sessionId }, 'outbound: no binary channel on the chosen surface, audio dropped')
         return false
       }
       try {
@@ -98,11 +128,11 @@ export function createDeskSenders(deps: SenderDeps): LoopSenders {
       }
     },
 
-    /** Tier 2. The desktop renders it as a notification with one action. */
+    /** Tier 2. The phone shows it as a notification with one action; the desktop as a card. */
     sendNotification(sessionId, message) {
-      const socket = socketFor(sessionId)
+      const socket = homeFor(sessionId, 'nudge')
       if (!socket) {
-        log?.warn({ sessionId }, 'outbound: no desk connected, nudge dropped')
+        log?.warn({ sessionId }, 'outbound: no surface connected, nudge dropped')
         return false
       }
       const nudge = ApiNudge.safeParse({ t: 'nudge', observationId: null, message })

@@ -1,6 +1,16 @@
 import { z } from 'zod'
 
-export const SignalSource = z.enum(['desk', 'screen', 'app', 'window', 'input', 'idle', 'system'])
+export const SignalSource = z.enum([
+  'desk',
+  'screen',
+  'app',
+  'window',
+  'input',
+  'idle',
+  'system',
+  /** The phone: the surface the person takes with them (see `mobile.ts`). */
+  'phone',
+])
 export type SignalSource = z.infer<typeof SignalSource>
 
 export const SignalKind = z.string()
