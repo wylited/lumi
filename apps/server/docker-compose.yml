@@ -19,12 +19,15 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:latest
+    # MinIO no longer serves pullable images from Docker Hub (pull access denied
+    # for every tag); Quay is the canonical registry.
+    image: quay.io/minio/minio:latest
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: heli
-      MINIO_ROOT_PASSWORD: heli
+      # MinIO rejects a root password shorter than 8 characters and exits.
+      MINIO_ROOT_PASSWORD: heli-minio-dev
     ports:
       - '9000:9000'
       - '9001:9001'
