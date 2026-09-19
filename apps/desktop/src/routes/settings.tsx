@@ -4,6 +4,7 @@ import { Button } from '@heli/ui'
 import { Switch } from '../components/goal/Controls'
 import { NeverCapture } from '../components/settings/NeverCapture'
 import { DeskPanel } from '../components/desk/DeskPanel'
+import { PhonePairing } from '../components/phone/PhonePairing'
 import { Preflight } from '../components/settings/Preflight'
 import { Group, PageTitle, Row } from '../components/kit'
 import { audio, useAudio } from '../lib/audio'
@@ -46,6 +47,8 @@ export function SettingsRoute() {
       <Preflight />
 
       <DeskPanel />
+
+      <PhonePairing />
 
       <Group
         title="Permissions"
