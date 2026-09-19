@@ -254,7 +254,7 @@ the specification. `071` and `072` unblock it. Full `Do` and `Done when` in
 | ☑ | HELI-072 | `feat(server): drafting the goal from a sentence` | 004, 020 | yes | 2 · server |
 | ☑ | HELI-073 | `feat(server): the loop's line reaches the desktop` | 044, 048 | **no** | 1 · the loop |
 | ☑ | HELI-074 | `feat(desktop): the live monitor, split` (camera pane verified empty-and-honest; needs the rig for a desk frame; bbox overlay waits on a contracts field) | 071, 032 | yes | 3 · desktop + web |
-| ☐ | HELI-075 | `feat(desktop): the focused element, and a consent screen that matches reality` | 033, 046 | yes, after 046 | 3 · desktop + web |
+| ☑ | HELI-075 | `feat(desktop): the focused element, and a consent screen that matches reality` | 033, 046 | yes, after 046 | 3 · desktop + web |
 | ☐ | HELI-076 | `chore(desktop): preflight and demo reset` | 046 | yes, after 046 | 3 · desktop + web |
 
 `047` and `048` belong to P4 and are on `main` now — merged in `a8170fb` and `53d12d3` after sitting

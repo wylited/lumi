@@ -34,6 +34,12 @@ pub fn rig_calibration() -> Option<RigCalibration> {
             h: r.get("h")?.as_f64()?,
         })
     });
-    let poses = calibration.get("poses").and_then(|p| p.as_array()).map_or(0, Vec::len);
-    Some(RigCalibration { rect_mm: rect, poses })
+    let poses = calibration
+        .get("poses")
+        .and_then(|p| p.as_array())
+        .map_or(0, Vec::len);
+    Some(RigCalibration {
+        rect_mm: rect,
+        poses,
+    })
 }

@@ -60,7 +60,8 @@ pub fn permissions() -> Vec<Permission> {
             id: "accessibility",
             label: "Accessibility",
             state: state(accessibility()),
-            used_for: "The focused element in the front app.",
+            used_for:
+                "Which part of the front app has focus — its role and label, never its contents.",
             pane: Some("Privacy_Accessibility"),
         },
         Permission {
@@ -76,13 +77,6 @@ pub fn permissions() -> Vec<Permission> {
             state: state(input_monitoring()),
             used_for: "How often you type and click. Never which keys.",
             pane: Some("Privacy_ListenEvent"),
-        },
-        Permission {
-            id: "focus",
-            label: "Focus",
-            state: "unavailable",
-            used_for: "Do Not Disturb. macOS does not let apps read it.",
-            pane: None,
         },
     ]
 }

@@ -5,6 +5,7 @@
 //! permission is missing is simply never produced — no error, no retry spam.
 
 pub mod apps;
+pub mod ax;
 pub mod input;
 pub mod permissions;
 pub mod screen;
@@ -54,6 +55,7 @@ pub fn emit(app: &AppHandle, signal: Signal) {
 
 pub fn install(app: &AppHandle) -> tauri::Result<()> {
     apps::spawn(app.clone());
+    ax::spawn(app.clone());
     input::spawn(app.clone());
     screen::spawn(app.clone());
     Ok(())
