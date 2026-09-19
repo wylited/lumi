@@ -1,9 +1,11 @@
-"""`heli-rig` — the rig's entry point, in two modes.
+"""`heli-rig` — the rig's entry point, in three modes.
 
 `--once` is the bench check: one frame, one upload, one JSON line on stdout, and
-an exit code a script can branch on. The default is the long-running rig, which
-captures at the cadence and — once the desk socket has landed and the integrator
-has filled the marked block below — speaks to the server beside it.
+an exit code a script can branch on. `--calibrate` records the desk plane — five
+prompts, five poses, one file — and exits. The default is the long-running rig:
+frames up at the cadence, actions and a line's PCM down the desk socket, with the
+arm and the speaker beside it. Each of those three is loaded only when its module
+is in the tree, so the capture path still runs on a rig with no arm and no speaker.
 """
 
 from __future__ import annotations
