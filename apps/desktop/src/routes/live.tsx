@@ -4,6 +4,7 @@ import { Button } from '@heli/ui'
 import { SectionTitle } from '../components/kit'
 import { Actions } from '../components/session/Actions'
 import { Attention } from '../components/session/Attention'
+import { Phone } from '../components/session/Phone'
 import { Ribbon, RibbonLegend } from '../components/session/Ribbon'
 import { Signals } from '../components/session/Signals'
 import { Thinking } from '../components/session/Thinking'
@@ -151,6 +152,8 @@ export function LiveRoute() {
         />
         <Attention observations={snap.observations} goal={sessionGoal ?? goal} />
       </div>
+
+      <Phone sessionId={snap.session?.id ?? null} goal={sessionGoal ?? goal} />
 
       <section className="flex flex-col gap-3">
         <Ribbon
