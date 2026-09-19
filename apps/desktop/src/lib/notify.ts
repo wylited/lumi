@@ -57,7 +57,8 @@ function decide(d: Omit<Decision, 'at'>) {
   set({ decisions: [decision, ...state.decisions].slice(0, 50) })
 }
 
-async function native(body: string) {
+/** A macOS banner. It cannot carry buttons, so the in-app card holds the action. */
+export async function banner(body: string) {
   if (!isTauri()) return
   try {
     let granted = await isPermissionGranted()
@@ -87,7 +88,7 @@ function showNudge(
     return
   }
   set({ nudge: { id: `${Date.now()}`, message, at: Date.now(), observationId } })
-  void native(message)
+  void banner(message)
   decide({ tier: 2, shown: 'notification', reason })
 }
 

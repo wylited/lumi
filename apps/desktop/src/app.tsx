@@ -97,6 +97,18 @@ export function App() {
 
   useEffect(() => native.attach(), [])
 
+  // Follow the open session from any screen, not only Live: blocking, signals and the tray all
+  // need it. While idle, look again every 15 s, so a session opened elsewhere is picked up.
+  useEffect(() => {
+    if (setup) return
+    const look = () => {
+      if (live.get().status === 'idle') void live.attach()
+    }
+    look()
+    const t = setInterval(look, 15_000)
+    return () => clearInterval(t)
+  }, [setup])
+
   // Web Audio starts suspended; the first click anywhere unlocks it for the session.
   useEffect(() => {
     const unlock = () => audio.resume()

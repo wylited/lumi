@@ -2,6 +2,8 @@
 type Level = 'debug' | 'info' | 'warn' | 'error'
 
 const DEV = import.meta.env.DEV
+// `tauri dev` only: the webview's console is not the terminal, so lines are echoed there too.
+const echo = DEV && '__TAURI_INTERNALS__' in window
 
 function write(level: Level, scope: string, message: string, detail?: unknown): void {
   if (level === 'debug' && !DEV) return
@@ -9,6 +11,10 @@ function write(level: Level, scope: string, message: string, detail?: unknown): 
   const sink = level === 'error' ? console.error : level === 'warn' ? console.warn : console.info
   if (detail === undefined) sink(line)
   else sink(line, detail)
+  if (echo) {
+    const text = detail === undefined ? line : `${line} ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`
+    void import('@tauri-apps/api/core').then(({ invoke }) => invoke('dev_log', { line: `${level} ${text}` })).catch(() => {})
+  }
 }
 
 export function logger(scope: string) {

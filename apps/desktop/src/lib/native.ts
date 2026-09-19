@@ -29,12 +29,14 @@ let recent: Signal[] = []
 let pending: Signal[] = []
 let frame: { at: string } | null = null
 const listeners = new Set<() => void>()
+const signalListeners = new Set<(s: Signal) => void>()
 
 function push(s: Signal) {
   recent = [s, ...recent].slice(0, 60)
   pending.push(s)
   if (s.kind === 'screen.frame') frame = { at: s.ts }
   listeners.forEach((l) => l())
+  signalListeners.forEach((l) => l(s))
 }
 
 async function flush() {
@@ -74,6 +76,17 @@ export const native = {
       clearInterval(timer)
       void unlisten.then((u) => u())
     }
+  },
+
+  /** Every native signal as it arrives. Blocking hangs here. Returns the unhook. */
+  onSignal(l: (s: Signal) => void): () => void {
+    signalListeners.add(l)
+    return () => signalListeners.delete(l)
+  },
+
+  /** A signal the app itself produced (a block, an undo), shipped with the native ones. */
+  record(s: Signal) {
+    push(s)
   },
 
   async permissions(): Promise<PermissionState[]> {

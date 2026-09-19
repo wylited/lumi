@@ -82,21 +82,21 @@ fn run(app: AppHandle) {
 
 /* ---- NSWorkspace, through the Objective-C runtime -------------------------------------------- */
 
-type Id = *mut c_void;
+pub(crate) type Id = *mut c_void;
 
 #[link(name = "objc")]
 extern "C" {
-    fn objc_getClass(name: *const c_char) -> Id;
+    pub(crate) fn objc_getClass(name: *const c_char) -> Id;
     fn sel_registerName(name: *const c_char) -> Id;
-    fn objc_msgSend();
-    fn objc_autoreleasePoolPush() -> *mut c_void;
-    fn objc_autoreleasePoolPop(pool: *mut c_void);
+    pub(crate) fn objc_msgSend();
+    pub(crate) fn objc_autoreleasePoolPush() -> *mut c_void;
+    pub(crate) fn objc_autoreleasePoolPop(pool: *mut c_void);
 }
 
 #[link(name = "AppKit", kind = "framework")]
 extern "C" {}
 
-unsafe fn sel(name: &str) -> Id {
+pub(crate) unsafe fn sel(name: &str) -> Id {
     let c = CString::new(name).unwrap_or_default();
     sel_registerName(c.as_ptr())
 }
@@ -181,7 +181,7 @@ const BROWSERS: [&str; 7] = [
     "com.operasoftware.Opera",
 ];
 
-fn is_browser(bundle_id: &str) -> bool {
+pub fn is_browser(bundle_id: &str) -> bool {
     BROWSERS.contains(&bundle_id)
 }
 

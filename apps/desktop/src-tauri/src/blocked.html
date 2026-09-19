@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Not now · Lumi</title>
+<style>
+  :root { --bg: #ffffff; --text: #0b1512; --muted: #4a5c55; --faint: #6b7d76; --accent: #0fa36b; --border: #e3ebe7; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0b1512; --text: #f3f7f5; --muted: #c2cfc9; --faint: #94a59e; --border: #1e2d28; }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: grid; place-items: center; padding: 24px;
+    background: var(--bg); color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 34rem; display: flex; flex-direction: column; gap: 14px; }
+  .mark { width: 10px; height: 10px; border-radius: 999px; background: var(--accent); }
+  h1 { margin: 0; font-size: 34px; line-height: 1.1; letter-spacing: -0.02em; font-weight: 600; }
+  p { margin: 0; color: var(--muted); }
+  .goal { color: var(--text); font-weight: 600; }
+  small { color: var(--faint); font-size: 13px; padding-top: 10px; border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<main>
+  <span class="mark" aria-hidden="true"></span>
+  <h1 id="site">Not now.</h1>
+  <p>It is off the list while you work on <span class="goal" id="goal">your goal</span>.</p>
+  <small>Lumi sent this tab here. Undo it from the notification in Lumi, and it stays open for ten minutes.</small>
+</main>
+<script>
+  const q = new URLSearchParams(location.search)
+  const site = q.get('site'), goal = q.get('goal')
+  if (site) document.getElementById('site').textContent = site + ', not now.'
+  if (goal) document.getElementById('goal').textContent = goal
+</script>
+</body>
+</html>

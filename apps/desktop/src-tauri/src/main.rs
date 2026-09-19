@@ -1,6 +1,7 @@
 // Prevents an extra console window on Windows in release. Harmless on macOS.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod block;
 mod rig;
 mod signals;
 mod tray;
@@ -61,6 +62,12 @@ fn main() {
             signals::screen::set_screen_denylist,
             signals::screen::latest_screen_frame,
             rig::rig_calibration,
+            block::hide_app,
+            block::unhide_app,
+            block::browser_url,
+            block::browser_navigate,
+            block::blocked_page,
+            dev_log,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build the Lumi app");
@@ -73,4 +80,13 @@ fn main() {
         #[cfg(not(target_os = "macos"))]
         let _ = (app, event);
     });
+}
+
+/// `tauri dev` only: the webview's log lines, echoed to the terminal (`lib/log.ts`).
+#[tauri::command]
+fn dev_log(line: String) {
+    #[cfg(debug_assertions)]
+    eprintln!("webview: {line}");
+    #[cfg(not(debug_assertions))]
+    let _ = line;
 }

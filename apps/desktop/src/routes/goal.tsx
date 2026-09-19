@@ -283,7 +283,10 @@ export function GoalRoute() {
         >
           <Switch label="Speak" checked={may('speak')} onChange={(v) => allow('speak', v)} />
         </Row>
-        <Row label="Change my machine" detail="Shown in the tray, undone in one click">
+        <Row
+          label="Change my machine"
+          detail="Hides blocked apps and moves tabs off blocked sites. Undo in one click."
+        >
           <Switch
             label="Change my machine"
             checked={may('automate')}

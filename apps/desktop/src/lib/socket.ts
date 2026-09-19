@@ -37,6 +37,12 @@ let retry: ReturnType<typeof setTimeout> | null = null
 let pendingAudio: ApiAudioOut | null = null
 let playingMoment: string | null = null
 const nudgeListeners = new Set<Listener>()
+export interface AutomationRequest {
+  action: string
+  target: string | null
+  message: string
+}
+const automationListeners = new Set<(a: AutomationRequest) => void>()
 let lineText: () => string | null = () => null
 
 function send(message: DesktopToApi) {
@@ -60,6 +66,9 @@ function onText(text: string) {
   switch (m.t) {
     case 'nudge':
       nudgeListeners.forEach((l) => l({ message: m.message, observationId: m.observationId }))
+      break
+    case 'automation':
+      automationListeners.forEach((l) => l({ action: m.action, target: m.target, message: m.message }))
       break
     case 'audio.out':
       // The PCM follows as the next binary frame; order is part of the contract.
@@ -150,5 +159,10 @@ export const desktopSocket = {
   onNudge(l: Listener) {
     nudgeListeners.add(l)
     return () => nudgeListeners.delete(l)
+  },
+  /** Tier 4 from the loop. `lib/block` carries it out. */
+  onAutomation(l: (a: AutomationRequest) => void) {
+    automationListeners.add(l)
+    return () => automationListeners.delete(l)
   },
 }
