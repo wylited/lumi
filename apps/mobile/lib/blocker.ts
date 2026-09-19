@@ -1,14 +1,12 @@
 import { requireOptionalNativeModule } from 'expo-modules-core'
-import { MobileBlocklist } from '@heli/contracts'
-
-import { normalizeBase } from './api'
+import type { MobileBlocklist } from '@heli/contracts'
 
 /**
  * The Android blocker (`modules/app-blocker`), reached defensively like usage stats: absent in
  * Expo Go and on iOS, where everything here answers "not available".
  *
- * The service does the blocking on its own; this file keeps its list current from
- * `GET /v1/mobile/blocklist` and hands its events to the signal sampler.
+ * The service does the blocking on its own; `lib/session` keeps its list current from the one poll
+ * the screen makes, and this file hands the service's events to the signal sampler.
  */
 
 interface AppBlockerModule {
@@ -39,20 +37,12 @@ export async function openBlockerSettings(): Promise<void> {
   }
 }
 
-/** Fetch the blocklist and hand it to the service. Returns it, or null when it could not. */
-export async function syncBlocklist(serverUrl: string, token: string): Promise<MobileBlocklist | null> {
-  if (native === null) return null
+/** Hand the service the list it enforces. The service keeps the last one while offline. */
+export async function applyBlocklist(list: MobileBlocklist): Promise<void> {
   try {
-    const response = await fetch(`${normalizeBase(serverUrl)}/v1/mobile/blocklist`, {
-      headers: { authorization: `Bearer ${token}` },
-    })
-    if (!response.ok) return null
-    const list = MobileBlocklist.parse(await response.json())
-    await native.setBlocklist(list.apps, list.goal, list.active)
-    return list
+    await native?.setBlocklist(list.apps, list.goal, list.active)
   } catch {
-    // Offline: the service keeps the last list it was given, which is the safe thing to keep.
-    return null
+    // The module refused: the service keeps its previous list.
   }
 }
 

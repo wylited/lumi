@@ -4,6 +4,16 @@
     reads one thing, the package of the window that just came to the front, and does one thing,
     Home, for an app the open session's goal lists. It never reads window content.
   -->
+  <!--
+    Since Android 11 another app's name is hidden unless declared. The goal lists apps by name
+    ("Instagram"), so the launcher apps — and only those — are made visible to Lumi.
+  -->
+  <queries>
+    <intent>
+      <action android:name="android.intent.action.MAIN" />
+      <category android:name="android.intent.category.LAUNCHER" />
+    </intent>
+  </queries>
   <application>
     <service
       android:name="expo.modules.appblocker.BlockerService"

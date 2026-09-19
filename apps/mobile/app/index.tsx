@@ -1,43 +1,64 @@
-import { useEffect, useRef, useState } from 'react'
-import { AppState, Platform, ScrollView } from 'react-native'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { AppState, Platform, ScrollView, View } from 'react-native'
 import { Redirect, router } from 'expo-router'
+import * as Notifications from 'expo-notifications'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { space } from '@heli/tokens'
 
-import { BlockerCard } from '@/components/BlockerCard'
-import { Button, Card, Dot, Label, Row, Screen, Text } from '@/components/ui'
-import { clearPairing, usePairing } from '@/lib/store'
-import { useTheme } from '@/lib/theme'
+import {
+  Blocking,
+  Footer,
+  Header,
+  Moment,
+  PhoneToday,
+  SessionHero,
+  Setup,
+  type SetupItem,
+} from '@/components/screen'
+import { Screen } from '@/components/ui'
+import { blockerAvailable, blockerEnabled, openBlockerSettings } from '@/lib/blocker'
+import { useSession } from '@/lib/session'
 import { createSignalSampler, type SignalSampler } from '@/lib/signals'
 import { createPhoneSocket, type Nudge, type PhoneSocket } from '@/lib/socket'
+import { clearPairing, usePairing } from '@/lib/store'
 import { hasUsagePermission, openUsageSettings, usageStatsAvailable } from '@/lib/usage'
 
 /**
- * The live screen: what this phone reports, what the observer said back, and the
- * one permission Android needs for the app part of it.
+ * The phone's one screen, built around the session: the goal and the clock first, the moment
+ * Lumi speaks or nudges when it happens, then what this session looked like on the phone, what is
+ * blocked, and — only while something is missing — the setup that is left.
  *
- * Deliberately quiet. The phone is a surface, not a dashboard: the person opens
- * it to check the pairing is alive or to answer a nudge, and closes it again.
+ * The phone is a surface, not a dashboard: it is opened to answer Lumi or to glance at the
+ * session, and put away again.
  */
 export default function PhoneScreen() {
-  const t = useTheme()
   const { ready, pairing } = usePairing()
+  const insets = useSafeAreaInsets()
 
   const [connection, setConnection] = useState<'connecting' | 'open' | 'closed'>('connecting')
   const [nudge, setNudge] = useState<Nudge | null>(null)
   const [playing, setPlaying] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
-  const [waiting, setWaiting] = useState(0)
-  const [usageOk, setUsageOk] = useState<boolean | null>(null)
+  const [grants, setGrants] = useState({ usage: true, blocking: true, notifications: true })
 
   const live = useRef<{ sampler: SignalSampler; socket: PhoneSocket } | null>(null)
+  const view = useSession(pairing?.serverUrl ?? '', pairing?.token ?? '')
+
+  const checkGrants = useCallback(async () => {
+    const [usage, blocking, notifications] = await Promise.all([
+      usageStatsAvailable ? hasUsagePermission() : Promise.resolve(true),
+      blockerAvailable ? blockerEnabled() : Promise.resolve(true),
+      Notifications.getPermissionsAsync().then((p) => p.granted).catch(() => true),
+    ])
+    setGrants({ usage, blocking, notifications })
+  }, [])
 
   useEffect(() => {
-    if (pairing === null) return
+    if (!pairing) return
 
     const sampler = createSignalSampler()
     sampler.start()
-
     const socket = createPhoneSocket({
       serverUrl: pairing.serverUrl,
       token: pairing.token,
@@ -51,146 +72,99 @@ export default function PhoneScreen() {
     socket.start()
     live.current = { sampler, socket }
 
-    const tick = setInterval(() => setWaiting(sampler.pending()), 1_000)
-    const appState = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void hasUsagePermission().then(setUsageOk)
+    void checkGrants()
+    const appState = AppState.addEventListener('change', (s) => {
+      if (s === 'active') void checkGrants()
     })
 
-    void hasUsagePermission().then(setUsageOk)
-
     return () => {
-      clearInterval(tick)
       appState.remove()
       socket.stop()
       sampler.stop()
       live.current = null
     }
-  }, [pairing?.serverUrl, pairing?.token, pairing?.phoneName])
+  }, [pairing?.serverUrl, pairing?.token, pairing?.phoneName, checkGrants])
 
   if (!ready) return null
   if (pairing === null) return <Redirect href="/pair" />
 
-  const connected = connection === 'open'
+  const android = Platform.OS === 'android'
+  const setup: SetupItem[] = [
+    ...(!grants.notifications
+      ? [
+          {
+            key: 'notifications',
+            title: 'Notifications',
+            detail: 'So a nudge and a block can reach you with the app closed.',
+            action: 'Allow',
+            onPress: () => void Notifications.requestPermissionsAsync().then(checkGrants),
+          },
+        ]
+      : []),
+    ...(android && !grants.usage
+      ? [
+          {
+            key: 'usage',
+            title: 'Usage access',
+            detail: 'App time and unlocks. Never what is in an app.',
+            action: 'Open',
+            onPress: () => void openUsageSettings(),
+          },
+        ]
+      : []),
+    ...(android && !grants.blocking
+      ? [
+          {
+            key: 'blocking',
+            title: 'Lumi blocking',
+            detail: 'In Accessibility. Sends you home from apps your goal blocks.',
+            action: 'Open',
+            onPress: () => void openBlockerSettings(),
+          },
+        ]
+      : []),
+  ]
+
+  const inSession = !!view?.data.session
   const host = pairing.serverUrl.replace(/^https?:\/\//, '')
 
   return (
-    <Screen>
-      <ScrollView contentContainerStyle={{ gap: space[4], paddingVertical: space[6] }}>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <Row>
-            <Text variant="title2">Lumi</Text>
-            <Text variant="caption" tone="faint" style={{ marginLeft: space[2] }}>
-              {pairing.phoneName}
-            </Text>
-          </Row>
-          <Row>
-            <Dot tone={connected ? 'on' : connection === 'connecting' ? 'warn' : 'off'} />
-            <Text variant="caption" tone="muted">
-              {connected ? `live · ${host}` : connection === 'connecting' ? 'connecting…' : 'offline'}
-            </Text>
-          </Row>
-        </Row>
+    <Screen style={{ paddingTop: insets.top + space[2], paddingBottom: 0 }}>
+      <ScrollView
+        contentContainerStyle={{ gap: space[8], paddingTop: space[2], paddingBottom: insets.bottom + space[8] }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={{ gap: space[5] }}>
+          <Header connection={connection} />
+          <SessionHero view={view} />
+        </View>
 
-        <Card>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <Label>Speaking now</Label>
-            {playing ? <Dot tone="on" pulse /> : null}
-          </Row>
-          <Text variant="small" tone={playing ? 'text' : 'faint'}>
-            {playing
-              ? 'A line from the observer is playing through this phone.'
-              : 'Silence. Most of the time the observer has nothing to say.'}
-          </Text>
-        </Card>
-
-        {nudge !== null ? (
-          <Card style={{ borderColor: t.accent, backgroundColor: t.accentWash }}>
-            <Label>Lumi says</Label>
-            <Text variant="bodyStrong">{nudge.message}</Text>
-            <Row style={{ gap: space[2] }}>
-              <Button
-                label="Back to it"
-                onPress={() => {
-                  live.current?.socket.respond('back_to_goal', nudge.observationId)
-                  setNudge(null)
-                }}
-              />
-              <Button
-                label="10 minutes"
-                tone="quiet"
-                onPress={() => {
-                  live.current?.socket.respond('snooze_10m', nudge.observationId)
-                  setNudge(null)
-                }}
-              />
-            </Row>
-          </Card>
-        ) : null}
-
-        <Card>
-          <Label>What this phone reports</Label>
-          <Text variant="small" tone="muted">
-            Motion (still or walking), whether the screen is on, and — with usage access — the app in
-            front, time in each app and unlocks. No messages, no content, ever.
-          </Text>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <Text variant="caption" tone="faint">
-              {waiting} signal{waiting === 1 ? '' : 's'} waiting
-            </Text>
-            <Text variant="caption" tone="faint">
-              {connected ? 'flushing every 5 s' : 'buffered until the socket returns'}
-            </Text>
-          </Row>
-        </Card>
-
-        {Platform.OS === 'android' ? (
-          <Card>
-            <Row style={{ justifyContent: 'space-between' }}>
-              <Label>Usage access</Label>
-              {usageOk === true ? (
-                <Text variant="caption" tone="accent">
-                  granted
-                </Text>
-              ) : usageOk === false ? (
-                <Text variant="caption" tone="warn">
-                  not granted
-                </Text>
-              ) : null}
-            </Row>
-            <Text variant="small" tone="muted">
-              {usageStatsAvailable
-                ? 'Android app time and unlock counts come from this. It is a special access, granted in Settings.'
-                : 'This build has no usage-stats module — install a development build to see app time. Motion and speech still work.'}
-            </Text>
-            {usageOk === false && usageStatsAvailable ? (
-              <Button label="Open usage access settings" tone="quiet" onPress={() => void openUsageSettings()} />
-            ) : null}
-          </Card>
-        ) : (
-          <Card>
-            <Label>iOS, honestly</Label>
-            <Text variant="small" tone="muted">
-              iOS does not let an app read other apps' time without Apple's Screen Time entitlement.
-              This phone reports motion and receives nudges and speech; it does not pretend to watch
-              the screen.
-            </Text>
-          </Card>
-        )}
-
-        {Platform.OS === 'android' ? <BlockerCard serverUrl={pairing.serverUrl} token={pairing.token} /> : null}
-
-        {notice !== null ? (
-          <Text variant="caption" tone="faint" numberOfLines={2}>
-            {notice}
-          </Text>
-        ) : null}
-
-        <Button
-          label="Unpair this phone"
-          tone="quiet"
-          onPress={() => {
-            void clearPairing().then(() => router.replace('/pair'))
+        <Moment
+          playing={playing}
+          nudge={nudge}
+          onBack={() => {
+            if (nudge) live.current?.socket.respond('back_to_goal', nudge.observationId)
+            setNudge(null)
           }}
+          onSnooze={() => {
+            if (nudge) live.current?.socket.respond('snooze_10m', nudge.observationId)
+            setNudge(null)
+          }}
+        />
+
+        <Setup items={setup} />
+
+        {view && inSession && android && grants.usage ? <PhoneToday view={view} blocked={view.data.blocklist.apps} /> : null}
+
+        {view && android && grants.blocking ? <Blocking view={view} /> : null}
+
+        <Footer
+          name={pairing.phoneName}
+          host={host}
+          note={
+            notice ?? (android ? null : 'On iPhone, Lumi hears motion and speaks; iOS hides other apps from it.')
+          }
+          onUnpair={() => void clearPairing().then(() => router.replace('/pair'))}
         />
       </ScrollView>
     </Screen>
