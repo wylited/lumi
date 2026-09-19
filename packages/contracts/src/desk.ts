@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { AudioOut } from './media.js'
+
 /**
  * The desk: one Mac, a camera, and an arm that can point it.
  *
@@ -97,6 +99,8 @@ export const DeskActionResult = z
     pose: ArmPose.nullable().default(null),
     seq: z.number().int().nonnegative().nullable().default(null),
     zoom: z.number().positive().nullable().default(null),
+    /** `audio.out`: how long the line took to play, in milliseconds. */
+    durationMs: z.number().int().nonnegative().nullable().default(null),
   })
   .strict()
 export type DeskActionResult = z.infer<typeof DeskActionResult>
@@ -148,7 +152,24 @@ export const DeskError = z
   .strict()
 export type DeskError = z.infer<typeof DeskError>
 
-export const ApiToDesk = z.union([DeskAction, DeskError])
+/**
+ * The spoken line, heard on the desk rather than only on the desktop. The header
+ * names the moment and the format, and the **next** binary message on this
+ * socket is that PCM, tagged `0x02` — `MEDIA_TAG.audio`, the same tag the device
+ * contract used. The desk plays one line at a time and acks it with
+ * `result.durationMs`.
+ *
+ * The rig owns the Mac's speakers (`docs/03-desk-capture.md`: "Playing the
+ * line"), so the line has to be able to come down this socket and not only
+ * through the desktop app.
+ */
+export const ApiDeskAudioOut = z
+  .object({ t: z.literal('audio.out') })
+  .extend(AudioOut.shape)
+  .strict()
+export type ApiDeskAudioOut = z.infer<typeof ApiDeskAudioOut>
+
+export const ApiToDesk = z.union([DeskAction, ApiDeskAudioOut, DeskError])
 export type ApiToDesk = z.infer<typeof ApiToDesk>
 
 /** Why an upload was refused. The rig branches on these and never retries the same bytes. */

@@ -40,6 +40,7 @@ const topLevel: Record<string, ZodTypeAny> = {
   DeskHealth: contracts.DeskHealth,
   DeskToApi: contracts.DeskToApi,
   ApiToDesk: contracts.ApiToDesk,
+  ApiDeskAudioOut: contracts.ApiDeskAudioOut,
   DeskFrameResponse: contracts.DeskFrameResponse,
   DeskStatus: contracts.DeskStatus,
   DeskActionRecord: contracts.DeskActionRecord,
