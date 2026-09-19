@@ -20,6 +20,17 @@ import type { FastifyInstance, FastifyPluginAsync } from 'fastify'
  *
  * It is registered at the root, so it declares its own full paths (`/v1/...`,
  * `/ws/...`). A folder that does not exist yet is skipped.
+ *
+ * A file that exports no default plugin is treated as a shared module living
+ * beside the routes that use it — `src/ws/registry.ts` is one, and HELI-012's
+ * `Touches` put it in this folder on purpose — and is skipped with a warning
+ * naming it. Crashing the boot instead was the original behaviour, and it made
+ * a library in this directory impossible: the phase doc is the plan of record
+ * for where a file lives, so the loader yields rather than the file moving.
+ * The cost is that a forgotten `export default` shows up as a warning and a
+ * lower count in the boot log rather than as a refusal to start, which is the
+ * trade this makes on purpose: a server that will not boot during a demo is
+ * worse than a route that is missing from a line someone is already reading.
  */
 const ROUTE_DIRS = [
   fileURLToPath(new URL('../routes/', import.meta.url)),
@@ -54,7 +65,11 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     for (const file of await routeFilesIn(dir, app)) {
       const mod = (await import(pathToFileURL(file).href)) as RouteModule
       if (typeof mod.default !== 'function') {
-        throw new Error(`${relative(process.cwd(), file)} must export default a fastify plugin.`)
+        app.log.warn(
+          { file: relative(process.cwd(), file) },
+          'not a route file: no default plugin export, skipping',
+        )
+        continue
       }
       await app.register(mod.default, mod.prefix ? { prefix: mod.prefix } : {})
       count += 1
