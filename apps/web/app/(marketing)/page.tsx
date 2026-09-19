@@ -33,7 +33,8 @@ export default function Home() {
             <div className="relative order-2 h-[340px] md:order-1 md:h-[560px]">
               <Unit priority />
             </div>
-            <div className="order-1 px-5 pt-8 md:order-2 md:py-14 md:pl-0 md:pr-14">
+            {/* At phone width the window's text is too small to read; the unit carries the hero there. */}
+            <div className="order-1 hidden px-5 pt-8 md:order-2 md:block md:py-14 md:pl-0 md:pr-14">
               <MacWindow src="/shots/live-nudge.png" alt="The Lumi desktop app mid-session: a ribbon of minutes, and a nudge offering to go back to the goal" priority />
             </div>
           </div>
@@ -97,7 +98,7 @@ export default function Home() {
         </Link>
         <Link
           href="/download#phone"
-          className="group flex flex-col overflow-hidden rounded-[24px] bg-surface md:col-span-2 md:flex-row md:items-end md:justify-between"
+          className="group flex flex-col overflow-hidden rounded-[24px] bg-surface md:col-span-2 md:flex-row md:items-center md:justify-between"
         >
           <div className="flex flex-col gap-2 p-8 md:max-w-[52ch] md:self-center md:p-12">
             <span className="text-small text-text-faint">Phone app · Free · Android</span>
@@ -108,7 +109,7 @@ export default function Home() {
             </p>
             <span className="mt-2 text-body-strong font-medium text-accent-link group-hover:underline">Get the phone app →</span>
           </div>
-          <div className="flex h-[420px] items-start justify-center overflow-hidden px-8 md:h-[480px] md:pr-20 md:pt-12">
+          <div className="flex justify-center px-8 pb-10 md:py-12 md:pr-20">
             <Phone />
           </div>
         </Link>
@@ -116,7 +117,7 @@ export default function Home() {
 
       {/* Privacy, in one breath. */}
       <section className="mx-auto max-w-[var(--max-content)] px-5 pt-28 md:pt-36">
-        <p className="max-w-[40ch] text-title-1 font-semibold text-balance text-text md:text-display-2">
+        <p className="max-w-[40ch] text-title-2 font-semibold text-balance text-text md:text-display-2">
           Counts and titles, never keystrokes or page contents.{' '}
           <span className="text-text-faint">
             Every change it makes to your computer is shown and undone in one click. The shutter is mechanical. The phone sends counts, not messages.

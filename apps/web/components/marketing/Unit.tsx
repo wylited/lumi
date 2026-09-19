@@ -103,7 +103,7 @@ export function UnitStates({ className }: { className?: string }) {
             aria-checked={s.id === state}
             onClick={() => setState(s.id)}
             className={cn(
-              'rounded-pill px-4 py-1.5 text-small outline-none transition-colors duration-fast focus-visible:ring-2 focus-visible:ring-accent',
+              'whitespace-nowrap rounded-pill px-3 py-1.5 text-small outline-none sm:px-4 transition-colors duration-fast focus-visible:ring-2 focus-visible:ring-accent',
               s.id === state ? 'bg-bg font-medium text-text shadow-sm' : 'text-text-muted hover:text-text',
             )}
           >

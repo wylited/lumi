@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { NavMenu } from '@/components/marketing/NavMenu'
 import { Wordmark } from '@/components/shell/Mark'
 import { price, PRICE } from '@/lib/product'
 
@@ -33,6 +34,7 @@ export function Nav() {
           >
             Order · {price(PRICE.unit)}
           </Link>
+          <NavMenu links={[...LINKS, { href: '/download', label: 'Download' }]} />
         </div>
       </div>
     </header>
