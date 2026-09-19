@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { DeskStatus } from '@heli/contracts'
 import { Button } from '@heli/ui'
 import { Group, Row } from '../kit'
+import { Switch } from '../goal/Controls'
 import { FramePane } from './FramePane'
 import { api } from '../../lib/api'
 
@@ -11,9 +12,20 @@ function ago(iso: string | null) {
   return s < 2 ? 'just now' : s < 60 ? `${s} s ago` : `${Math.round(s / 60)} min ago`
 }
 
+/** What each refusal from the rig means, in words the person can act on. */
+const TRACK_ERRORS: Record<string, string> = {
+  tracking_disabled: 'Following is off on this rig. Set HELI_TRACKING=auto for it and restart it.',
+  tracking_unavailable: 'The rig has no arm or no pose model to follow with.',
+  desk_offline: 'Lumi One is not connected.',
+}
+
 /** Lumi One in Settings: what the server knows about the desk, refreshed every few seconds. */
 export function DeskPanel() {
   const [desk, setDesk] = useState<DeskStatus | null | undefined>(undefined)
+  // The last answer to `arm.track`, until the rig reports `following` in its health.
+  const [acked, setAcked] = useState<boolean | null>(null)
+  const [switching, setSwitching] = useState(false)
+  const [trackError, setTrackError] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -27,6 +39,22 @@ export function DeskPanel() {
 
   const d = desk?.desk ?? null
   const h = desk?.health ?? null
+  const following = h?.following ?? acked ?? false
+
+  async function follow(on: boolean) {
+    if (!d) return
+    setSwitching(true)
+    setTrackError(null)
+    try {
+      const res = await api.deskAction(d.id, { type: 'arm.track', payload: { on } })
+      if (res?.status === 'done') setAcked(on)
+      else setTrackError(TRACK_ERRORS[res?.error ?? ''] ?? `The rig did not follow: ${res?.error ?? 'no answer'}.`)
+    } catch (e) {
+      setTrackError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSwitching(false)
+    }
+  }
   return (
     <section className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between px-1">
@@ -81,6 +109,18 @@ export function DeskPanel() {
                       : d.arm.model}
               </span>
             </Row>
+            {d.arm ? (
+              <Row
+                label="Follow me"
+                detail={trackError ?? 'The arm keeps you in frame as you move.'}
+              >
+                <Switch
+                  label="Follow me"
+                  checked={following}
+                  onChange={(on) => void (switching ? null : follow(on))}
+                />
+              </Row>
+            ) : null}
             <Row label="Capture">
               <span className="tnum text-small text-text-muted">
                 {h ? `${h.fps} fps · last frame ${ago(h.lastFrameAt)}` : '—'}

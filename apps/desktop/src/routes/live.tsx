@@ -43,6 +43,9 @@ export function LiveRoute() {
   const [looking, setLooking] = useState(false)
   const [goal, setGoal] = useState<Goal | null>(null)
   const [frames, setFrames] = useState(0)
+  const [starting, setStarting] = useState(false)
+  const [ending, setEnding] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const clock = useClock(snap.session?.startedAt ?? null)
 
   useEffect(() => {
@@ -66,6 +69,30 @@ export function LiveRoute() {
     }
   }, [snap.status])
 
+  async function start() {
+    if (!goal) return
+    setStarting(true)
+    setError(null)
+    try {
+      await live.start(goal.id)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setStarting(false)
+    }
+  }
+
+  async function finish() {
+    setEnding(true)
+    try {
+      await live.finish()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setEnding(false)
+    }
+  }
+
   if (snap.status !== 'live') {
     return (
       <div className="grid h-full place-items-center px-10 pb-16">
@@ -76,9 +103,18 @@ export function LiveRoute() {
             </h1>
             {goal ? <p className="text-body text-text-faint">{goal.objective}</p> : null}
           </div>
-          <Button variant="secondary" onClick={() => void live.attach()} disabled={looking}>
-            Check again
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => void start()} loading={starting} disabled={looking || !goal}>
+              Start session
+            </Button>
+            <Button variant="ghost" onClick={() => void live.attach()} disabled={looking || starting}>
+              Check again
+            </Button>
+          </div>
+          {error ? <p className="text-small text-danger">{error}</p> : null}
+          {!goal && !looking ? (
+            <p className="text-small text-text-faint">Set a goal first, in Goal.</p>
+          ) : null}
         </div>
       </div>
     )
@@ -137,6 +173,10 @@ export function LiveRoute() {
       </section>
 
       <Signals />
+
+      <Button variant="ghost" size="sm" className="self-start" onClick={() => void finish()} loading={ending}>
+        End session
+      </Button>
     </div>
   )
 }

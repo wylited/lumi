@@ -60,7 +60,8 @@ export function Ribbon({
         <div className="relative h-4 text-caption text-text-faint">
           <span className="tnum absolute left-0">0</span>
           {breaks
-            .filter((b) => b > 0 && b < total)
+            // A mark in the last tenth would sit on the total's label; the total already says where it ends.
+            .filter((b) => b > 0 && b < total * 0.9)
             .map((b) => (
               <span key={b} className="absolute" style={{ left: `${(b / total) * 100}%` }}>
                 Break

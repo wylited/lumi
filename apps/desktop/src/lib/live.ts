@@ -99,6 +99,23 @@ export const live = {
     return true
   },
 
+  /**
+   * Open a session for the goal and watch it. The server resolves the machine; frames from the rig
+   * are refused until a session is open, so this is what makes the desk count. Throws if it did not open.
+   */
+  async start(goalId: string): Promise<void> {
+    const open = (await api.sessions()).find((s) => s.endedAt === null)
+    if (!open && !(await api.openSession({ goalId }))) throw new Error('The session did not open.')
+    if (!(await live.attach())) throw new Error('The session opened, but its live channel did not.')
+  },
+
+  /** Close the open session on the server, then stop watching it. */
+  async finish(): Promise<void> {
+    const id = snap.session?.id
+    if (id) await api.closeSession(id)
+    live.end()
+  },
+
   end() {
     stop?.()
     stop = null

@@ -202,6 +202,8 @@ export async function frameUrl(
       {
         headers: { authorization: `Bearer ${bearer}` },
         signal: AbortSignal.timeout(TIMEOUT_MS),
+        // The route answers `max-age=5`; the pane polls faster than that and wants every frame.
+        cache: 'no-store',
       },
     )
     // 204 is "no frame yet": an empty body is not an image.
