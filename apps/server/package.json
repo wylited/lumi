@@ -7,6 +7,7 @@
     "postinstall": "prisma generate",
     "dev": "tsx watch --include 'src/**/*.ts' src/index.ts",
     "start": "node --import tsx src/index.ts",
+    "dev:mock": "node --import tsx src/dev/mock-device.ts",
     "db:reset": "prisma db push --force-reset && prisma generate && prisma db seed",
     "db:generate": "prisma generate",
     "db:seed": "prisma db seed",
