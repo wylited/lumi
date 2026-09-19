@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Lumi",
+    "slug": "lumi-phone",
+    "scheme": "heli",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B1512"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "ai.lumi.phone"
+    },
+    "android": {
+      "package": "ai.lumi.phone",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0B1512"
+      },
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "lumi-nudges"
+        }
+      ],
+      "expo-audio"
+    ]
+  }
+}

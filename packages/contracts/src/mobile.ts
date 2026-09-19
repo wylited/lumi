@@ -144,6 +144,12 @@ export const PHONE_SIGNAL = {
   motion: 'phone.motion',
   /** `{ screen: 'on'|'off', unlocked: boolean }`. */
   state: 'phone.state',
+  /**
+   * `{ action, observationId }` — what the person did with a nudge, reported on
+   * the ordinary signal transport so the policy can judge the outcome, exactly
+   * as the desktop reports it.
+   */
+  nudgeResponse: 'phone.nudge_response',
 } as const
 
 export const PhoneMotion = z.enum(['still', 'walking', 'running', 'driving', 'unknown'])

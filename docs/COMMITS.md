@@ -18,6 +18,7 @@ notes for every commit below. Read your phase entry before you start.
 | P5 | [`phases/P5-web.md`](./phases/P5-web.md) | **3 · desktop + web** (storefront only) |
 | P6 | [`phases/P6-hackathon-day.md`](./phases/P6-hackathon-day.md) | all four |
 | P7 | [`phases/P7-onboarding-and-live.md`](./phases/P7-onboarding-and-live.md) | **2 · server** and **3 · desktop + web** |
+| P8 | [`phases/P8-phone.md`](./phases/P8-phone.md) | **1 · the loop** (the app is verified on the phone by 4) |
 | policy | [`02-intervention-policy.md`](./02-intervention-policy.md) | 1 |
 
 **How a person works with agents.** Each owner runs one agent per row, not per phase. An agent gets
@@ -268,6 +269,29 @@ contracts already model `kind: 'desk' | 'screen'`.
 session and there is no retention row. The consent screen says exactly that. `075` makes
 Accessibility real — `focus.element` as role and accessible title, never a value — so every consent
 row is a signal a module actually emits.
+
+## P8 · The phone
+
+The surface that leaves the room. Pairing is desktop → phone; the phone reports what Android
+honestly allows (app time and unlocks; motion everywhere), receives the same nudge and the same
+spoken line as the desktop, and the loop follows the person when motion says the desk was left. On
+iOS the app says what it cannot see instead of pretending. Full spec in `phases/P8-phone.md`.
+
+| ✓ | id | commit | depends | ∥ | owner |
+|---|----|--------|---------|---|-------|
+| ☑ | HELI-080 | `feat(contracts): the phone` | 004 | yes | 1 · the loop |
+| ☑ | HELI-081 | `feat(server): the phone pairs, connects and is watched` | 080, 044 | **no** | 1 · the loop |
+| ☑ | HELI-082 | `feat(server): speech follows the person` | 081 | **no** | 1 · the loop |
+| ☐ | HELI-083 | `feat(mobile): the Android app` | 080–082 | yes | 1 · the loop, verified by 4 |
+| ☐ | HELI-084 | `feat(desktop): the pairing code in setup` | 046, 081 | yes | 3 · desktop + web |
+| ☐ | HELI-085 | `test(mobile): the device pass` | 083, 084 | **no** | 4 · hardware + rig |
+
+`080`–`082` landed in `1c3d169` (with the phone token in `fceb42d`). Proved by a black-box smoke:
+pair → `/ws/mobile` → four phone signals acked → `GET /v1/mobile/phones` reads
+`Instagram, 120 s, 5 unlocks, walking, away true`, the HTTP flush lands after the socket closes, and
+`still` follows it. `083` is **written and typechecked** but not ticked: its `Done when` needs the
+phone itself, which is `085`. The app's usage stats need a development build (`expo run:android`);
+in Expo Go it degrades to motion and speech, and says so on screen.
 
 ---
 
