@@ -127,7 +127,7 @@ the runtime reports audio as undelivered rather than pretending.
 | ☑ | HELI-037 | `feat(desktop): notifications and audio` | 030 | yes | desktop+web |
 | ☑ | HELI-038 | `feat(desktop): history and analytics` | 030, 018 | yes | desktop+web |
 | ☑ | HELI-039 | `feat(ui): metrics kit` | 007 | yes | desktop+web |
-| ☐ | HELI-070 | `feat(desktop): devices and pairing` (from 054) | 033, 011 | yes | desktop+web |
+| — | ~~HELI-070~~ | ~~`feat(desktop): devices and pairing`~~ — pairing is gone; the desk panel is 046 | | | |
 
 ## P4 · Desk capture and the arm
 
@@ -174,6 +174,7 @@ decision note in `phases/P5-web.md`. Retired rows stay, struck through.
 | ☑ | HELI-058 | `feat(web): download page` | 050 | yes | desktop+web |
 | ☑ | HELI-059 | `feat(web): order and reservations` | 056 | yes | desktop+web |
 | ☑ | HELI-05A | `feat(web): privacy page` | 050 | yes | desktop+web |
+| ☑ | HELI-05B | `style(repo): Lumi — the name, the mark, the app` | 05A | yes | desktop+web |
 
 ## P6 · Hackathon day
 

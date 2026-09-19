@@ -20,13 +20,13 @@ const SECTIONS: Array<{ title: string; body: string[] }> = [
     title: 'What it keeps',
     body: [
       'Counts, titles and its own decisions: for each minute, what it thought you were doing, what it did about it, and whether that worked. That record is how it learns to interrupt less.',
-      'The desk unit keeps nothing. It sends, and forgets.',
+      'Lumi One keeps nothing. It sends, and forgets.',
     ],
   },
   {
     title: 'The shutter',
     body: [
-      'The desk unit has a mechanical shutter. Slide it shut and frames stop within 200 ms; none leave the unit while it stays shut. The desktop app shows it as closed, and the ring shows two amber dots.',
+      'Lumi One has a mechanical shutter. Slide it shut and frames stop within 200 ms; none leave the unit while it stays shut. The desktop app shows it as closed, and the ring shows two amber dots.',
     ],
   },
   {
@@ -38,7 +38,7 @@ const SECTIONS: Array<{ title: string; body: string[] }> = [
   {
     title: 'Where the model runs',
     body: [
-      'Assessment runs on the Helicopter server, the only place that holds a model key. Neither the desktop app nor the desk unit ever calls a model.',
+      'Assessment runs on the Lumi server, the only place that holds a model key. Neither the desktop app nor Lumi One ever calls a model.',
     ],
   },
 ]

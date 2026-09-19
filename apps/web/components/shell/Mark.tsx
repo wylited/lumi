@@ -1,30 +1,29 @@
 import { cn } from '@heli/ui'
 
 /**
- * The mark: a lowercase h whose arch hovers over one dot — the unit's single dim light, watching.
- * One stroke weight, round ends; the dot is the only colour.
+ * The mark: one light. Lumi One watches with a single dim dot, so the dot is the logo — a jade
+ * light with a faint halo. Only the halo's wash and the dot carry colour.
  */
-export function Mark({ className, dot = 'fill-accent' }: { className?: string; dot?: string }) {
+export function Mark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={cn('size-6', className)}>
-      <path
-        d="M6.5 3v18M6.5 13a5.5 5.5 0 0 1 11 0v8"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="12" cy="15.4" r="2.4" className={dot} />
+      <circle cx="12" cy="12" r="10" className="fill-accent-wash" />
+      <circle cx="12" cy="12" r="5.5" className="fill-accent" />
     </svg>
   )
 }
 
+/** "lumi", with the dot over the i drawn as the light. */
 export function Wordmark({ className }: { className?: string }) {
   return (
-    <span className={cn('inline-flex items-center gap-0.5 text-text', className)}>
-      <Mark className="size-[26px]" />
-      <span className="text-[19px] font-semibold tracking-[-0.03em]">helicopter</span>
+    <span aria-label="Lumi" role="img" className={cn('inline-flex items-baseline text-text', className)}>
+      <span aria-hidden="true" className="text-[25px] font-bold leading-none tracking-[-0.045em]">
+        lum
+        <span className="relative inline-block">
+          ı
+          <span className="absolute left-[calc(50%-0.03em)] top-[0.07em] size-[0.25em] -translate-x-1/2 rounded-pill bg-accent" />
+        </span>
+      </span>
     </span>
   )
 }

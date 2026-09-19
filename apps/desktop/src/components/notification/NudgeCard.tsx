@@ -21,7 +21,7 @@ export function NudgeCard({ nudge }: { nudge: Nudge }) {
       <div className="flex items-start gap-3">
         <Mark className="size-6 shrink-0" />
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-caption text-text-faint">Helicopter</span>
+          <span className="text-caption text-text-faint">Lumi</span>
           <p className="text-small text-text">{nudge.message}</p>
         </div>
       </div>

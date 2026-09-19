@@ -1,7 +1,7 @@
 [package]
-name = "helicopter"
+name = "lumi"
 version = "0.1.0"
-description = "The Helicopter desktop app: the goal, the live session, and the machine's signals"
+description = "The Lumi desktop app: the goal, the live session, and the machine's signals"
 edition = "2021"
 rust-version = "1.88"
 resolver = "3"

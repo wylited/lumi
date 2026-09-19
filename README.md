@@ -1,10 +1,11 @@
-# Helicopter
+# Lumi
 
-An observer that helps one person finish what they sat down to do. A desk unit (camera, mic, speaker)
-watches the desk; a desktop app watches the machine; the server keeps the record and **acts** — an ambient
+**Lumi** is an observer that helps one person finish what they sat down to do. **Lumi One** (camera,
+mic, speaker) watches the desk; the Lumi desktop app watches the machine; the server keeps the record and **acts** — an ambient
 signal, a nudge, a spoken line, or an automatic change — so the goal you set actually happens.
 
-Built for the "Automate your studies / job / life" brief.
+Built for the "Automate your studies / job / life" brief. The repository and the internal `@heli/*`
+packages keep the working name, Helicopter.
 
 ## Start here
 

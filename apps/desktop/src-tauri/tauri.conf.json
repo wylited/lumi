@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Helicopter",
+  "productName": "Lumi",
   "version": "0.1.0",
-  "identifier": "app.helicopter.desktop",
+  "identifier": "app.lumi.desktop",
   "build": {
     "beforeDevCommand": "pnpm dev:web",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Helicopter",
+        "title": "Lumi",
         "width": 1180,
         "height": 780,
         "minWidth": 920,

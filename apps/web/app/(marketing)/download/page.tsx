@@ -25,7 +25,7 @@ export default function DownloadPage() {
         <a href={DOWNLOAD.url} className="mt-2 rounded-pill bg-text px-6 py-3 text-body-strong font-medium text-bg hover:opacity-85">
           Download for macOS
         </a>
-        <span className="text-small text-text-faint">{DOWNLOAD.requires} · works without the desk unit</span>
+        <span className="text-small text-text-faint">{DOWNLOAD.requires} · works without Lumi One</span>
       </section>
 
       <section className="mx-auto max-w-[1100px] px-5 pt-14">
@@ -56,10 +56,10 @@ export default function DownloadPage() {
         <div className="flex flex-col items-start justify-between gap-6 rounded-[28px] bg-surface p-10 md:flex-row md:items-center">
           <div className="flex flex-col gap-2">
             <h2 className="text-title-1 font-semibold text-text">Add eyes on the desk.</h2>
-            <p className="text-body text-text-muted">The desk unit notices the phone in your hand — something no app on your computer can.</p>
+            <p className="text-body text-text-muted">Lumi One notices the phone in your hand — something no app on your computer can.</p>
           </div>
           <Link href="/device" className="rounded-pill border border-border-strong bg-bg px-6 py-3 text-body-strong font-medium text-text hover:bg-ink-50">
-            See the desk unit
+            See Lumi One
           </Link>
         </div>
       </section>

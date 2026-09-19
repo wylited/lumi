@@ -58,7 +58,7 @@ export function Unit({
     <div ref={host} className={cn('relative h-full w-full', className)}>
       <Image
         src={`/unit/${poster}.webp`}
-        alt="The Helicopter desk unit"
+        alt="Lumi One"
         fill
         priority={priority}
         sizes="(min-width: 1024px) 600px, 100vw"

@@ -59,7 +59,7 @@ async function native(body: string) {
   try {
     let granted = await isPermissionGranted()
     if (!granted) granted = (await requestPermission()) === 'granted'
-    if (granted) sendNotification({ title: 'Helicopter', body })
+    if (granted) sendNotification({ title: 'Lumi', body })
   } catch (error) {
     log.warn('native notification failed', error)
   }

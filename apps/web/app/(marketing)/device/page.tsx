@@ -4,7 +4,7 @@ import { UnitStates } from '@/components/marketing/Unit'
 import { price, PRICE } from '@/lib/product'
 
 export const metadata: Metadata = {
-  title: 'The desk unit',
+  title: 'Lumi One',
   description: 'A camera, four microphones, a speaker and a mechanical shutter. It watches the desk while you work and stores nothing.',
 }
 
@@ -16,7 +16,7 @@ const PARTS = [
 ] as const
 
 const NEVER = [
-  'Stores a frame. Frames go to your Helicopter server; nothing stays on the unit.',
+  'Stores a frame. Frames go to your Lumi server; nothing stays on the unit.',
   'Calls a model or holds a key. It has no idea what it is looking at.',
   'Sends anything with the shutter shut. Frames stop within 200 ms of closing it.',
   'Animates while you are concentrating. A light that moves is a light that interrupts.',
@@ -28,16 +28,16 @@ const SPECS: Array<[string, string]> = [
   ['Audio', 'Four-mic array · down-firing speaker'],
   ['Light', '24-dot LED ring'],
   ['Privacy', 'Mechanical shutter, reported to the app'],
-  ['Connection', 'Wi-Fi · pairs with a code from the desktop app'],
+  ['Connection', 'Wi-Fi · set up from the desktop app'],
   ['Power', 'USB-C'],
-  ['Works with', 'The Helicopter desktop app, macOS 13 or later'],
+  ['Works with', 'The Lumi desktop app, macOS 13 or later'],
 ]
 
 export default function DevicePage() {
   return (
     <>
       <section className="mx-auto flex max-w-[var(--max-content)] flex-col items-center gap-4 px-5 pt-16 text-center md:pt-20">
-        <span className="text-body text-text-faint">Desk unit</span>
+        <span className="text-body text-text-faint">Lumi One</span>
         <h1 className="max-w-[18ch] text-[40px] font-semibold leading-[1.04] tracking-[-0.03em] text-balance text-text md:text-display-1">
           Your computer cannot see your desk. This can.
         </h1>
@@ -80,7 +80,7 @@ export default function DevicePage() {
         <div className="flex flex-col gap-3">
           <h2 className="text-display-2 font-semibold text-text">Specs</h2>
           <p className="max-w-[36ch] text-body text-text-muted">
-            In the box: the unit, a USB-C cable, and a card with its pairing code.
+            In the box: Lumi One, a USB-C cable, and a quick-start card.
           </p>
         </div>
         <dl className="grid grid-cols-[140px_1fr] gap-x-6 border-t border-border">
@@ -96,7 +96,7 @@ export default function DevicePage() {
       <section className="sticky bottom-0 z-30 mt-28 border-t border-border bg-bg">
         <div className="mx-auto flex max-w-[var(--max-content)] items-center justify-between gap-4 px-5 py-4">
           <span className="flex flex-col">
-            <span className="text-body-strong font-semibold text-text">Helicopter desk unit</span>
+            <span className="text-body-strong font-semibold text-text">Lumi One</span>
             <span className="text-small text-text-faint">{price(PRICE.unit)} · reservation, no payment now</span>
           </span>
           <Link href="/order" className="rounded-pill bg-text px-6 py-2.5 text-body-strong font-medium text-bg hover:opacity-85">

@@ -18,7 +18,7 @@ export default function Home() {
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Link href="/order" className="rounded-pill bg-text px-6 py-3 text-body-strong font-medium text-bg transition-opacity hover:opacity-85">
-            Order the desk unit · {price(PRICE.unit)}
+            Order Lumi One · {price(PRICE.unit)}
           </Link>
           <Link href="/download" className="rounded-pill border border-border-strong px-6 py-3 text-body-strong font-medium text-text hover:bg-ink-50">
             Download the desktop app
@@ -33,7 +33,7 @@ export default function Home() {
               <Unit priority />
             </div>
             <div className="order-1 px-5 pt-8 md:order-2 md:py-14 md:pl-0 md:pr-14">
-              <MacWindow src="/shots/live-nudge.png" alt="The Helicopter desktop app mid-session: a ribbon of minutes, and a nudge offering to go back to the goal" priority />
+              <MacWindow src="/shots/live-nudge.png" alt="The Lumi desktop app mid-session: a ribbon of minutes, and a nudge offering to go back to the goal" priority />
             </div>
           </div>
         </div>
@@ -74,10 +74,10 @@ export default function Home() {
       <section className="mx-auto grid max-w-[var(--max-content)] gap-5 px-5 pt-28 md:grid-cols-2 md:pt-36">
         <Link href="/device" className="group flex flex-col overflow-hidden rounded-[24px] bg-surface">
           <div className="flex flex-col gap-2 p-8 pb-0">
-            <span className="text-small text-text-faint">Desk unit · {price(PRICE.unit)}</span>
+            <span className="text-small text-text-faint">Lumi One · {price(PRICE.unit)}</span>
             <h3 className="text-title-1 font-semibold text-text">Sees the desk. Never keeps it.</h3>
             <p className="text-body text-text-muted">Camera, four mics, a speaker and a mechanical shutter. Nothing is stored on it.</p>
-            <span className="mt-2 text-body-strong font-medium text-accent-link group-hover:underline">See the unit →</span>
+            <span className="mt-2 text-body-strong font-medium text-accent-link group-hover:underline">See Lumi One →</span>
           </div>
           <div className="h-[340px]">
             <Unit state="shutter" live={false} />
@@ -115,7 +115,7 @@ export default function Home() {
           <h2 className="text-display-2 font-semibold text-balance text-text">Try it on your next forty minutes.</h2>
           <div className="flex flex-wrap justify-center gap-3">
             <Link href="/order" className="rounded-pill bg-text px-6 py-3 text-body-strong font-medium text-bg hover:opacity-85">
-              Order the desk unit
+              Order Lumi One
             </Link>
             <Link href="/download" className="rounded-pill border border-border-strong px-6 py-3 text-body-strong font-medium text-text hover:bg-ink-50">
               Download the desktop app

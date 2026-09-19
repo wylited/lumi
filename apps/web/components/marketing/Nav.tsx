@@ -3,7 +3,7 @@ import { Wordmark } from '@/components/shell/Mark'
 import { price, PRICE } from '@/lib/product'
 
 const LINKS = [
-  { href: '/device', label: 'Desk unit' },
+  { href: '/device', label: 'Lumi One' },
   { href: '/download', label: 'Desktop app' },
   { href: '/privacy', label: 'Privacy' },
 ]
@@ -12,7 +12,7 @@ export function Nav() {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-bg">
       <div className="mx-auto flex h-14 max-w-[var(--max-content)] items-center gap-8 px-5">
-        <Link href="/" aria-label="Helicopter home" className="rounded-sm">
+        <Link href="/" aria-label="Lumi home" className="rounded-sm">
           <Wordmark />
         </Link>
         <nav aria-label="Primary" className="hidden items-center gap-6 md:flex">

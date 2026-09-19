@@ -7,9 +7,9 @@ mod tray;
 use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
-/// ⌃⌥H from anywhere brings the window back.
+/// ⌃⌥L from anywhere brings the window back.
 fn raise_shortcut() -> Shortcut {
-    Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyH)
+    Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyL)
 }
 
 pub fn raise(app: &AppHandle) {
@@ -36,7 +36,7 @@ fn main() {
             tray::install(app.handle())?;
             if let Err(error) = app.global_shortcut().register(raise_shortcut()) {
                 // Another app owns the chord. The tray still raises the window.
-                eprintln!("helicopter: global shortcut unavailable: {error}");
+                eprintln!("lumi: global shortcut unavailable: {error}");
             }
             signals::install(app.handle())?;
             Ok(())
@@ -60,7 +60,7 @@ fn main() {
             signals::screen::latest_screen_frame,
         ])
         .build(tauri::generate_context!())
-        .expect("failed to build the Helicopter app");
+        .expect("failed to build the Lumi app");
 
     app.run(|app, event| {
         #[cfg(target_os = "macos")]

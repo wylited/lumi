@@ -25,8 +25,8 @@ pub enum Glyph {
 
 pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let status = MenuItem::with_id(app, "status", "Idle", false, None::<&str>)?;
-    let open = MenuItem::with_id(app, "open", "Open Helicopter", true, Some("Ctrl+Alt+H"))?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Helicopter", true, Some("CmdOrCtrl+Q"))?;
+    let open = MenuItem::with_id(app, "open", "Open Lumi", true, Some("Ctrl+Alt+L"))?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Lumi", true, Some("CmdOrCtrl+Q"))?;
     let menu = Menu::with_items(
         app,
         &[
@@ -42,7 +42,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(draw(Glyph::Ring, [148, 165, 158]))
         .icon_as_template(false)
-        .tooltip("Helicopter · idle")
+        .tooltip("Lumi · idle")
         .menu(&menu)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "open" => crate::raise(app),
@@ -66,7 +66,7 @@ pub fn set_tray_state(
     let tray = app.tray_by_id(TRAY_ID).ok_or("tray not installed")?;
     tray.set_icon(Some(draw(glyph, rgb)))
         .map_err(|e| e.to_string())?;
-    tray.set_tooltip(Some(format!("Helicopter · {label}")))
+    tray.set_tooltip(Some(format!("Lumi · {label}")))
         .map_err(|e| e.to_string())?;
     if let Some(item) = app.try_state::<StatusItem>() {
         let mut text = label;

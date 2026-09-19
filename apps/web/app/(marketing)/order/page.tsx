@@ -3,9 +3,9 @@ import { ReserveForm } from '@/components/marketing/ReserveForm'
 import { Unit } from '@/components/marketing/Unit'
 import { price, PRICE } from '@/lib/product'
 
-export const metadata: Metadata = { title: 'Order the desk unit' }
+export const metadata: Metadata = { title: 'Order Lumi One' }
 
-const INCLUDED = ['The desk unit', 'USB-C cable', 'Pairing card', 'The desktop app, free']
+const INCLUDED = ['Lumi One', 'USB-C cable', 'Quick-start card', 'The Lumi desktop app, free']
 
 export default function OrderPage() {
   return (
@@ -15,7 +15,7 @@ export default function OrderPage() {
       </div>
       <div className="flex flex-col gap-8 lg:py-6">
         <div className="flex flex-col gap-2">
-          <h1 className="text-display-2 font-semibold tracking-tight text-text">Helicopter desk unit</h1>
+          <h1 className="text-display-2 font-semibold tracking-tight text-text">Lumi One</h1>
           <span className="tnum text-title-2 text-text">{price(PRICE.unit)}</span>
         </div>
         <ul className="flex flex-col gap-2">

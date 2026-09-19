@@ -2,7 +2,8 @@
 
 ## What it is
 
-An observer that helps one person finish what they sat down to do. It watches the desk with a
+**Lumi** — the product; **Lumi One** is the desk unit it sells. (Helicopter is the repository's
+working name.) An observer that helps one person finish what they sat down to do. It watches the desk with a
 camera and a microphone, watches the machine through the desktop app, keeps the record, and — only
 when the evidence and the goal allow — **acts**: an ambient signal, a nudge, a spoken line, or an
 automatic change to the machine.
