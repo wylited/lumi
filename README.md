@@ -1,85 +1,62 @@
 # Lumi
 
 <!--
-  TODO(hero): one wide image, ~1600×900 — the unit on a desk with the desktop app behind it and
-  the phone beside it. Save it as docs/media/hero.png and the line below starts rendering.
+  TODO(hero): one wide image, around 1600x900. The unit on a desk, the desktop app open behind it,
+  the phone beside it. Save it as docs/media/hero.png and the line below starts working.
 
-  Real material already in the tree, if it is useful to compose from:
-    apps/web/public/unit/       the unit itself (three.js stills, .webp)
-    apps/web/public/shots/      2080×1360 screenshots of the desktop app: goal, live, live-nudge, history
-  There is no phone screenshot yet.
+  Material already in the tree:
+    apps/web/public/unit/    stills of the unit
+    apps/web/public/shots/   desktop app screenshots, 2080x1360: goal, live, live-nudge, history
+  No phone screenshot exists yet.
 -->
 
-![Lumi: the desk unit, the desktop app and the phone](docs/media/hero.png)
+![the desk robot](docs/media/hero.png)
 
-**Lumi** sits on your desk and watches one person try to finish one thing.
+A desk robot for one person trying to finish one thing. It watches you work, and when you drift away from the goal you set, it does something about it.
 
-A camera on a small robotic arm looks at the desk. A desktop app reads the machine. A phone follows
-you out of the room. One server keeps the record and decides what to do about it — a colour, a
-nudge, a sentence spoken out loud, an arm turning to point at the page.
+The camera is on a robotic arm, and that's the reason it can do more than record. The arm turns to point at the page you're stuck on, and it can follow you around the room instead of staring at an empty chair. There's a speaker for the moments when a notification isn't enough, and the frames it captures land on your own server.
 
-The model proposes. The policy disposes. Silence is the default.
+The desktop app is where your goal lives, and it's the half that watches the computer: which app is in front, what the window title says, how much you're typing, whether you've gone idle. Counts and titles, never keystrokes, never the contents of a page. The live view fills in one minute at a time so you can watch it make up its mind.
 
-Built for the *Automate your studies / job / life* brief. The repository and the `@heli/*` packages
-keep the working name, Helicopter.
+Your phone covers the hours the desk can't see. On Android it reads app time and unlock counts, and if you open something the goal blocks it sends you Home with an undo sitting right there on the notification. iOS doesn't hand an app other apps' usage, so the phone tells you what it can't see instead of guessing.
 
-## The three surfaces
+## When you drift
 
-**On the desk** — `apps/edge`, a headless Python rig. It holds the camera, the arm and the speaker,
-uploads frames and executes the actions the server sends back. With tracking on it follows the
-person: a pose model closed on the pixels drives pan and tilt, so the camera keeps you in frame
-without a calibration step — and inside a four-percent deadband it does not move at all, because a
-person sitting still should not be chased by a twitching camera.
+Most minutes it does nothing, which is the point; a quiet session means it's working, not that it's asleep.
 
-**On the machine** — `apps/desktop`, Tauri 2. The frontmost app, window titles, how often you type,
-whether you are idle. Counts and titles, never keystrokes or page contents. The goal lives here, the
-live monitor fills in one minute at a time, and it can block what the goal lists — visibly, and only
-when the goal says so.
+When it does act it starts small. The tray icon changes colour; if that doesn't bring you back, you get a notification with a button on it; after that it says a sentence out loud. Touching your computer is the last resort, and only where the goal allowed it. The app shows anything that changes your machine, undoes it in a click, and records what you did next. That last part is how `/v1/analytics/tiers` can tell you which channel actually works on you.
 
-**In your pocket** — `apps/mobile`, Expo. What the desktop cannot see once you leave the room: app
-time and unlocks on Android, motion on both. It takes the same nudge and the same spoken line, and
-it acts too — an app the goal blocks gets sent Home, with an Undo on the notification. On iOS it
-says what it cannot see instead of pretending.
+## Worth knowing
 
-## The parts worth reading
+The boundary between TypeScript and Python is one file. `packages/contracts` is zod, compiled to TypeScript for the server and the apps and to JSON Schema for the rig, so the two sides can't quietly disagree; a drift turns up as a failing test instead of as a mystery in a socket.
 
-| | |
-|---|---|
-| **Contracts are law** | `packages/contracts` is zod, compiled twice: to TypeScript, and to `dist/json-schema.json`, which is what the Python rig validates against. A drift between the two is a failing test, not a mystery in a socket. |
-| **The model proposes, the policy disposes** | The model returns a schema-validated `Observation` and nothing else. It never writes the notification, the sentence or the machine action — thresholds, the goal and rate limits do. Six tiers, and each step up happens only because the one below it did not work. |
-| **Every action is reversible** | Anything that changes the machine is shown, undone in one click, and recorded with its outcome. `GET /v1/analytics/tiers` is the product's own self-critique: which channel actually brought you back. |
-| **One arm, one owner** | `arm.aim`, `arm.point` and `arm.home` pause the tracker for their duration, and tracking while the operator console drives the arm is refused at `hello`. Two things moving one arm is the one thing the rig will not do. |
-| **No stand-ins** | There is no canned demo mode and no offline mock. With no model key the server still serves HTTP, and the log names the key it is missing. |
+One arm, one driver. `arm.aim`, `arm.point` and `arm.home` pause the pose tracker while they run, and the rig refuses to track while the operator console is driving the arm. Two things commanding one servo chain is the failure this avoids.
 
-## How it fits
+The tracker ignores anything under 4% of the frame, so a person sitting still doesn't get chased by a camera twitching at keypoint noise.
 
-| | what it owns | stack |
-|---|---|---|
-| `apps/edge` | the camera, the arm, the speaker | Python · OpenCV · ONNX pose · `lerobot` |
-| `apps/server` | the record, the keys, the policy | Fastify 5 · Prisma · Postgres · MinIO |
-| `apps/desktop` | the machine it runs on | Tauri 2 · Rust + React |
-| `apps/mobile` | the person, away from the desk | Expo 54 · React Native |
-| `apps/web` | the storefront | Next.js 15 · three.js |
+There's no demo mode and no offline stand-in, on purpose. Without a DeepSeek key the server still serves HTTP, and the log names the key it's missing.
 
-Everything crossing a process boundary is typed once in `packages/contracts`, and `packages/tokens`
-is the design system as code — which is why the app, the phone and the storefront look like one
-product instead of three.
-
-## Run it
+## Running it
 
 ```bash
 ./scripts/demo.sh
 ```
 
-Postgres and MinIO, the schema and the seed, the API, the storefront and the desktop, in one
-terminal, with the URLs printed at the end. Safe to re-run. `./scripts/verify.sh` runs the gates
-plus a set of route and UI checks.
+It brings up Postgres and MinIO, pushes the schema, seeds the one user and the machine, starts the API, the storefront and the desktop app, then prints the URLs. Run it again whenever: it stops what it started last time rather than stacking up processes.
 
-The observe loop needs `DEEPSEEK_API_KEY` and the ElevenLabs pair in `apps/server/.env`. Without
-them the server serves HTTP and says which key is missing.
+`./scripts/verify.sh` runs lint, typecheck and the tests, then hits the routes and checks both UIs. When a check can't run it exits 3 instead of 0, so a green result actually means something.
 
-## Working in this repo
+Keys go in `apps/server/.env`, and only the server holds one.
 
-`AGENTS.md` first — one commit owns a file, and no two open commits touch the same path.
-`docs/00-architecture.md` has the drawings, `docs/COMMITS.md` is the ledger, and `docs/RUNBOOK.md`
-is where the "why is it broken on my machine" answers live.
+## Where things live
+
+```
+apps/edge            the rig. Python, camera, arm, speaker
+apps/server          the aggregator. Fastify, Postgres, MinIO
+apps/desktop         the app. Tauri 2 and React
+apps/mobile          the phone. Expo
+apps/web             the storefront. Next.js
+packages/contracts   the schemas both languages share
+```
+
+The npm scope is still `@heli` and the repo is still called Helicopter; the product got a name and the packages didn't. `AGENTS.md` is the working agreement, `docs/00-architecture.md` has the drawings, and `docs/COMMITS.md` is the ledger.
