@@ -2,28 +2,32 @@
 
 <!--
   TODO(hero): wide image, roughly 1600x900: the unit on a desk, the desktop app behind it, the
-  phone beside it. Save as docs/media/hero.png. Stills already in the tree: apps/web/public/.
+  phone beside it. Save it as docs/media/hero.png. Stills already in the tree: apps/web/public/.
 -->
 
 ![the desk robot](docs/media/hero.png)
 
-Lumi helps one person finish what they sat down to do.
+Lumi makes you finish what you sat down to do, automating your helicopter mom.
 
-A camera on a robotic arm watches the desk and can turn to point at the page. A desktop app watches the computer, and a phone app covers the hours away.
+A camera on a robotic arm watches you and your desk. A desktop app observes your computer, and a phone app covers the rest.
 
-When the work drifts from the goal it intervenes in steps: a tray colour, a notification, a sentence spoken aloud, and only then a change the app can reverse.
+When the work drifts from the goal it intervenes in steps: a tray colour, a notification, a sentence spoken aloud, or directly closing the distraction.
 
-The desktop reads the frontmost application, window titles, typing rate and idle time. Never keystrokes or page contents.
+It tracks your progress over time and keeps you accountable for the work you did, and didn't do.
 
-On Android the phone reads per-app time and unlocks, and can send a blocked app Home with an Undo. iOS says what it cannot see.
+## How it works
 
-## Implementation notes
+Lumi processes multiple data points, a camera view, your screen data, open apps & tabs, and your phone activity, through DeepSeek vision, to conduct behavioural analysis and tracking of your focus and lack thereof.
 
-`packages/contracts` is zod, compiled to TypeScript for the clients and to JSON Schema for the rig.
+Frames, signals and decisions live on your own server: your Postgres, your object store. The unit keeps nothing.
 
-One arm has one driver: `arm.aim`, `arm.point` and `arm.home` pause the tracker while they run.
+Assessment is the only call that leaves your machine. The frame goes to DeepSeek vision, comes back as a verdict, and DeepSeek retains nothing.
 
-No demo mode and no offline stand-in. Without a DeepSeek key the log names the missing key.
+## Built with
+
+`packages/contracts` is the only place a shape is defined: zod, compiled to TypeScript for the apps and to JSON Schema for the Python rig.
+
+The arm has one driver at a time. `arm.aim`, `arm.point` and `arm.home` pause the tracker while they run.
 
 ## Running it
 
@@ -31,11 +35,11 @@ No demo mode and no offline stand-in. Without a DeepSeek key the log names the m
 ./scripts/demo.sh
 ```
 
-Brings up Postgres and MinIO, seeds the user and the machine, starts the API, the storefront and the desktop app, and prints the URLs.
+One command for the whole stack: Postgres, MinIO, the schema, the seed, the API, the storefront and the desktop app, with the URLs printed at the end.
 
-`./scripts/verify.sh` runs the gates and the route checks. Keys go in `apps/server/.env`.
+`./scripts/verify.sh` runs the gates and the route checks. Keys go in `apps/server/.env` and nowhere else. There is no demo mode: without a DeepSeek key the server still boots and names the key it wants.
 
-## Repository layout
+## Layout
 
 ```
 apps/edge            the rig. Python, camera, arm, speaker
