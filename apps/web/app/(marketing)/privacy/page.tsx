@@ -8,12 +8,13 @@ const SECTIONS: Array<{ title: string; body: string[] }> = [
     body: [
       'On your computer: the app in front, its window title, how often you type and click, how long you have been idle, and — with your permission — one small screen frame at most every ten seconds.',
       'On your desk: a camera frame when something changes, and whether you are speaking.',
+      'On your phone: whether you are still or walking and whether the screen is on — and on Android, with usage access, the app in front, time in each app and unlocks. iPhone does not allow that last part, and the app says so.',
     ],
   },
   {
     title: 'What it never reads',
     body: [
-      'Which keys you press, or anything you type. Page contents. Password managers, banking apps and the lock screen are never captured, and you can add any app to that list.',
+      'Which keys you press, or anything you type. Page contents. Your messages, notifications or anything on your phone’s screen. Password managers, banking apps and the lock screen are never captured, and you can add any app to that list.',
     ],
   },
   {
@@ -38,7 +39,7 @@ const SECTIONS: Array<{ title: string; body: string[] }> = [
   {
     title: 'Where the model runs',
     body: [
-      'Assessment runs on the Lumi server, the only place that holds a model key. Neither the desktop app nor Lumi One ever calls a model.',
+      'Assessment runs on the Lumi server, the only place that holds a model key. Neither the apps nor Lumi One ever calls a model.',
     ],
   },
 ]

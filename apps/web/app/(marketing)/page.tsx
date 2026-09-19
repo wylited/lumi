@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Ladder } from '@/components/marketing/Ladder'
 import { MacWindow } from '@/components/marketing/MacWindow'
+import { Phone } from '@/components/marketing/Phone'
 import { RibbonKey, SessionRibbon } from '@/components/marketing/SessionRibbon'
 import { Unit } from '@/components/marketing/Unit'
 import { DOWNLOAD, price, PRICE } from '@/lib/product'
@@ -14,7 +15,7 @@ export default function Home() {
           Set a goal. It makes sure it happens.
         </h1>
         <p className="max-w-[52ch] text-title-3 font-normal text-text-muted">
-          A small unit on your desk and a desktop app notice when you drift — and step in only when it matters.
+          A small unit on your desk and apps for your computer and phone notice when you drift — and step in only when it matters.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Link href="/order" className="rounded-pill bg-text px-6 py-3 text-body-strong font-medium text-bg transition-opacity hover:opacity-85">
@@ -70,7 +71,7 @@ export default function Home() {
         <Ladder />
       </section>
 
-      {/* The two parts. */}
+      {/* The three parts. */}
       <section className="mx-auto grid max-w-[var(--max-content)] gap-5 px-5 pt-28 md:grid-cols-2 md:pt-36">
         <Link href="/device" className="group flex flex-col overflow-hidden rounded-[24px] bg-surface">
           <div className="flex flex-col gap-2 p-8 pb-0">
@@ -94,6 +95,23 @@ export default function Home() {
             <MacWindow src="/shots/history.png" alt="History in the desktop app: a week of focus and what brings you back" className="rounded-b-none rounded-r-none" />
           </div>
         </Link>
+        <Link
+          href="/download#phone"
+          className="group flex flex-col overflow-hidden rounded-[24px] bg-surface md:col-span-2 md:flex-row md:items-end md:justify-between"
+        >
+          <div className="flex flex-col gap-2 p-8 md:max-w-[52ch] md:self-center md:p-12">
+            <span className="text-small text-text-faint">Phone app · Free · Android</span>
+            <h3 className="text-title-1 font-semibold text-text">Leave the desk. It comes along.</h3>
+            <p className="text-body text-text-muted">
+              Walk away and the nudge and the spoken line follow you to your phone. On Android it also reports app time and
+              unlocks. Never messages, never content.
+            </p>
+            <span className="mt-2 text-body-strong font-medium text-accent-link group-hover:underline">Get the phone app →</span>
+          </div>
+          <div className="flex h-[420px] items-start justify-center overflow-hidden px-8 md:h-[480px] md:pr-20 md:pt-12">
+            <Phone />
+          </div>
+        </Link>
       </section>
 
       {/* Privacy, in one breath. */}
@@ -101,7 +119,7 @@ export default function Home() {
         <p className="max-w-[40ch] text-title-1 font-semibold text-balance text-text md:text-display-2">
           Counts and titles, never keystrokes or page contents.{' '}
           <span className="text-text-faint">
-            Every change it makes to your computer is shown and undone in one click. The shutter is mechanical.
+            Every change it makes to your computer is shown and undone in one click. The shutter is mechanical. The phone sends counts, not messages.
           </span>
         </p>
         <Link href="/privacy" className="mt-6 inline-block text-body-strong font-medium text-accent-link hover:underline">
@@ -121,7 +139,7 @@ export default function Home() {
               Download the desktop app
             </Link>
           </div>
-          <span className="text-small text-text-faint">{DOWNLOAD.requires}. The app works without the unit.</span>
+          <span className="text-small text-text-faint">{DOWNLOAD.requires}. The apps work without the unit.</span>
         </div>
       </section>
     </>

@@ -5,6 +5,7 @@ import { price, PRICE } from '@/lib/product'
 const LINKS = [
   { href: '/device', label: 'Lumi One' },
   { href: '/download', label: 'Desktop app' },
+  { href: '/download#phone', label: 'Phone app' },
   { href: '/privacy', label: 'Privacy' },
 ]
 

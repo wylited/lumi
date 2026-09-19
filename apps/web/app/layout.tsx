@@ -7,7 +7,7 @@ import type { ReactNode } from 'react'
 export const metadata: Metadata = {
   title: { default: 'Lumi — set a goal, it makes sure it happens', template: '%s · Lumi' },
   description:
-    'Lumi One on your desk and the Lumi desktop app notice when you drift from what you sat down to do, and step in — a nudge, a spoken line, a change — only when it matters.',
+    'Lumi One on your desk and the Lumi apps for your computer and phone notice when you drift from what you sat down to do, and step in — a nudge, a spoken line, a change — only when it matters.',
 }
 
 export const viewport: Viewport = { colorScheme: 'light' }

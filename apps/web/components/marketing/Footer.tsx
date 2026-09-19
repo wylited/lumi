@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { Wordmark } from '@/components/shell/Mark'
 
 const COLS = [
-  { title: 'Product', links: [['Lumi One', '/device'], ['Desktop app', '/download'], ['Order', '/order']] },
+  { title: 'Product', links: [['Lumi One', '/device'], ['Desktop app', '/download'], ['Phone app', '/download#phone'], ['Order', '/order']] },
   { title: 'Trust', links: [['Privacy', '/privacy']] },
 ] as const
 

@@ -5,7 +5,7 @@ import { price, PRICE } from '@/lib/product'
 
 export const metadata: Metadata = { title: 'Order Lumi One' }
 
-const INCLUDED = ['Lumi One', 'USB-C cable', 'Quick-start card', 'The Lumi desktop app, free']
+const INCLUDED = ['Lumi One', 'USB-C cable', 'Quick-start card', 'The Lumi desktop and phone apps, free']
 
 export default function OrderPage() {
   return (

@@ -1,23 +1,48 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Tour } from '@/components/marketing/Tour'
+import { Phone } from '@/components/marketing/Phone'
 import { DOWNLOAD, PHONE } from '@/lib/product'
 
 export const metadata: Metadata = {
-  title: 'Desktop app',
-  description: 'Set the goal, see the session minute by minute, and learn what actually brings you back. Free.',
+  title: 'Download',
+  description:
+    'The desktop app for your goal and your sessions, and the phone app that follows you off the desk. Both free.',
 }
 
 const PERMISSIONS = [
-  { name: 'Screen Recording', reads: 'Window titles, and a small screen frame at most every ten seconds.', never: 'Password managers, banking apps, or the lock screen.' },
-  { name: 'Input Monitoring', reads: 'How often you type and click, counted per 30 seconds.', never: 'Which keys. Not one character.' },
-  { name: 'Accessibility', reads: 'Which part of the front app has focus.', never: 'What is written in it.' },
+  {
+    name: 'Screen Recording',
+    reads: 'Window titles, and a small screen frame at most every ten seconds.',
+    never: 'Password managers, banking apps, or the lock screen.',
+  },
+  {
+    name: 'Input Monitoring',
+    reads: 'How often you type and click, counted per 30 seconds.',
+    never: 'Which keys. Not one character.',
+  },
+  {
+    name: 'Accessibility',
+    reads: 'Which part of the front app has focus.',
+    never: 'What is written in it.',
+  },
 ] as const
 
 const PHONE_STEPS = [
-  { step: 'Install', detail: 'Download the app on the phone and open it. One tap past Android’s warning about an unknown source.' },
-  { step: 'Get a code', detail: 'In the desktop app, open setup or Settings and ask for a pairing code.' },
-  { step: 'Pair', detail: 'Type the Mac’s address and the six digits. The desktop shows the phone the moment it lands.' },
+  {
+    step: 'Install',
+    detail:
+      'Download the app on the phone and open it. One tap past Android’s warning about an unknown source.',
+  },
+  {
+    step: 'Get a code',
+    detail: 'In the desktop app, open setup or Settings and ask for a pairing code.',
+  },
+  {
+    step: 'Pair',
+    detail:
+      'Type the Mac’s address and the six digits. The desktop shows the phone the moment it lands.',
+  },
 ] as const
 
 export default function DownloadPage() {
@@ -28,10 +53,18 @@ export default function DownloadPage() {
         <h1 className="max-w-[15ch] text-[40px] font-semibold leading-[1.04] tracking-[-0.03em] text-balance text-text md:text-display-1">
           Say what you are here to do. Watch it get done.
         </h1>
-        <a href={DOWNLOAD.url} className="mt-2 rounded-pill bg-text px-6 py-3 text-body-strong font-medium text-bg hover:opacity-85">
+        <a
+          href={DOWNLOAD.url}
+          className="mt-2 rounded-pill bg-text px-6 py-3 text-body-strong font-medium text-bg hover:opacity-85"
+        >
           Download for macOS
         </a>
-        <span className="text-small text-text-faint">{DOWNLOAD.requires} · works without Lumi One</span>
+        <span className="text-small text-text-faint">
+          {DOWNLOAD.requires} · works without Lumi One
+        </span>
+        <a href="#phone" className="text-small font-medium text-accent-link hover:underline">
+          Also on Android →
+        </a>
       </section>
 
       <section className="mx-auto max-w-[1100px] px-5 pt-14">
@@ -40,7 +73,9 @@ export default function DownloadPage() {
 
       <section className="mx-auto flex max-w-[var(--max-content)] flex-col gap-10 px-5 pt-32">
         <div className="flex flex-col gap-3">
-          <h2 className="text-display-2 font-semibold text-text">Three permissions. Each one optional.</h2>
+          <h2 className="text-display-2 font-semibold text-text">
+            Three permissions. Each one optional.
+          </h2>
           <p className="max-w-[48ch] text-body text-text-muted">
             Say no to any of them and that signal is simply missing. Nothing else stops working.
           </p>
@@ -58,15 +93,25 @@ export default function DownloadPage() {
         </div>
       </section>
 
-      <section className="mx-auto flex max-w-[var(--max-content)] flex-col gap-10 px-5 pt-32">
-        <div className="flex flex-col gap-3">
-          <span className="text-body text-text-faint">{PHONE.version} · Android</span>
-          <h2 className="text-display-2 font-semibold text-text">The desk follows you to the phone.</h2>
-          <p className="max-w-[56ch] text-body text-text-muted">
-            The Lumi app pairs with the desk over your Wi-Fi. It reports what Android honestly allows —
-            time in each app, unlocks, still or walking — and receives nudges and spoken lines when you
-            carry the phone away from the screen.
-          </p>
+      <section
+        id="phone"
+        className="mx-auto flex max-w-[var(--max-content)] scroll-mt-20 flex-col gap-10 px-5 pt-32"
+      >
+        <div className="grid items-center gap-10 md:grid-cols-[1fr_auto]">
+          <div className="flex flex-col gap-3">
+            <span className="text-body text-text-faint">
+              Phone app · Free · {PHONE.version} · Android
+            </span>
+            <h2 className="text-display-2 font-semibold text-text">
+              The desk follows you to the phone.
+            </h2>
+            <p className="max-w-[56ch] text-body text-text-muted">
+              The Lumi app pairs with the desk over your Wi-Fi. It reports what Android honestly
+              allows — time in each app, unlocks, still or walking — and receives nudges and spoken
+              lines when you carry the phone away from the screen.
+            </p>
+          </div>
+          <Phone className="mx-auto" />
         </div>
 
         <div className="grid gap-px overflow-hidden rounded-[20px] border border-border bg-border md:grid-cols-3">
@@ -99,9 +144,14 @@ export default function DownloadPage() {
         <div className="flex flex-col items-start justify-between gap-6 rounded-[28px] bg-surface p-10 md:flex-row md:items-center">
           <div className="flex flex-col gap-2">
             <h2 className="text-title-1 font-semibold text-text">Add eyes on the desk.</h2>
-            <p className="text-body text-text-muted">Lumi One notices the phone in your hand — something no app on your computer can.</p>
+            <p className="text-body text-text-muted">
+              Lumi One notices the phone in your hand — something no app on your computer can.
+            </p>
           </div>
-          <Link href="/device" className="rounded-pill border border-border-strong bg-bg px-6 py-3 text-body-strong font-medium text-text hover:bg-ink-50">
+          <Link
+            href="/device"
+            className="rounded-pill border border-border-strong bg-bg px-6 py-3 text-body-strong font-medium text-text hover:bg-ink-50"
+          >
             See Lumi One
           </Link>
         </div>
