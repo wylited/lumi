@@ -230,7 +230,7 @@ export function GoalRoute() {
       </Group>
 
       <Group title="On the goal">
-        <Row label="Apps">
+        <Row label="Apps" wide align="start">
           <Tokens
             label="Add an app on the goal"
             values={form.allowedApps}
@@ -238,7 +238,7 @@ export function GoalRoute() {
             placeholder="Add app"
           />
         </Row>
-        <Row label="Sites">
+        <Row label="Sites" wide align="start">
           <Tokens
             label="Add a site on the goal"
             values={form.allowedSites}
@@ -249,7 +249,7 @@ export function GoalRoute() {
       </Group>
 
       <Group title="Off the goal">
-        <Row label="Apps">
+        <Row label="Apps" wide align="start">
           <Tokens
             label="Add an off-goal app"
             values={form.blockedApps}
@@ -257,7 +257,7 @@ export function GoalRoute() {
             placeholder="Add app"
           />
         </Row>
-        <Row label="Sites">
+        <Row label="Sites" wide align="start">
           <Tokens
             label="Add an off-goal site"
             values={form.blockedSites}

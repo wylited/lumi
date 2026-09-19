@@ -62,11 +62,14 @@ export function Row({
   detail,
   children,
   align = 'center',
+  wide = false,
 }: {
   label: ReactNode
   detail?: ReactNode
   children?: ReactNode
   align?: 'center' | 'start'
+  /** The control takes the rest of the row and wraps, instead of sizing to its content. */
+  wide?: boolean
 }) {
   return (
     <div
@@ -75,11 +78,20 @@ export function Row({
         align === 'center' ? 'items-center' : 'items-start',
       )}
     >
-      <div className="flex min-w-0 flex-col">
+      <div className={cn('flex flex-col', wide ? 'shrink-0 pt-0.5' : 'min-w-0')}>
         <span className="text-body text-text">{label}</span>
         {detail ? <span className="text-small text-text-faint">{detail}</span> : null}
       </div>
-      {children ? <div className="flex shrink-0 items-center gap-2">{children}</div> : null}
+      {children ? (
+        <div
+          className={cn(
+            'flex items-center gap-2',
+            wide ? 'min-w-0 flex-1 flex-wrap justify-end' : 'shrink-0',
+          )}
+        >
+          {children}
+        </div>
+      ) : null}
     </div>
   )
 }

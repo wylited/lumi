@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Signal } from '@heli/contracts'
 import { Button } from '@heli/ui'
-import { Switch, Tokens } from '../components/goal/Controls'
+import { Switch } from '../components/goal/Controls'
+import { NeverCapture } from '../components/settings/NeverCapture'
 import { Group, PageTitle, Row } from '../components/kit'
 import { audio, useAudio } from '../lib/audio'
 import { native, useRecentSignals, type PermissionState } from '../lib/native'
@@ -64,22 +65,20 @@ export function SettingsRoute() {
         </Row>
       </Group>
 
-      <Group
-        title="Never capture"
-        footer="No screen frame is taken while one of these apps is in front. The lock screen is never captured."
-      >
-        <Row label="Apps">
-          <Tokens
-            label="Add a bundle identifier"
-            values={deny}
-            placeholder="Add bundle id"
-            onChange={(v) => {
-              setDeny(v)
-              void native.setDenylist(v)
-            }}
-          />
-        </Row>
-      </Group>
+      <section className="flex flex-col gap-2">
+        <h2 className="px-1 text-small font-medium text-text-muted">Never capture</h2>
+        <NeverCapture
+          ids={deny}
+          onChange={(v) => {
+            setDeny(v)
+            void native.setDenylist(v)
+          }}
+        />
+        <p className="px-1 text-caption text-text-faint">
+          No screen frame is taken while one of these is in front. The lock screen is never
+          captured.
+        </p>
+      </section>
 
       <section className="flex flex-col gap-2">
         <button

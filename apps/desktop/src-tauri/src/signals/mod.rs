@@ -43,6 +43,12 @@ impl Signal {
 }
 
 pub fn emit(app: &AppHandle, signal: Signal) {
+    // `LUMI_TRACE_SIGNALS=1` prints each signal as it leaves, for checking the modules by hand.
+    if std::env::var_os("LUMI_TRACE_SIGNALS").is_some() {
+        if let Ok(line) = serde_json::to_string(&signal) {
+            eprintln!("signal {line}");
+        }
+    }
     let _ = app.emit("heli://signal", signal);
 }
 

@@ -120,10 +120,10 @@ the runtime reports audio as undelivered rather than pretending.
 | ☑ | HELI-030 | `feat(desktop): tauri shell and layout` | P0 | **no** | desktop+web |
 | ☑ | HELI-031 | `feat(desktop): goal editor` | 030 | yes | desktop+web |
 | ☑ | HELI-032 | `feat(desktop): live session view` | 030, 007 | yes | desktop+web |
-| ☐ | HELI-033 | `feat(desktop): native signals sidecar` | 030 | **no** | desktop+web |
-| ☐ | HELI-034 | `feat(desktop): app and window signal` | 033 | yes | desktop+web |
-| ☐ | HELI-035 | `feat(desktop): input and idle signal` | 033 | yes | desktop+web |
-| ☐ | HELI-036 | `feat(desktop): screen capture signal` | 033 | yes | desktop+web |
+| ☑ | HELI-033 | `feat(desktop): native signals sidecar` (re-check after toggling a permission not yet run) | 030 | **no** | desktop+web |
+| ☑ | HELI-034 | `feat(desktop): app and window signal` | 033 | yes | desktop+web |
+| ☑ | HELI-035 | `feat(desktop): input and idle signal` | 033 | yes | desktop+web |
+| ☑ | HELI-036 | `feat(desktop): screen capture signal` | 033 | yes | desktop+web |
 | ☑ | HELI-037 | `feat(desktop): notifications and audio` | 030 | yes | desktop+web |
 | ☑ | HELI-038 | `feat(desktop): history and analytics` | 030, 018 | yes | desktop+web |
 | ☑ | HELI-039 | `feat(ui): metrics kit` | 007 | yes | desktop+web |
