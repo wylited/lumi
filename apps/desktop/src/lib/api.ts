@@ -78,6 +78,13 @@ function auth(): Promise<string | null> {
   return token
 }
 
+/** The bearer and the socket base, for `lib/socket`. Null when there is no server. */
+export async function socketTarget(): Promise<{ url: string; token: string } | null> {
+  const bearer = await auth()
+  if (!bearer || !BASE) return null
+  return { url: `${BASE.replace(/^http/, 'ws')}/ws/desktop`, token: bearer }
+}
+
 async function call<S extends z.ZodTypeAny>(
   method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   path: string,

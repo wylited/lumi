@@ -16,6 +16,7 @@ import type {
 import { createLiveFeed, type LiveScenario } from '@heli/fixtures'
 import { api, demo, subscribe } from './api'
 import { logger } from './log'
+import { desktopSocket } from './socket'
 import type { TrayState } from './tray'
 
 const log = logger('live')
@@ -97,7 +98,11 @@ export const live = {
       return false
     }
     stop?.()
-    stop = unsub
+    desktopSocket.connect(open.id, open.deviceId)
+    stop = () => {
+      unsub()
+      desktopSocket.close()
+    }
     const goal = goals.find((g) => g.id === open.goalId) ?? null
     set({ ...EMPTY, status: 'live', source: 'server', session: open, goal })
     log.info(`attached to ${open.id}`)

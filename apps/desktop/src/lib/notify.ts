@@ -17,7 +17,8 @@ import {
   sendNotification,
 } from '@tauri-apps/plugin-notification'
 import { audio } from './audio'
-import { desk } from './desk'
+import { postSignals } from './api'
+import { desktopSocket } from './socket'
 import { live } from './live'
 import { logger } from './log'
 
@@ -28,6 +29,8 @@ export interface Nudge {
   id: string
   message: string
   at: number
+  /** The observation it is about, when the server sent it — how its outcome gets attributed. */
+  observationId: string | null
 }
 
 export interface Decision {
@@ -66,35 +69,68 @@ async function native(body: string) {
   }
 }
 
-function handle(i: Intervention, focusMode: boolean) {
+/** The last spoken line's words, for the speech bar while the server's audio plays. */
+let lastLine: string | null = null
+
+function showNudge(
+  message: string,
+  observationId: string | null,
+  reason: string,
+  focusMode: boolean,
+) {
   const snoozed = state.snoozedUntil !== null && Date.now() < state.snoozedUntil
+  if (focusMode || snoozed) {
+    decide({
+      tier: 2,
+      shown: 'tray',
+      reason: focusMode ? 'downgraded: Focus is on' : 'downgraded: snoozed',
+    })
+    return
+  }
+  set({ nudge: { id: `${Date.now()}`, message, at: Date.now(), observationId } })
+  void native(message)
+  decide({ tier: 2, shown: 'notification', reason })
+}
+
+/**
+ * An intervention from the live stream. With a server, the desktop socket is what nudges and speaks
+ * (see `lib/socket`), so here it only remembers the words; in the demo it is the whole path.
+ */
+function handle(i: Intervention, focusMode: boolean, fromServer: boolean) {
+  if (i.channel === 'speech' && i.message) lastLine = i.message
+  if (fromServer) return
   if (i.channel === 'notification' && i.message) {
-    if (focusMode || snoozed) {
-      decide({
-        tier: 2,
-        shown: 'tray',
-        reason: focusMode ? 'downgraded: Focus is on' : 'downgraded: snoozed',
-      })
-      return
-    }
-    set({ nudge: { id: `${Date.now()}`, message: i.message, at: Date.now() } })
-    void native(i.message)
-    decide({ tier: 2, shown: 'notification', reason: i.reason })
+    showNudge(i.message, null, i.reason, focusMode)
   } else if (i.channel === 'speech' && i.message) {
-    if (snoozed) {
+    if (state.snoozedUntil !== null && Date.now() < state.snoozedUntil) {
       decide({ tier: 3, shown: 'tray', reason: 'downgraded: snoozed' })
       return
     }
     // Escalation supersedes the nudge card: the spoken line is the current ask.
     set({ nudge: null })
-    // One voice: with the rig connected, Lumi One says it on the desk and the desktop stays quiet.
-    if (desk.rigConnected()) {
-      decide({ tier: 3, shown: 'speech', reason: `${i.reason} · spoken by Lumi One` })
-      return
-    }
     const played = audio.say(i.message)
     decide({ tier: 3, shown: played ? 'speech' : 'tray', reason: played ? i.reason : 'muted' })
   }
+}
+
+/** What the person did with a nudge, back to the server as a signal so the policy can judge it. */
+function respond(action: 'back_to_goal' | 'snooze_10m' | 'dismissed') {
+  const nudge = state.nudge
+  const snap = live.get()
+  if (!nudge || snap.source !== 'server' || !snap.session) return
+  void postSignals({
+    deviceId: snap.session.deviceId,
+    sessionId: snap.session.id,
+    signals: [
+      {
+        source: 'system',
+        kind: 'nudge.response',
+        ts: new Date().toISOString(),
+        confidence: 1,
+        payload: { action, observationId: nudge.observationId },
+      },
+    ],
+  })
 }
 
 export const notify = {
@@ -106,27 +142,35 @@ export const notify = {
 
   /** Wire the surfaces to the live store. Returns the unhook. */
   attach(): () => void {
-    const stopDesk = desk.watch()
     const stopLive = live.onEvent((e, snap) => {
-      if (e.event === 'intervention') handle(e.data, snap.window?.focusMode ?? false)
+      if (e.event === 'intervention')
+        handle(e.data, snap.window?.focusMode ?? false, snap.source === 'server')
     })
+    const stopNudges = desktopSocket.onNudge((n) => {
+      set({ nudge: null })
+      showNudge(n.message, n.observationId, 'server nudge', live.get().window?.focusMode ?? false)
+    })
+    desktopSocket.setLineProvider(() => lastLine)
     return () => {
-      stopDesk()
       stopLive()
+      stopNudges()
     }
   },
 
   backToGoal() {
+    respond('back_to_goal')
     set({ nudge: null })
     log.info('nudge acknowledged: back to the goal')
   },
 
   snooze() {
+    respond('snooze_10m')
     set({ nudge: null, snoozedUntil: Date.now() + SNOOZE_MS })
     log.info('nudges snoozed for 10 min')
   },
 
   dismiss() {
+    respond('dismissed')
     set({ nudge: null })
   },
 }

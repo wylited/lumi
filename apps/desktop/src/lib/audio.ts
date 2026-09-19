@@ -26,9 +26,10 @@ class PcmPlayer {
     void this.context().resume()
   }
 
-  play(base64: string, sampleRate: number, channels: number, onEnd: () => void): void {
-    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))
-    const samples = new Int16Array(bytes.buffer, 0, Math.floor(bytes.byteLength / 2))
+  /** PCM S16LE, interleaved. */
+  play(bytes: Uint8Array, sampleRate: number, channels: number, onEnd: () => void): void {
+    const copy = bytes.slice() // aligned, and ours
+    const samples = new Int16Array(copy.buffer, 0, Math.floor(copy.byteLength / 2))
     const frames = Math.floor(samples.length / channels)
     const ctx = this.context()
     const buffer = ctx.createBuffer(channels, frames, sampleRate)
@@ -65,6 +66,7 @@ interface AudioState {
 let state: AudioState = { speaking: null, muted: false }
 const listeners = new Set<() => void>()
 const bargeinListeners = new Set<(line: string) => void>()
+const playbackListeners = new Set<(playing: boolean, line: string) => void>()
 
 function set(next: Partial<AudioState>) {
   state = { ...state, ...next }
@@ -79,17 +81,24 @@ export const audio = {
   },
   resume: () => player.resume(),
 
-  say(line: string, pcm?: { base64: string; sampleRate: number; channels: number }): boolean {
+  /**
+   * Speak a line. With `pcm`, play exactly those samples (the server's voice); without, the system
+   * voice reads the text (the demo, and the local adapter).
+   */
+  say(line: string, pcm?: { bytes: Uint8Array; sampleRate: number; channels: number }): boolean {
     if (state.muted) {
       log.info('muted, line not played', line)
       return false
     }
     set({ speaking: line })
+    playbackListeners.forEach((l) => l(true, line))
     const done = () => {
-      if (state.speaking === line) set({ speaking: null })
+      if (state.speaking !== line) return
+      set({ speaking: null })
+      playbackListeners.forEach((l) => l(false, line))
     }
     if (pcm) {
-      player.play(pcm.base64, pcm.sampleRate, pcm.channels, done)
+      player.play(pcm.bytes, pcm.sampleRate, pcm.channels, done)
     } else if ('speechSynthesis' in window) {
       const u = new SpeechSynthesisUtterance(line)
       u.rate = 1.02
@@ -114,6 +123,7 @@ export const audio = {
     if (line) {
       log.info('barge-in', line)
       bargeinListeners.forEach((l) => l(line))
+      playbackListeners.forEach((l) => l(false, line))
     }
   },
 
@@ -125,6 +135,12 @@ export const audio = {
   onBargein(l: (line: string) => void) {
     bargeinListeners.add(l)
     return () => bargeinListeners.delete(l)
+  },
+
+  /** Every start and every stop — natural end or barge-in. The socket reports these. */
+  onPlayback(l: (playing: boolean, line: string) => void) {
+    playbackListeners.add(l)
+    return () => playbackListeners.delete(l)
   },
 }
 
