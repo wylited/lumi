@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react'
 import { requireOptionalNativeModule } from 'expo-modules-core'
+import * as SecureStore from 'expo-secure-store'
 import type { MobileBlocklist } from '@heli/contracts'
 
 /**
@@ -46,11 +48,64 @@ export async function applyBlocklist(list: MobileBlocklist): Promise<void> {
   }
 }
 
-/** Blocks and undos since the last call, for the signal batch. */
+export interface BlockEvent {
+  action: 'sent_home' | 'undone'
+  app: string
+  ts: number
+}
+
+/*
+ * The phone's own record of what it blocked, newest first, kept for the Blocking tab. The server
+ * gets the same events as signals; this copy is what the screen can show without asking.
+ */
+const LOG_KEY = 'lumi.blocks.log'
+const LOG_LIMIT = 30
+let log: BlockEvent[] | null = null
+const logListeners = new Set<() => void>()
+
+async function readLog(): Promise<BlockEvent[]> {
+  if (log) return log
+  try {
+    const raw = await SecureStore.getItemAsync(LOG_KEY)
+    log = raw ? (JSON.parse(raw) as BlockEvent[]) : []
+  } catch {
+    log = []
+  }
+  return log
+}
+
+async function appendLog(events: BlockEvent[]): Promise<void> {
+  if (events.length === 0) return
+  const next = [...[...events].reverse(), ...(await readLog())].slice(0, LOG_LIMIT)
+  log = next
+  logListeners.forEach((l) => l())
+  await SecureStore.setItemAsync(LOG_KEY, JSON.stringify(next)).catch(() => undefined)
+}
+
+export function useBlockLog(): BlockEvent[] {
+  const [events, setEvents] = useState<BlockEvent[]>(log ?? [])
+  useEffect(() => {
+    void readLog().then(setEvents)
+    const l = () => setEvents(log ?? [])
+    logListeners.add(l)
+    return () => {
+      logListeners.delete(l)
+    }
+  }, [])
+  return events
+}
+
+/** Blocks and undos since the last call, for the signal batch — and for the phone's own log. */
 export async function blockerEvents(): Promise<{ action: string; app: string }[]> {
   if (native === null) return []
   try {
-    return (await native.drainEvents()).map(({ action, app }) => ({ action, app }))
+    const drained = await native.drainEvents()
+    await appendLog(
+      drained
+        .filter((e) => e.action === 'sent_home' || e.action === 'undone')
+        .map((e) => ({ action: e.action as BlockEvent['action'], app: e.app, ts: e.ts })),
+    )
+    return drained.map(({ action, app }) => ({ action, app }))
   } catch {
     return []
   }

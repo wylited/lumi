@@ -72,7 +72,8 @@ class BlockerService : AccessibilityService() {
         @Suppress("DEPRECATION")
         Notification.Builder(context)
       }
-      val text = if (goal != null) "$app is off the list for “$goal”." else "$app is off the list for this session."
+      val quotedGoal = goal?.let { if (it.contains('"') || it.contains('“')) it else "“$it”" }
+      val text = if (quotedGoal != null) "$app is off the list for $quotedGoal." else "$app is off the list for this session."
       val notification = builder
         .setSmallIcon(context.applicationInfo.icon)
         .setContentTitle("Lumi sent you home from $app")
