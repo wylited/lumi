@@ -33,9 +33,14 @@ An assessment becomes an intervention only when **all** hold:
 4. `tier ≤ policy.maxTier` (default **2**, raised per goal by the user)
 5. at most **one** automate per window, and never while a break the system started is still running
 
+**Voice first.** When the goal permits `speak` (and `maxTier ≥ 3`), the first interruption is the
+spoken line: the nudge rung is skipped, and between two lines the policy waits in ambient rather
+than falling back to a notification. A goal without `speak` climbs from the nudge as below.
+
 **Escalation is earned.** A nudge does not become a speak because time passed; it becomes a speak
-because the nudge was **unresolved** (the user was still off-goal in the next window). If a window
-resolves itself, the counters reset and the tier returns to 0.
+because the nudge was **unresolved** (the user was still off-goal in the next window). A spoken
+line that is unresolved earns a change, when one is permitted. If a window resolves itself, the
+counters reset and the tier returns to 0.
 
 **Downgrades.** Focus / Do Not Disturb turns a tier 2 into a tier 1 and records why. A break the
 user started manually is never interrupted below tier 4. A meeting, inferred from a calendar

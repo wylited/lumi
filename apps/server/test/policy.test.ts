@@ -256,3 +256,26 @@ test('adaptation steps up a tier one window sooner after repeated ignores', () =
   )
   assert.equal(sooner?.tier, 4)
 })
+
+test('voice first: a goal that may speak opens with the spoken line, not a nudge', () => {
+  const goal = makeGoal({ permissions: ['nudge', 'speak'], policy: { ...DEFAULT_POLICY, maxTier: 3 } })
+  const result = decide(makeInput({ goal }))
+  assert.equal(result?.tier, 3)
+  assert.equal(result?.channel, 'speech')
+  assert.equal(result?.reason, 'tier3:speak:voice_first')
+})
+
+test('voice first: between two spoken lines it waits in ambient, never nudges', () => {
+  const goal = makeGoal({ permissions: ['nudge', 'speak'], policy: { ...DEFAULT_POLICY, maxTier: 3 } })
+  const result = decide(makeInput({ goal, lastSpokenAt: NOW - 5_000 }))
+  assert.equal(result?.tier, 1)
+  assert.equal(result?.channel, 'ambient')
+  assert.equal(result?.reason, 'tier1:ambient:voice_first_gap')
+})
+
+test('a goal that may not speak still climbs from the nudge', () => {
+  const goal = makeGoal({ permissions: ['nudge'], policy: { ...DEFAULT_POLICY, maxTier: 3 } })
+  const result = decide(makeInput({ goal }))
+  assert.equal(result?.tier, 2)
+  assert.equal(result?.channel, 'notification')
+})

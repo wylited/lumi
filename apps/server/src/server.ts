@@ -39,7 +39,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(cors, {
     // Dev-only: the Tauri webview and the Next.js app are separate origins.
     origin: true,
-    exposedHeaders: ['x-request-id'],
+    exposedHeaders: ['x-request-id', 'x-heli-frame-seq', 'x-heli-frame-at'],
   })
   await app.register(sensible)
   await app.register(websocket)

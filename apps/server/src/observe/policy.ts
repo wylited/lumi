@@ -91,8 +91,12 @@ export function decide(input: PolicyInput): Intervention | null {
   const last = lastEscalation(recentOutcomes, kind)
   const ignoredStreak = leadingIgnoredStreak(recentOutcomes, kind)
 
-  let idealTier = NUDGE_TIER
-  let ladderReason = 'nudge_due'
+  // Voice first: when the goal allows speaking, the first interruption is the spoken line, and
+  // the notification rung is skipped — not merged into it. A goal that does not allow speaking
+  // climbs from the nudge as before. After an ignored line, the next step is still a change.
+  const voiceFirst = canSpeak && policy.maxTier >= SPEECH_TIER
+  let idealTier = voiceFirst ? SPEECH_TIER : NUDGE_TIER
+  let ladderReason = voiceFirst ? 'voice_first' : 'nudge_due'
   if (last !== undefined && last.outcome === 'ignored') {
     if (last.tier >= SPEECH_TIER) {
       // A nudge was unresolved, then a spoken line was unresolved: automate.
@@ -144,7 +148,8 @@ export function decide(input: PolicyInput): Intervention | null {
     }
   }
 
-  if (idealTier >= NUDGE_TIER && canNudge && nudgeDue && policy.maxTier >= NUDGE_TIER) {
+  // Between two spoken lines a voice-first goal waits in ambient, never falls back to a nudge.
+  if (!voiceFirst && idealTier >= NUDGE_TIER && canNudge && nudgeDue && policy.maxTier >= NUDGE_TIER) {
     // Focus / Do Not Disturb downgrades a notification to a tray-colour nudge.
     if (window.focusMode) {
       return {
@@ -175,7 +180,7 @@ export function decide(input: PolicyInput): Intervention | null {
       message: null,
       action: null,
       reversible: false,
-      reason: `tier${AMBIENT_TIER}:ambient:${ambientReason(canNudge, nudgeDue)}`,
+      reason: `tier${AMBIENT_TIER}:ambient:${voiceFirst ? 'voice_first_gap' : ambientReason(canNudge, nudgeDue)}`,
     }
   }
 

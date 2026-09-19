@@ -3,72 +3,72 @@
     "onTrack": true,
     "kind": null,
     "expectedTier": 0,
-    "note": "On task, high confidence. No sustained drift, so nothing to interrupt — tier 0 silence."
+    "note": "On task, high confidence. No sustained drift, so nothing to interrupt \u2014 tier 0 silence."
   },
   "focus-run-2m": {
     "onTrack": true,
     "kind": null,
     "expectedTier": 0,
-    "note": "On task; a short run is not a reason to intervene — tier 0."
+    "note": "On task; a short run is not a reason to intervene \u2014 tier 0."
   },
   "off-task-social-40s": {
     "onTrack": false,
     "kind": "social",
     "expectedTier": 1,
-    "note": "Drift 40 s ≥ driftSeconds 30, but consecutiveOffGoal 1 < 2, so not sustained. Ambient only — tier 1."
+    "note": "Drift 40 s \u2265 driftSeconds 30, but consecutiveOffGoal 1 < 2, so not sustained. Ambient only \u2014 tier 1."
   },
   "off-task-video-90s": {
     "onTrack": false,
     "kind": "video",
-    "expectedTier": 2,
-    "note": "Second consecutive off-goal window, drift 90 s ≥ 30 s and confidence ≥ minConfidence 0.7. Nudge permitted, nudge gap elapsed — tier 2."
+    "expectedTier": 3,
+    "note": "Second consecutive off-goal window, drift 90 s \u2265 30 s and confidence \u2265 minConfidence 0.7. Nudge permitted, nudge gap elapsed \u2014 tier 2. Voice first: the goal allows speaking, so the first interruption is the spoken line, not a nudge \u2014 tier 3."
   },
   "phone-in-hand": {
     "onTrack": false,
     "kind": "phone",
     "expectedTier": 3,
-    "note": "The prior nudge was unresolved and the drift continues. Speak permitted, speech gap elapsed, maxTier 3 — tier 3."
+    "note": "The prior nudge was unresolved and the drift continues. Speak permitted, speech gap elapsed, maxTier 3 \u2014 tier 3."
   },
   "away-idle": {
     "onTrack": false,
     "kind": "away",
     "expectedTier": 0,
-    "note": "Nobody at the desk to act on; like a meeting, an empty desk suppresses everything — tier 0."
+    "note": "Nobody at the desk to act on; like a meeting, an empty desk suppresses everything \u2014 tier 0."
   },
   "reading-low-input": {
     "onTrack": true,
     "kind": null,
     "expectedTier": 0,
-    "note": "Low inputRate with focusMode is reading, not drift. On task — tier 0."
+    "note": "Low inputRate with focusMode is reading, not drift. On task \u2014 tier 0."
   },
   "second-person": {
     "onTrack": false,
     "kind": "other_person",
     "expectedTier": 0,
-    "note": "The scene cannot be attributed with confidence ≥ minConfidence 0.7; assumeSilentOnDoubt keeps the policy silent — tier 0."
+    "note": "The scene cannot be attributed with confidence \u2265 minConfidence 0.7; assumeSilentOnDoubt keeps the policy silent \u2014 tier 0."
   },
   "dark-room": {
     "onTrack": false,
     "kind": null,
     "expectedTier": 0,
-    "note": "Low-information frame ⇒ confidence below the 0.7 floor, so rule 1 blocks every tier — tier 0."
+    "note": "Low-information frame \u21d2 confidence below the 0.7 floor, so rule 1 blocks every tier \u2014 tier 0."
   },
   "long-focus-12m": {
     "onTrack": true,
     "kind": null,
     "expectedTier": 0,
-    "note": "On task and sustained. Silence is the correct, recorded result — tier 0."
+    "note": "On task and sustained. Silence is the correct, recorded result \u2014 tier 0."
   },
   "recovery-after-nudge": {
     "onTrack": true,
     "kind": null,
     "expectedTier": 0,
-    "note": "The drift resolved within resolveWindowMs, so the nudge outcome is `resolved` and the counters reset — tier 0."
+    "note": "The drift resolved within resolveWindowMs, so the nudge outcome is `resolved` and the counters reset \u2014 tier 0."
   },
   "blurry-low-info": {
     "onTrack": false,
     "kind": null,
     "expectedTier": 0,
-    "note": "Blur ⇒ confidence below minConfidence 0.7, and `because` would not be evidence. No intervention — tier 0."
+    "note": "Blur \u21d2 confidence below minConfidence 0.7, and `because` would not be evidence. No intervention \u2014 tier 0."
   }
 }

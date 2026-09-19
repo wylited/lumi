@@ -35,6 +35,7 @@ import {
   getFrame,
   ingestVideoFrame,
   isFrameSource,
+  listFrames,
   resolveLatestFrameRef,
 } from '../services/frames.js'
 import type { FrameSource } from '../services/frames.js'
@@ -297,12 +298,15 @@ const deskRoutes: FastifyPluginAsync = async (app) => {
       const bytes = await getFrame(ref)
       if (bytes === null) return reply.code(204).header('cache-control', 'no-store').send()
 
+      // The live pane asks as fast as frames arrive, so nothing may be cached, and it is told
+      // which frame this is and when it was taken: the same frame twice is not repainted, and a
+      // rig that stopped shows as stale rather than as "now". A restarted server has no ring
+      // yet, and says nothing rather than guessing.
+      const meta = listFrames(id, source).at(-1)
+      if (meta) reply.header('x-heli-frame-seq', String(meta.seq)).header('x-heli-frame-at', meta.ts)
       return reply
         .header('content-type', 'image/jpeg')
-        // A stable key per source, so the still is short-lived by design: 5 s
-        // keeps a 2 fps preview from re-fetching on every paint, and is short
-        // enough that a new frame shows up.
-        .header('cache-control', 'private, max-age=5')
+        .header('cache-control', 'no-store')
         .send(Buffer.from(bytes))
     },
   )
