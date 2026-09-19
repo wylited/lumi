@@ -144,15 +144,15 @@ server owns intake, actions and persistence. Full detail, including the Python i
 
 | ✓ | id | commit | depends | ∥ | owner |
 |---|----|--------|---------|---|-------|
-| ☑ | HELI-040 | `feat(edge): the rig agent, camera capture and frame upload` | 009 | yes | 4 · hardware + rig |
+| ☑ | HELI-040 | `feat(edge): the rig agent, camera capture and frame upload` | 009 | yes | 4 |
 | ☑ | HELI-041 | `feat(server): frame intake and the newest frame` | 040, 014 | **no** | 2 |
-| ☑ | HELI-042 | `feat(edge): the arm adapter and aiming` | 040 | yes | 4 · hardware + rig |
+| ☐ | HELI-042 | `feat(edge): the arm adapter and aiming` | 040 | yes | 4 |
 | ☑ | HELI-043 | `feat(contracts): the desk socket, registration and actions` | 004 | **no** | 2 |
 | ☑ | HELI-044 | `feat(server): desks, the desk socket, and actions with acks` | 043, 041 | **no** | 2 |
-| ☑ | HELI-045 | `feat(edge): the action client and audio playback` | 042, 044 | yes | 4 · hardware + rig |
+| ☐ | HELI-045 | `feat(edge): the action client and audio playback` | 042, 044 | yes | 4 |
 | ☐ | HELI-046 | `chore(desktop): desk setup and the desk panel` | 044 | yes | 3 |
-| ☑ | HELI-047 | `feat(contracts): the line reaches the desk` | 043 | yes | 4 · hardware + rig |
-| ☑ | HELI-048 | `feat(server): the observe loop starts` | 020 | **no** | 4 · hardware + rig |
+| ☑ | HELI-047 | `feat(contracts): the line reaches the desk` | 043 | yes | 4 |
+| ☑ | HELI-048 | `feat(server): the observe loop starts` | 020 | **no** | 4 |
 
 `041` landed in `879a5d9` as a draft and was reviewed and finished by owner 2; its `Done when` is
 proved with curl uploads, so it does not wait on `040`'s rig agent.
@@ -271,3 +271,21 @@ Reading order for each person. Everything above is either ticked or listed here.
 
 `022` (speech out) is the server-side piece the loop needs; it lands inside P2 as written. The old
 `041` media relay is retired with the Pi — frame intake is now `041` in the new P4.
+
+## Unclaimed, and what is left
+
+`042` and `045` are back to **unclaimed** on the row's own owner slot, because their `Done when`
+lines are not met and whoever takes them next should not have to argue with a tick:
+
+- **`042`** — the arm adapter, the aiming, and now the calibration recording all landed and are
+  verified on the real arm (`aim(5, -3)` settles inside 1.5 deg in 7.0 s; `nod`, `home`, the stall
+  report and the `no_arm` refusals all exercised live). What is missing is the one line that needs
+  a person at the desk: `point(x, y)` landing within tolerance, which needs a recorded rectangle
+  (`heli-rig calibrate --rect x,y,w,h`, in `apps/edge/README.md`) that this bench has never had.
+- **`045`** — the socket, the dispatcher, the audio and their 33-odd tests landed; every action in
+  `DeskAction` was executed and acked against a desk server speaking the landed contract, with the
+  real camera and the real speaker. What is missing is end-to-end against *this* server: `044` has
+  not landed, so `POST /v1/desks` and `WS /ws/desk` answer 404 and no action can arrive from the
+  server at all. `048`'s `desk` lookup is the same gap from the other side.
+
+`040`, `047` and `048` stay ticked: each one's evidence is a command that was run.
