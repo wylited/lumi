@@ -130,13 +130,15 @@ changing it. The recorded replay used by the demo lands with **HELI-061**
 
 The same shape as the model. `SPEECH_PROVIDER=local` needs no key and speaks in a deliberately
 unintelligible tone motif, so the whole path runs offline. `SPEECH_PROVIDER=elevenlabs` needs both
-`ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` — the id, not the name. On a free plan only some
-voices are allowed: Sarah (`EXAVITQu4vr4xnSDxMaL`), Adam (`pNInz6obpgDQGcFmaJgB`) and Antoni
-(`ErXwobaYiN019PkySvjV`) answered; library voices return `paid_plan_required`. The verified key has
-no `voices_read` scope, so voices cannot be listed over the API — that is a key scope, not a plan.
+`ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` — the id, not the name.
+
+**Default voice: Matilda** (`XrExE9yKIg1WjnnlVkGX`, knowledgeable/professional); alternates Alice
+(`Xb7hH8MSUJpSbSDYk0k2`) and Sarah (`EXAVITQu4vr4xnSDxMaL`). `GET /v1/voices` lists 21 premade
+voices with the key in `.env`; the free plan refuses some ids with `paid_plan_required`, so after
+changing the voice, synthesize one line and listen before demo day.
 
 Synthesis is a cloud call **after** the assessment, so it does not consume the loop's budget and a
-failure is recorded as `delivered: false` rather than spoken. It is not instant: **~4.5 s per line**
+failure is recorded as `delivered: false` rather than spoken. It is not instant: **~5 s per line**
 from this network on the free plan, so a tier-3 line lands several seconds after the window it
 describes. Keep `local` one edit away on demo day.
 
