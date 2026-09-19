@@ -23,11 +23,13 @@ Frames, signals and decisions live on your own server: your Postgres, your objec
 
 Assessment is the only call that leaves your machine. The frame goes to DeepSeek vision, comes back as a verdict, and DeepSeek retains nothing.
 
-## Built with
+## The Robotic Arm
 
-`packages/contracts` is the only place a shape is defined: zod, compiled to TypeScript for the apps and to JSON Schema for the Python rig.
+Not all work happens statically; the SO101 arm empowers us to move the camera around the workspace and track the user as they work.
 
-The arm has one driver at a time. `arm.aim`, `arm.point` and `arm.home` pause the tracker while they run.
+Moves arrive over the desk socket: an `arm.point` carries a desk coordinate, and the rig acks the pose it actually reached.
+
+The tracker yields while an aim, point or home runs, so a move that was asked for is never fought by the loop.
 
 ## Running it
 
