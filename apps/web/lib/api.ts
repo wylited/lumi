@@ -68,6 +68,53 @@ async function read<S extends z.ZodTypeAny>(
   }
 }
 
+/**
+ * A write. Unlike reads there is no fixture to fall back to, so the caller gets the failure and
+ * says so on screen rather than pretending it happened.
+ */
+export async function write<S extends z.ZodTypeAny>(
+  path: string,
+  schema: S,
+  body: unknown = {},
+): Promise<{ ok: true; data: z.infer<S> } | { ok: false; reason: string }> {
+  const { source, token } = await connect()
+  if (source === 'demo') return { ok: false, reason: 'No server connected — this is demo data.' }
+  try {
+    const res = await fetch(`${BASE}/v1${path}`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+    if (res.status === 404) return { ok: false, reason: `The server has no ${path} yet.` }
+    if (!res.ok) return { ok: false, reason: `The server answered ${res.status}.` }
+    return { ok: true, data: schema.parse(await res.json()) }
+  } catch (error) {
+    return { ok: false, reason: String(error) }
+  }
+}
+
+/** The media relay's MJPEG URL for a live session, token included, or null. */
+export async function videoUrl(sessionId: string): Promise<string | null> {
+  const { source, token } = await connect()
+  if (source === 'demo') return null
+  try {
+    const res = await fetch(`${BASE}/v1/sessions/${encodeURIComponent(sessionId)}/media-token`, {
+      headers: { authorization: `Bearer ${token}` },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+    if (!res.ok) return null
+    const { token: media } = (await res.json()) as { token?: string }
+    return media
+      ? `${BASE}/v1/sessions/${sessionId}/video.mjpg?token=${encodeURIComponent(media)}`
+      : null
+  } catch {
+    return null
+  }
+}
+
 export async function dataSource(): Promise<DataSource> {
   return (await connect()).source
 }
