@@ -1,44 +1,38 @@
 import type { ReactNode } from 'react'
-import { cn, LiveDot, type LiveState } from '@heli/ui'
+import { cn } from '@heli/ui'
+import { Dot } from '../kit'
 import { GoalIcon, HistoryIcon, LiveIcon, SettingsIcon } from './Icons'
-import { Mark } from './Mark'
 
 export type Route = 'goal' | 'live' | 'history' | 'settings'
 
 export const ROUTES: Array<{ id: Route; label: string; icon: ReactNode; key: string }> = [
-  { id: 'goal', label: 'Goal', icon: <GoalIcon />, key: '1' },
-  { id: 'live', label: 'Live', icon: <LiveIcon />, key: '2' },
+  { id: 'live', label: 'Live', icon: <LiveIcon />, key: '1' },
+  { id: 'goal', label: 'Goal', icon: <GoalIcon />, key: '2' },
   { id: 'history', label: 'History', icon: <HistoryIcon />, key: '3' },
   { id: 'settings', label: 'Settings', icon: <SettingsIcon />, key: '4' },
 ]
 
 export interface SidebarStatus {
-  dot: LiveState
-  title: string
-  detail: string
+  tone: 'focus' | 'drift' | 'idle'
+  label: string
 }
 
 export function Sidebar({
   route,
   onNavigate,
   status,
-  footer,
+  demo,
 }: {
   route: Route
   onNavigate: (route: Route) => void
   status: SidebarStatus
-  footer?: ReactNode
+  demo: boolean
 }) {
   return (
-    <aside className="flex w-[232px] shrink-0 flex-col border-r border-border bg-surface">
-      {/* The traffic lights sit in this strip; the whole strip drags the window. */}
+    <aside className="flex w-[208px] shrink-0 flex-col border-r border-border bg-surface">
+      {/* The traffic lights sit in this strip; it drags the window. */}
       <div data-tauri-drag-region className="h-[52px] shrink-0" />
-      <div className="flex items-center gap-2.5 px-5 pb-6 pt-1" data-tauri-drag-region>
-        <Mark className="size-[22px]" />
-        <span className="text-body-strong font-semibold tracking-tight text-text">Helicopter</span>
-      </div>
-
-      <nav aria-label="Primary" className="flex flex-col gap-0.5 px-3">
+      <nav aria-label="Primary" className="flex flex-col gap-px px-2.5">
         {ROUTES.map((r) => {
           const active = r.id === route
           return (
@@ -47,39 +41,27 @@ export function Sidebar({
               type="button"
               onClick={() => onNavigate(r.id)}
               aria-current={active ? 'page' : undefined}
+              title={`${r.label}  ⌘${r.key}`}
               className={cn(
-                'group flex h-9 items-center gap-3 rounded-sm px-3 text-left text-small font-medium outline-none',
-                'transition-colors duration-fast ease-heli focus-visible:ring-2 focus-visible:ring-accent',
+                'flex h-8 items-center gap-2.5 rounded-sm px-2.5 text-left text-body outline-none',
+                'transition-colors duration-fast focus-visible:ring-2 focus-visible:ring-accent',
                 active
-                  ? 'bg-surface-raised text-text shadow-sm'
-                  : 'text-text-muted hover:bg-surface-raised/60 hover:text-text',
+                  ? 'bg-ink-100 text-text'
+                  : 'text-text-muted hover:bg-ink-100/60 hover:text-text',
               )}
             >
-              <span
-                className={cn(
-                  active ? 'text-accent' : 'text-text-faint group-hover:text-text-muted',
-                )}
-              >
-                {r.icon}
-              </span>
-              <span className="flex-1">{r.label}</span>
-              <kbd className="font-mono text-[10.5px] text-text-faint opacity-0 transition-opacity duration-fast group-hover:opacity-100">
-                ⌘{r.key}
-              </kbd>
+              <span className={active ? 'text-text' : 'text-text-faint'}>{r.icon}</span>
+              {r.label}
             </button>
           )
         })}
       </nav>
-
-      <div className="mt-auto flex flex-col gap-3 p-3">
-        <div className="rounded-md border border-border bg-surface-raised p-3.5">
-          <div className="flex items-center gap-2">
-            <LiveDot state={status.dot} />
-            <span className="text-small font-medium text-text">{status.title}</span>
-          </div>
-          <p className="mt-1.5 line-clamp-2 text-caption text-text-faint">{status.detail}</p>
-        </div>
-        {footer}
+      <div className="mt-auto flex flex-col gap-1 px-5 pb-5">
+        <span className="flex items-center gap-2 text-small text-text-muted">
+          <Dot tone={status.tone} />
+          {status.label}
+        </span>
+        {demo ? <span className="pl-4 text-caption text-text-faint">Demo data</span> : null}
       </div>
     </aside>
   )

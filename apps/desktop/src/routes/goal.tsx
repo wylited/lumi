@@ -1,20 +1,54 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Automation, Goal, GoalKind } from '@heli/contracts'
 import { Button, useToast } from '@heli/ui'
-import { Assistant } from '../components/goal/Assistant'
-import { Consequences } from '../components/goal/Consequences'
-import { Field, Segmented, Toggle, Tokens } from '../components/goal/Controls'
-import { blankGoal, loadGoal, saveGoal, toForm, type GoalForm } from '../lib/goals'
+import { Segmented, Stepper, Switch, Tokens } from '../components/goal/Controls'
+import { Group, PageTitle, Row } from '../components/kit'
+import {
+  blankGoal,
+  draft,
+  loadGoal,
+  saveGoal,
+  toForm,
+  type Draft,
+  type GoalForm,
+} from '../lib/goals'
 import { logger } from '../lib/log'
 
 const log = logger('goal')
 
 const AUTOMATIONS: Array<{ value: Automation; label: string }> = [
-  { value: 'mute_site', label: 'Mute a blocked site' },
+  { value: 'mute_site', label: 'Mute an off-goal site' },
   { value: 'pause_notifications', label: 'Pause notifications' },
   { value: 'start_break', label: 'Start the break' },
   { value: 'open_app', label: 'Reopen the work app' },
 ]
+
+const BREAKS = {
+  none: 'None',
+  pomodoro_25_5: '25 / 5',
+  pomodoro_50_10: '50 / 10',
+  custom: 'Custom',
+} as const
+
+/** The fields a draft would change, as label → new value, for the suggestion panel. */
+function changes(form: GoalForm, d: Draft): Array<[string, string]> {
+  const p = d.patch
+  const out: Array<[string, string]> = []
+  const list = (v?: string[]) => (v?.length ? v.join(', ') : 'none')
+  if (p.objective && p.objective !== form.objective) out.push(['Goal', p.objective])
+  if (p.successCriteria && p.successCriteria !== form.successCriteria)
+    out.push(['Done when', p.successCriteria])
+  if (p.kind && p.kind !== form.kind) out.push(['Kind', p.kind])
+  if (p.timeBudgetMinutes && p.timeBudgetMinutes !== form.timeBudgetMinutes)
+    out.push(['Time', `${p.timeBudgetMinutes} min`])
+  if (p.breakPolicy && p.breakPolicy !== form.breakPolicy)
+    out.push(['Breaks', BREAKS[p.breakPolicy]])
+  if (p.allowedApps || p.allowedSites)
+    out.push(['On the goal', list([...(p.allowedApps ?? []), ...(p.allowedSites ?? [])])])
+  if (p.blockedApps || p.blockedSites)
+    out.push(['Off the goal', list([...(p.blockedApps ?? []), ...(p.blockedSites ?? [])])])
+  return out
+}
 
 export function GoalRoute() {
   const { toast } = useToast()
@@ -22,6 +56,8 @@ export function GoalRoute() {
   const [form, setForm] = useState<GoalForm>(blankGoal)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [sentence, setSentence] = useState('')
+  const [suggestion, setSuggestion] = useState<Draft | null>(null)
 
   useEffect(() => {
     loadGoal()
@@ -53,199 +89,226 @@ export function GoalRoute() {
       const g = await saveGoal(saved?.id ?? null, form)
       setSaved(g)
       setForm(toForm(g))
-      toast('Goal saved.', 'success')
+      toast('Saved', 'success')
     } catch (e) {
       log.error('save failed', e)
-      toast('Could not save the goal.', 'error')
+      toast('Could not save the goal', 'error')
     } finally {
       setSaving(false)
     }
   }
 
   if (loading) return null
+  const p = form.policy
+  const diff = suggestion ? changes(form, suggestion) : []
 
   return (
-    <div className="mx-auto flex max-w-[1040px] flex-col gap-10 px-8 py-8 pb-28">
-      <Assistant
-        onAccept={(d) => {
-          setForm((f) => ({ ...f, ...d.patch }))
-        }}
-      />
-
-      <div className="grid gap-10 lg:grid-cols-[1fr_300px]">
-        <div className="flex flex-col gap-8">
-          <Field label="Objective" hint={`${form.objective.length} / 280`}>
-            <textarea
-              value={form.objective}
-              maxLength={280}
-              rows={2}
-              onChange={(e) => set('objective', e.target.value)}
-              placeholder="Finish the linear algebra problem set"
-              className="resize-none rounded-md border border-border-strong bg-bg px-4 py-3 text-title-3 font-semibold text-text outline-none placeholder:font-normal placeholder:text-text-faint focus:border-accent focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-bg"
-            />
-          </Field>
-          <Field label="Done when" hint="optional">
-            <input
-              value={form.successCriteria ?? ''}
-              maxLength={280}
-              onChange={(e) => set('successCriteria', e.target.value || null)}
-              placeholder="All 12 problems attempted, with working written up"
-              className="h-10 rounded-pill border border-border-strong bg-bg px-4 text-body text-text outline-none placeholder:text-text-faint focus:border-accent focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-bg"
-            />
-          </Field>
-
-          <div className="grid gap-8 sm:grid-cols-2">
-            <Field label="Kind">
-              <Segmented<GoalKind>
-                label="Kind"
-                value={form.kind}
-                onChange={(v) => set('kind', v)}
-                options={[
-                  { value: 'study', label: 'Study' },
-                  { value: 'work', label: 'Work' },
-                  { value: 'life', label: 'Life' },
-                ]}
-              />
-            </Field>
-            <Field
-              label="Time budget"
-              hint={form.timeBudgetMinutes ? `${form.timeBudgetMinutes} min` : 'open-ended'}
+    <div className="mx-auto flex max-w-[720px] flex-col gap-8 px-10 pb-16 pt-2">
+      <PageTitle
+        aside={
+          <div className="flex items-center gap-2">
+            {saved && dirty ? (
+              <Button variant="ghost" size="sm" onClick={() => setForm(toForm(saved))}>
+                Revert
+              </Button>
+            ) : null}
+            <Button
+              size="sm"
+              onClick={save}
+              loading={saving}
+              disabled={!dirty || !form.objective.trim()}
             >
-              <div className="flex items-center gap-3">
-                <input
-                  type="range"
-                  min={0}
-                  max={480}
-                  step={5}
-                  value={form.timeBudgetMinutes ?? 0}
-                  onChange={(e) => set('timeBudgetMinutes', Number(e.target.value) || null)}
-                  aria-label="Time budget in minutes"
-                  className="w-full accent-[var(--accent)]"
-                />
-              </div>
-            </Field>
-          </div>
-
-          <Field label="Breaks">
-            <Segmented
-              label="Breaks"
-              value={form.breakPolicy === 'custom' ? 'none' : form.breakPolicy}
-              onChange={(v) => set('breakPolicy', v)}
-              options={[
-                { value: 'none', label: 'None' },
-                { value: 'pomodoro_25_5', label: '25 on · 5 off' },
-                { value: 'pomodoro_50_10', label: '50 on · 10 off' },
-              ]}
-            />
-          </Field>
-
-          <div className="grid gap-6 sm:grid-cols-2">
-            <Field label="On the goal" hint="apps">
-              <Tokens
-                tone="allow"
-                values={form.allowedApps}
-                onChange={(v) => set('allowedApps', v)}
-                placeholder="Code, Notes…"
-              />
-            </Field>
-            <Field label="Off the goal" hint="apps">
-              <Tokens
-                tone="block"
-                values={form.blockedApps}
-                onChange={(v) => set('blockedApps', v)}
-                placeholder="Discord, Steam…"
-              />
-            </Field>
-            <Field label="On the goal" hint="sites">
-              <Tokens
-                tone="allow"
-                values={form.allowedSites}
-                onChange={(v) => set('allowedSites', v)}
-                placeholder="github.com…"
-              />
-            </Field>
-            <Field label="Off the goal" hint="sites">
-              <Tokens
-                tone="block"
-                values={form.blockedSites}
-                onChange={(v) => set('blockedSites', v)}
-                placeholder="youtube.com…"
-              />
-            </Field>
-          </div>
-
-          <Field label="It may">
-            <div className="grid gap-2 sm:grid-cols-3">
-              <Toggle
-                checked={may('nudge')}
-                onChange={(v) => allow('nudge', v)}
-                label="Nudge"
-                detail="A notification with an action"
-              />
-              <Toggle
-                checked={may('speak')}
-                onChange={(v) => allow('speak', v)}
-                label="Speak"
-                detail="One sentence, out loud"
-              />
-              <Toggle
-                checked={may('automate')}
-                onChange={(v) => allow('automate', v)}
-                label="Automate"
-                detail="Reversible changes"
-              />
-            </div>
-          </Field>
-
-          {may('automate') ? (
-            <Field label="Which changes" hint="each is shown and undoable">
-              <div className="flex flex-wrap gap-2">
-                {AUTOMATIONS.map((a) => {
-                  const on = form.automations.includes(a.value)
-                  return (
-                    <button
-                      key={a.value}
-                      type="button"
-                      aria-pressed={on}
-                      onClick={() =>
-                        set(
-                          'automations',
-                          on
-                            ? form.automations.filter((x) => x !== a.value)
-                            : [...form.automations, a.value],
-                        )
-                      }
-                      className={`rounded-pill border px-3.5 py-1.5 text-small transition-colors duration-fast ${on ? 'border-accent bg-accent-wash text-accent-link' : 'border-border text-text-muted hover:border-border-strong'}`}
-                    >
-                      {a.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </Field>
-          ) : null}
-        </div>
-
-        <aside className="lg:sticky lg:top-8 lg:self-start">
-          <Consequences form={form} />
-        </aside>
-      </div>
-
-      <div className="fixed bottom-0 left-[232px] right-0 z-10 border-t border-border bg-bg/90 backdrop-blur">
-        <div className="mx-auto flex max-w-[1040px] items-center justify-end gap-3 px-8 py-3.5">
-          <span className="mr-auto text-caption text-text-faint">
-            {dirty ? (saved ? 'Unsaved changes' : 'Not saved yet') : 'Saved'}
-          </span>
-          {saved && dirty ? (
-            <Button variant="ghost" onClick={() => setForm(toForm(saved))}>
-              Revert
+              {saved ? 'Save' : 'Create'}
             </Button>
-          ) : null}
-          <Button onClick={save} loading={saving} disabled={!dirty || !form.objective.trim()}>
-            {saved ? 'Save goal' : 'Create goal'}
-          </Button>
-        </div>
+          </div>
+        }
+      >
+        Goal
+      </PageTitle>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          const d = draft(sentence)
+          setSuggestion(d.notes.length ? d : null)
+        }}
+        className="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 focus-within:border-border-strong"
+      >
+        <input
+          value={sentence}
+          onChange={(e) => setSentence(e.target.value)}
+          placeholder="Describe it in a sentence — “finish the problem set by 9”"
+          aria-label="Describe the goal in a sentence"
+          className="min-w-0 flex-1 bg-transparent py-1 text-body text-text outline-none placeholder:text-text-faint"
+        />
+        <Button type="submit" size="sm" variant="secondary" disabled={!sentence.trim()}>
+          Draft
+        </Button>
+      </form>
+
+      {suggestion && diff.length ? (
+        <Group
+          title="Suggested changes"
+          footer={
+            <span className="flex items-center gap-2 pt-1">
+              <Button
+                size="sm"
+                onClick={() => {
+                  setForm((f) => ({ ...f, ...suggestion.patch }))
+                  setSuggestion(null)
+                }}
+              >
+                Apply
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setSuggestion(null)}>
+                Dismiss
+              </Button>
+            </span>
+          }
+        >
+          {diff.map(([k, v]) => (
+            <Row key={k} label={<span className="text-text-muted">{k}</span>}>
+              <span className="max-w-[380px] truncate text-right text-body text-text">{v}</span>
+            </Row>
+          ))}
+        </Group>
+      ) : null}
+
+      <div className="flex flex-col gap-1">
+        <textarea
+          value={form.objective}
+          maxLength={280}
+          rows={1}
+          onChange={(e) => set('objective', e.target.value)}
+          placeholder="What are you here to do?"
+          aria-label="Objective"
+          className="field-sizing-content resize-none bg-transparent text-title-2 font-semibold text-text outline-none placeholder:text-text-faint"
+        />
+        <input
+          value={form.successCriteria ?? ''}
+          maxLength={280}
+          onChange={(e) => set('successCriteria', e.target.value || null)}
+          placeholder="Done when…"
+          aria-label="Done when"
+          className="bg-transparent text-body text-text-muted outline-none placeholder:text-text-faint"
+        />
       </div>
+
+      <Group title="Session">
+        <Row label="Kind">
+          <Segmented<GoalKind>
+            label="Kind"
+            value={form.kind}
+            onChange={(v) => set('kind', v)}
+            options={[
+              { value: 'study', label: 'Study' },
+              { value: 'work', label: 'Work' },
+              { value: 'life', label: 'Life' },
+            ]}
+          />
+        </Row>
+        <Row label="Time">
+          <Stepper
+            label="time budget"
+            unit="min"
+            value={form.timeBudgetMinutes ?? 0}
+            onChange={(v) => set('timeBudgetMinutes', v || null)}
+          />
+        </Row>
+        <Row label="Breaks">
+          <Segmented
+            label="Breaks"
+            value={form.breakPolicy === 'custom' ? 'none' : form.breakPolicy}
+            onChange={(v) => set('breakPolicy', v)}
+            options={[
+              { value: 'none', label: 'None' },
+              { value: 'pomodoro_25_5', label: '25 / 5' },
+              { value: 'pomodoro_50_10', label: '50 / 10' },
+            ]}
+          />
+        </Row>
+      </Group>
+
+      <Group title="On the goal">
+        <Row label="Apps">
+          <Tokens
+            label="Add an app on the goal"
+            values={form.allowedApps}
+            onChange={(v) => set('allowedApps', v)}
+            placeholder="Add app"
+          />
+        </Row>
+        <Row label="Sites">
+          <Tokens
+            label="Add a site on the goal"
+            values={form.allowedSites}
+            onChange={(v) => set('allowedSites', v)}
+            placeholder="Add site"
+          />
+        </Row>
+      </Group>
+
+      <Group title="Off the goal">
+        <Row label="Apps">
+          <Tokens
+            label="Add an off-goal app"
+            values={form.blockedApps}
+            onChange={(v) => set('blockedApps', v)}
+            placeholder="Add app"
+          />
+        </Row>
+        <Row label="Sites">
+          <Tokens
+            label="Add an off-goal site"
+            values={form.blockedSites}
+            onChange={(v) => set('blockedSites', v)}
+            placeholder="Add site"
+          />
+        </Row>
+      </Group>
+
+      <Group
+        title="It may"
+        footer={`Silent by default. It acts only after ${p.driftSeconds} s off the goal, and only when it is at least ${Math.round(p.minConfidence * 100)}% sure.`}
+      >
+        <Row
+          label="Nudge"
+          detail={`A notification, at most every ${Math.round(p.nudgeGapMs / 60_000)} min`}
+        >
+          <Switch label="Nudge" checked={may('nudge')} onChange={(v) => allow('nudge', v)} />
+        </Row>
+        <Row
+          label="Speak"
+          detail={`One sentence out loud, at most every ${Math.round(p.minGapMs / 1000)} s`}
+        >
+          <Switch label="Speak" checked={may('speak')} onChange={(v) => allow('speak', v)} />
+        </Row>
+        <Row label="Change my machine" detail="Shown in the tray, undone in one click">
+          <Switch
+            label="Change my machine"
+            checked={may('automate')}
+            onChange={(v) => allow('automate', v)}
+          />
+        </Row>
+        {may('automate')
+          ? AUTOMATIONS.map((a) => (
+              <Row key={a.value} label={<span className="pl-4 text-text-muted">{a.label}</span>}>
+                <Switch
+                  label={a.label}
+                  checked={form.automations.includes(a.value)}
+                  onChange={(on) =>
+                    set(
+                      'automations',
+                      on
+                        ? [...form.automations, a.value]
+                        : form.automations.filter((x) => x !== a.value),
+                    )
+                  }
+                />
+              </Row>
+            ))
+          : null}
+      </Group>
     </div>
   )
 }

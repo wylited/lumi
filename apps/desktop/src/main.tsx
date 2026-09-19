@@ -6,6 +6,9 @@ import { createRoot } from 'react-dom/client'
 import { ToastProvider } from '@heli/ui'
 import { App } from './app'
 
+// The desktop app is light only: one palette to get right, and it reads well on a lit desk.
+document.documentElement.dataset.theme = 'light'
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ToastProvider>

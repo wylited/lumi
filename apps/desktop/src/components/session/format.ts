@@ -20,3 +20,10 @@ export function sessionClock(windows: number): string {
   const m = windows % 60
   return h ? `${h}:${String(m).padStart(2, '0')}:00` : `${String(m).padStart(2, '0')}:00`
 }
+
+/** Minutes for anything a minute or longer: the seconds are noise at a glance. */
+export function mm(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`
+  const m = Math.round(seconds / 60)
+  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`
+}

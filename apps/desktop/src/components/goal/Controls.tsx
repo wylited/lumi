@@ -1,25 +1,5 @@
-import { useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useState, type KeyboardEvent } from 'react'
 import { cn } from '@heli/ui'
-
-export function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string
-  hint?: string
-  children: ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="text-small font-medium text-text">{label}</span>
-        {hint ? <span className="text-caption text-text-faint">{hint}</span> : null}
-      </div>
-      {children}
-    </div>
-  )
-}
 
 export function Segmented<T extends string>({
   value,
@@ -33,11 +13,7 @@ export function Segmented<T extends string>({
   label: string
 }) {
   return (
-    <div
-      role="radiogroup"
-      aria-label={label}
-      className="inline-flex rounded-pill border border-border bg-surface p-0.5"
-    >
+    <div role="radiogroup" aria-label={label} className="inline-flex rounded-sm bg-ink-100 p-0.5">
       {options.map((o) => (
         <button
           key={o.value}
@@ -46,10 +22,9 @@ export function Segmented<T extends string>({
           aria-checked={o.value === value}
           onClick={() => onChange(o.value)}
           className={cn(
-            'rounded-pill px-3.5 py-1.5 text-small font-medium outline-none transition-colors duration-fast',
-            'focus-visible:ring-2 focus-visible:ring-accent',
+            'rounded-[7px] px-3 py-1 text-small outline-none transition-colors duration-fast focus-visible:ring-2 focus-visible:ring-accent',
             o.value === value
-              ? 'bg-surface-raised text-text shadow-sm'
+              ? 'bg-bg font-medium text-text shadow-sm'
               : 'text-text-muted hover:text-text',
           )}
         >
@@ -60,58 +35,94 @@ export function Segmented<T extends string>({
   )
 }
 
-export function Toggle({
+export function Switch({
   checked,
   onChange,
   label,
-  detail,
 }: {
   checked: boolean
   onChange: (v: boolean) => void
   label: string
-  detail: string
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-3.5 rounded-md border border-border bg-surface-raised p-4 transition-colors duration-fast hover:border-border-strong">
-      <input
-        type="checkbox"
-        className="peer sr-only"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        'relative h-[22px] w-[38px] shrink-0 rounded-pill outline-none transition-colors duration-base focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
+        checked ? 'bg-accent-strong' : 'bg-ink-200',
+      )}
+    >
       <span
-        aria-hidden="true"
         className={cn(
-          'relative mt-0.5 h-5 w-9 shrink-0 rounded-pill transition-colors duration-base peer-focus-visible:ring-2 peer-focus-visible:ring-accent',
-          checked ? 'bg-accent-strong' : 'bg-border-strong',
+          'absolute top-[2px] size-[18px] rounded-pill bg-bg shadow-sm transition-transform duration-base ease-heli',
+          checked ? 'translate-x-[18px]' : 'translate-x-[2px]',
         )}
-      >
-        <span
-          className={cn(
-            'absolute top-0.5 size-4 rounded-pill bg-bg shadow-sm transition-transform duration-base ease-heli',
-            checked ? 'translate-x-[18px]' : 'translate-x-0.5',
-          )}
-        />
-      </span>
-      <span className="flex flex-col gap-0.5">
-        <span className="text-small font-medium text-text">{label}</span>
-        <span className="text-caption text-text-faint">{detail}</span>
-      </span>
-    </label>
+      />
+    </button>
   )
 }
 
-/** A list of short strings as chips. Enter or comma adds, backspace on empty removes the last. */
+export function Stepper({
+  value,
+  onChange,
+  step = 5,
+  min = 0,
+  max = 480,
+  unit,
+  label,
+}: {
+  value: number
+  onChange: (v: number) => void
+  step?: number
+  min?: number
+  max?: number
+  unit: string
+  label: string
+}) {
+  const btn =
+    'grid size-7 place-items-center rounded-[7px] text-body text-text-muted outline-none hover:bg-ink-100 hover:text-text focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-30'
+  return (
+    <div className="flex items-center gap-1" role="group" aria-label={label}>
+      <button
+        type="button"
+        className={btn}
+        onClick={() => onChange(Math.max(min, value - step))}
+        disabled={value <= min}
+        aria-label={`Less ${label}`}
+      >
+        −
+      </button>
+      <span className="tnum w-20 text-center text-body text-text">
+        {value ? `${value} ${unit}` : 'None'}
+      </span>
+      <button
+        type="button"
+        className={btn}
+        onClick={() => onChange(Math.min(max, value + step))}
+        disabled={value >= max}
+        aria-label={`More ${label}`}
+      >
+        +
+      </button>
+    </div>
+  )
+}
+
+/** Short strings as chips, inline in a row. Enter or comma adds; backspace on empty removes the last. */
 export function Tokens({
   values,
   onChange,
   placeholder,
-  tone,
+  label,
 }: {
   values: string[]
   onChange: (v: string[]) => void
   placeholder: string
-  tone: 'allow' | 'block'
+  label: string
 }) {
   const [text, setText] = useState('')
   function add(raw: string) {
@@ -129,33 +140,31 @@ export function Tokens({
     } else if (e.key === 'Backspace' && !text && values.length) onChange(values.slice(0, -1))
   }
   return (
-    <div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border border-border-strong bg-bg px-2 py-1.5 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent focus-within:ring-offset-2 focus-within:ring-offset-bg">
+    <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-1">
       {values.map((v) => (
         <span
           key={v}
-          className={cn(
-            'inline-flex items-center gap-1 rounded-xs py-1 pl-2 pr-1 font-mono text-[11.5px]',
-            tone === 'allow' ? 'bg-accent-wash text-accent-link' : 'bg-warn-wash text-text',
-          )}
+          className="inline-flex items-center gap-0.5 rounded-[6px] bg-ink-100 py-0.5 pl-2 pr-0.5 text-small text-text"
         >
           {v}
           <button
             type="button"
             aria-label={`Remove ${v}`}
             onClick={() => onChange(values.filter((x) => x !== v))}
-            className="grid size-4 place-items-center rounded-[3px] opacity-60 hover:bg-bg/50 hover:opacity-100"
+            className="grid size-5 place-items-center rounded-[5px] text-text-faint hover:bg-ink-200 hover:text-text"
           >
             ×
           </button>
         </span>
       ))}
       <input
+        aria-label={label}
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={onKey}
         onBlur={() => text && add(text)}
-        placeholder={values.length ? '' : placeholder}
-        className="min-w-[120px] flex-1 bg-transparent px-1.5 text-small text-text outline-none placeholder:text-text-faint"
+        placeholder={placeholder}
+        className="w-24 bg-transparent px-1 py-0.5 text-right text-small text-text outline-none placeholder:text-text-faint focus:w-40"
       />
     </div>
   )

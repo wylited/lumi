@@ -21,7 +21,11 @@
         "center": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "trafficLightPosition": { "x": 20, "y": 24 }
+        "trafficLightPosition": {
+          "x": 20,
+          "y": 24
+        },
+        "theme": "Light"
       }
     ],
     "security": {
@@ -30,7 +34,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app"],
+    "targets": [
+      "app"
+    ],
     "category": "Productivity",
     "shortDescription": "An observer that acts on the goal you set",
     "icon": [
