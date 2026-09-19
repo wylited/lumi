@@ -29,7 +29,13 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let quit = MenuItem::with_id(app, "quit", "Quit Helicopter", true, Some("CmdOrCtrl+Q"))?;
     let menu = Menu::with_items(
         app,
-        &[&status, &PredefinedMenuItem::separator(app)?, &open, &PredefinedMenuItem::separator(app)?, &quit],
+        &[
+            &status,
+            &PredefinedMenuItem::separator(app)?,
+            &open,
+            &PredefinedMenuItem::separator(app)?,
+            &quit,
+        ],
     )?;
     app.manage(StatusItem(status));
 
@@ -51,10 +57,17 @@ struct StatusItem(MenuItem<Wry>);
 
 /// Called by the webview whenever the live state changes.
 #[tauri::command]
-pub fn set_tray_state(app: AppHandle, label: String, glyph: Glyph, rgb: [u8; 3]) -> Result<(), String> {
+pub fn set_tray_state(
+    app: AppHandle,
+    label: String,
+    glyph: Glyph,
+    rgb: [u8; 3],
+) -> Result<(), String> {
     let tray = app.tray_by_id(TRAY_ID).ok_or("tray not installed")?;
-    tray.set_icon(Some(draw(glyph, rgb))).map_err(|e| e.to_string())?;
-    tray.set_tooltip(Some(format!("Helicopter · {label}"))).map_err(|e| e.to_string())?;
+    tray.set_icon(Some(draw(glyph, rgb)))
+        .map_err(|e| e.to_string())?;
+    tray.set_tooltip(Some(format!("Helicopter · {label}")))
+        .map_err(|e| e.to_string())?;
     if let Some(item) = app.try_state::<StatusItem>() {
         let mut text = label;
         if let Some(first) = text.get_mut(0..1) {
@@ -73,7 +86,8 @@ fn draw(glyph: Glyph, [r, g, b]: [u8; 3]) -> Image<'static> {
         for x in 0..SIZE {
             let d = ((x as f32 + 0.5 - c).powi(2) + (y as f32 + 0.5 - c).powi(2)).sqrt();
             let fill = |radius: f32| (radius + 0.5 - d).clamp(0.0, 1.0);
-            let ring = |radius: f32, width: f32| (width / 2.0 + 0.5 - (d - radius).abs()).clamp(0.0, 1.0);
+            let ring =
+                |radius: f32, width: f32| (width / 2.0 + 0.5 - (d - radius).abs()).clamp(0.0, 1.0);
             let a = match glyph {
                 Glyph::Ring => ring(7.0, 2.5),
                 Glyph::Dot => fill(8.0),

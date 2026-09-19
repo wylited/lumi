@@ -52,8 +52,12 @@ fn main() {
         // rewriting this list.
         .invoke_handler(tauri::generate_handler![
             tray::set_tray_state,
-            signals::permissions,
-            signals::open_settings_pane,
+            signals::permissions::permissions,
+            signals::permissions::request_permission,
+            signals::permissions::open_settings_pane,
+            signals::screen::screen_denylist,
+            signals::screen::set_screen_denylist,
+            signals::screen::latest_screen_frame,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build the Helicopter app");

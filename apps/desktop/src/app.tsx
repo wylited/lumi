@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Pill } from '@heli/ui'
+import { NotificationLayer } from './components/notification/Layer'
 import { Sidebar, ROUTES, type Route, type SidebarStatus } from './components/shell/Sidebar'
 import { TitleBar } from './components/shell/TitleBar'
 import { useDataSource } from './lib/api'
+import { audio, useAudio } from './lib/audio'
 import { derive, useLive } from './lib/live'
+import { native } from './lib/native'
 import { setTray } from './lib/tray'
 import { GoalRoute } from './routes/goal'
+import { HistoryRoute } from './routes/history'
+import { SettingsRoute } from './routes/settings'
 import { LiveRoute } from './routes/live'
-import { Placeholder } from './routes/placeholder'
 
 const LAST_ROUTE = 'heli.route'
 
@@ -50,6 +54,16 @@ export function App() {
 
   const snap = useLive()
   const d = derive(snap)
+  const { muted } = useAudio()
+
+  useEffect(() => native.attach(), [])
+
+  // Web Audio starts suspended; the first click anywhere unlocks it for the session.
+  useEffect(() => {
+    const unlock = () => audio.resume()
+    window.addEventListener('pointerdown', unlock, { once: true })
+    return () => window.removeEventListener('pointerdown', unlock)
+  }, [])
   useEffect(() => setTray(d.tray), [d.tray])
   const status: SidebarStatus =
     snap.status !== 'live'
@@ -70,16 +84,23 @@ export function App() {
         onNavigate={navigate}
         status={status}
         footer={
-          source === 'demo' ? (
-            <Pill
-              tone="warn"
-              dot
-              className="self-start"
-              title="No server reachable — seeded demo data"
+          <div className="flex items-center justify-between gap-2">
+            {source === 'demo' ? (
+              <Pill tone="warn" dot title="No server reachable — seeded demo data">
+                demo data
+              </Pill>
+            ) : (
+              <span />
+            )}
+            <button
+              type="button"
+              onClick={() => audio.setMuted(!muted)}
+              aria-pressed={muted}
+              className="rounded-pill px-2.5 py-1 text-caption text-text-faint outline-none transition-colors duration-fast hover:bg-surface-raised hover:text-text focus-visible:ring-2 focus-visible:ring-accent"
             >
-              demo data
-            </Pill>
-          ) : null
+              {muted ? 'Voice muted' : 'Voice on'}
+            </button>
+          </div>
         }
       />
       <main className="flex min-w-0 flex-1 flex-col">
@@ -89,11 +110,14 @@ export function App() {
             <LiveRoute />
           ) : route === 'goal' ? (
             <GoalRoute />
+          ) : route === 'history' ? (
+            <HistoryRoute />
           ) : (
-            <Placeholder title={current.label} />
+            <SettingsRoute />
           )}
         </div>
       </main>
+      <NotificationLayer />
     </div>
   )
 }

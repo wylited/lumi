@@ -18,6 +18,7 @@ import {
   SessionDetailResponse,
   SessionListResponse,
   SignalWindowResponse,
+  type SignalBatch,
   type GoalCreateRequest,
   type GoalUpdateRequest,
 } from '@heli/contracts'
@@ -148,6 +149,48 @@ function demoSave(goal: GoalCreateRequest | z.infer<typeof GoalResponse>) {
   })
   demo().world.goal = next
   return next
+}
+
+/** Desktop signals to the server. Returns false when there is no server to take them. */
+export async function postSignals(batch: SignalBatch): Promise<boolean> {
+  const bearer = await auth()
+  if (!bearer) return false
+  try {
+    const res = await fetch(`${BASE}/v1/signals`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${bearer}`, 'content-type': 'application/json' },
+      body: JSON.stringify(batch),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+    return res.ok
+  } catch (error) {
+    log.debug('signal batch not delivered', String(error))
+    return false
+  }
+}
+
+/** One screen frame, raw JPEG, tagged with the ref its `screen.frame` signal carried. */
+export async function postScreenFrame(
+  sessionId: string,
+  ref: string,
+  jpeg: ArrayBuffer,
+): Promise<boolean> {
+  const bearer = await auth()
+  if (!bearer) return false
+  try {
+    const res = await fetch(
+      `${BASE}/v1/signals/screen?sessionId=${encodeURIComponent(sessionId)}&ref=${encodeURIComponent(ref)}`,
+      {
+        method: 'POST',
+        headers: { authorization: `Bearer ${bearer}`, 'content-type': 'image/jpeg' },
+        body: jpeg,
+        signal: AbortSignal.timeout(10_000),
+      },
+    )
+    return res.ok
+  } catch {
+    return false
+  }
 }
 
 /**

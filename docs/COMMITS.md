@@ -98,16 +98,16 @@ ahead of the rows that need them.
 
 | ✓ | id | commit | depends | ∥ | owner |
 |---|----|--------|---------|---|-------|
-| ☐ | HELI-030 | `feat(desktop): tauri shell and layout` | P0 | **no** | desktop+web |
-| ☐ | HELI-031 | `feat(desktop): goal editor` | 030 | yes | desktop+web |
-| ☐ | HELI-032 | `feat(desktop): live session view` | 030, 007 | yes | desktop+web |
+| ☑ | HELI-030 | `feat(desktop): tauri shell and layout` | P0 | **no** | desktop+web |
+| ☑ | HELI-031 | `feat(desktop): goal editor` | 030 | yes | desktop+web |
+| ☑ | HELI-032 | `feat(desktop): live session view` | 030, 007 | yes | desktop+web |
 | ☐ | HELI-033 | `feat(desktop): native signals sidecar` | 030 | **no** | desktop+web |
 | ☐ | HELI-034 | `feat(desktop): app and window signal` | 033 | yes | desktop+web |
 | ☐ | HELI-035 | `feat(desktop): input and idle signal` | 033 | yes | desktop+web |
 | ☐ | HELI-036 | `feat(desktop): screen capture signal` | 033 | yes | desktop+web |
-| ☐ | HELI-037 | `feat(desktop): notifications and audio` | 030 | yes | desktop+web |
-| ☐ | HELI-038 | `feat(desktop): history and analytics` | 030, 018 | yes | desktop+web |
-| ☐ | HELI-039 | `feat(ui): metrics kit` | 007 | yes | desktop+web |
+| ☑ | HELI-037 | `feat(desktop): notifications and audio` | 030 | yes | desktop+web |
+| ☑ | HELI-038 | `feat(desktop): history and analytics` | 030, 018 | yes | desktop+web |
+| ☑ | HELI-039 | `feat(ui): metrics kit` | 007 | yes | desktop+web |
 
 ## P4 · Edge and media
 
@@ -122,12 +122,12 @@ ahead of the rows that need them.
 
 | ✓ | id | commit | depends | ∥ | owner |
 |---|----|--------|---------|---|-------|
-| ☐ | HELI-050 | `feat(web): next app shell` | P0 | **no** | desktop+web |
-| ☐ | HELI-051 | `feat(web): analytics dashboard` | 050, 018 | yes | desktop+web |
-| ☐ | HELI-052 | `feat(web): session replay` | 050 | yes | desktop+web |
+| ☑ | HELI-050 | `feat(web): next app shell` | P0 | **no** | desktop+web |
+| ☑ | HELI-051 | `feat(web): analytics dashboard` | 050, 018 | yes | desktop+web |
+| ☑ | HELI-052 | `feat(web): session replay` | 050 | yes | desktop+web |
 | ☐ | HELI-053 | `feat(web): landing page` | 050 | yes | desktop+web |
 | ☐ | HELI-054 | `feat(web): devices and pairing` | 050, 011 | yes | desktop+web |
-| ☐ | HELI-055 | `feat(fixtures): contract-shaped demo data` | 004 | yes | desktop+web |
+| ☑ | HELI-055 | `feat(fixtures): contract-shaped demo data` | 004 | yes | desktop+web |
 
 ## P6 · Hackathon day
 
