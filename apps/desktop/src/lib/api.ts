@@ -24,6 +24,8 @@ import {
   OpenSessionResponse,
   DeskActionRecord,
   DeskRegisterResponse,
+  MobilePairCodeResponse,
+  PhoneListResponse,
   type DeskActionRequest,
   type DeskRegistration,
   type OpenSessionRequest,
@@ -175,6 +177,10 @@ export const api = {
     call('POST', '/desks', DeskRegisterResponse.nullable(), () => null, body),
   deskAction: (deskId: string, body: DeskActionRequest) =>
     call('POST', `/desks/${encodeURIComponent(deskId)}/actions`, DeskActionRecord.nullable(), () => null, body),
+  /** A fresh six-digit code for a phone. Single-use, five minutes, in server memory only. */
+  pairCode: () => call('POST', '/mobile/pair/code', MobilePairCodeResponse.nullable(), () => null),
+  /** The paired phones, newest first. Empty when none, never invented. */
+  phones: () => call('GET', '/mobile/phones', PhoneListResponse, () => []),
   analytics: {
     summary: () => call('GET', '/analytics/summary', AnalyticsSummary, () => EMPTY_SUMMARY),
     tiers: () => call('GET', '/analytics/tiers', AnalyticsTiersResponse, () => []),

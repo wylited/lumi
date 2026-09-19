@@ -1,8 +1,8 @@
 import { cn } from '@heli/ui'
 
-const STEPS = ['The goal', 'The watch', 'The desk'] as const
+const STEPS = ['The goal', 'The watch', 'The desk', 'The phone'] as const
 
-export function Steps({ at }: { at: 0 | 1 | 2 }) {
+export function Steps({ at }: { at: 0 | 1 | 2 | 3 }) {
   return (
     <ol className="flex items-center gap-3" aria-label="Setup progress">
       {STEPS.map((s, i) => (

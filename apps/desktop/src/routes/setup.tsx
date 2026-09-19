@@ -3,6 +3,7 @@ import { DeskStatus, type Goal } from '@heli/contracts'
 import { Mark } from '../components/shell/Mark'
 import { DeskStep } from '../components/setup/DeskStep'
 import { GoalStep } from '../components/setup/GoalStep'
+import { PhoneStep } from '../components/setup/PhoneStep'
 import { Steps } from '../components/setup/Steps'
 import { WatchStep } from '../components/setup/WatchStep'
 import { api } from '../lib/api'
@@ -13,9 +14,9 @@ import { markSetupDone, openSession } from '../lib/setup'
 
 const log = logger('setup')
 
-/** First run: the goal, the watch, the desk — then Live. No code, no pairing, one person. */
+/** First run: the goal, the watch, the desk, the phone — then Live. No code, no pairing, one person. */
 export function SetupRoute({ onFinish }: { onFinish: () => void }) {
-  const [step, setStep] = useState<0 | 1 | 2>(0)
+  const [step, setStep] = useState<0 | 1 | 2 | 3>(0)
   const [existing, setExisting] = useState<Goal | null>(null)
   const [desk, setDesk] = useState<DeskStatus | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -71,8 +72,11 @@ export function SetupRoute({ onFinish }: { onFinish: () => void }) {
               sessionId={sessionId}
               desk={desk}
               starting={starting}
-              onDone={() => void start()}
+              onDone={() => setStep(3)}
             />
+          ) : null}
+          {step === 3 ? (
+            <PhoneStep onDone={() => void start()} />
           ) : null}
         </div>
       </div>

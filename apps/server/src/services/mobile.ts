@@ -248,6 +248,7 @@ const snapshotOf = (record: PhoneRecord, now: number): PhoneSnapshot => {
   return {
     phoneId: record.phoneId,
     name: record.name,
+    platform: record.platform,
     lastSeenAt: new Date(record.lastSeenAt).toISOString(),
     app,
     appSeconds: app === null ? 0 : Math.round(record.usage.get(app) ?? 0),

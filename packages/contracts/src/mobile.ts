@@ -165,6 +165,8 @@ export const PhoneSnapshot = z
   .object({
     phoneId: z.string(),
     name: z.string(),
+    /** Which platform reports: Android sends app time and unlocks, iOS cannot. */
+    platform: MobilePlatform,
     lastSeenAt: z.string(),
     /** The last foreground app, when the platform can report one. */
     app: z.string().nullable(),
