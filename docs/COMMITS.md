@@ -92,13 +92,26 @@ free id after P3's range. Adding rows to a phase is now cheaper than repairing o
 
 | ✓ | id | commit | depends | ∥ | owner |
 |---|----|--------|---------|---|-------|
-| ☐ | HELI-020 | `feat(server): deepseek client and the assess step` | P1 | **no** | — |
-| ☐ | HELI-021 | `feat(server): the intervention policy` | 020 | **no** | — |
-| ☐ | HELI-022 | `feat(server): speech out and the local adapter` | 012 | yes | — |
-| ☐ | HELI-023 | `feat(server): the orchestrator` | 020–022 | **no** | — |
-| ☐ | HELI-024 | `feat(server): session summary` | 021 | yes | — |
-| ☐ | HELI-025 | `test(server): the loop harness` | 023 | yes | — |
-| ☐ | HELI-026 | `feat(server): fixtures and expected assessments` | P1 | yes | — |
+| ☑ | HELI-020 | `feat(server): deepseek client and the assess step` | P1 | **no** | 1 · the loop |
+| ☑ | HELI-021 | `feat(server): the intervention policy` | 020 | **no** | 1 · the loop |
+| ☑ | HELI-022 | `feat(server): speech out and the local adapter` | 012 | yes | 1 · the loop |
+| ☑ | HELI-023 | `feat(server): the orchestrator` | 020–022 | **no** | 1 · the loop |
+| ☑ | HELI-024 | `feat(server): session summary` | 021 | yes | 1 · the loop |
+| ☑ | HELI-025 | `test(server): the loop harness` | 023 | yes | 1 · the loop |
+| ☑ | HELI-026 | `feat(server): fixtures and expected assessments` | P1 | yes | 1 · the loop |
+
+P2 is complete: `b08ce33` (providers, `assess`, policy, speech and transport, summary, orchestrator,
+fixtures, the harness), `4e297ec` (the Prisma binding and the cadence scheduler) and `81db492` (the
+JSON mode DeepSeek actually supports, and the 6 s budget). **19 tests pass** — ten policy rules, six
+summary, and the harness over the twelve fixtures plus idempotency, outcome judging and the budget
+fallback. Verified against the live model on real frames.
+
+**The last two columns are the integration, not the loop.** `fc75452` adds `observe/runtime.ts`, the
+one call the server makes to start it. What is still missing is on the P1 side: `server.ts` must
+call `createLoopRuntime(...)` and `scheduler.start()`, and `DeviceSocketLike.send` in `ws/registry.ts`
+takes only a string, so tagged audio cannot reach the desk until it accepts a `Buffer`. Until then
+the runtime reports audio as undelivered rather than pretending.
+
 
 ## P3 · Desktop — the base app
 
