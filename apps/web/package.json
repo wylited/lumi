@@ -17,6 +17,7 @@
     "@heli/tokens": "workspace:*",
     "@heli/ui": "workspace:*",
     "next": "15.5.25",
+    "qrcode": "1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "zod": "3.25.76"
@@ -24,6 +25,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "^22.10.5",
+    "@types/qrcode": "1.5.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "tailwindcss": "4.3.3",
