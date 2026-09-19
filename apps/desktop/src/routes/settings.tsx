@@ -40,6 +40,24 @@ export function SettingsRoute() {
     return () => window.removeEventListener('focus', check)
   }, [check])
 
+  /**
+   * macOS only lists an app in Screen Recording or Input Monitoring **after it
+   * asks**. This button used to open the pane without asking, so the list was
+   * empty and the grant was unreachable. Fire the prompt first; fall back to the
+   * pane when no prompt comes — which is also how a denied grant is resolved.
+   */
+  async function allow(permission: PermissionState): Promise<void> {
+    const granted = await native.request(permission.id).catch(() => false)
+    if (granted) {
+      await check()
+      return
+    }
+    setTimeout(() => {
+      void native.openPane(permission.pane!)
+      void check()
+    }, 1_200)
+  }
+
   return (
     <div className="mx-auto flex max-w-[720px] flex-col gap-8 px-10 pb-16 pt-2">
       <PageTitle>Settings</PageTitle>
@@ -66,8 +84,8 @@ export function SettingsRoute() {
                 {STATE[p.state].label}
               </span>
               {p.state === 'missing' && p.pane ? (
-                <Button variant="secondary" size="sm" onClick={() => void native.openPane(p.pane!)}>
-                  Open
+                <Button variant="secondary" size="sm" onClick={() => void allow(p)}>
+                  Allow
                 </Button>
               ) : null}
             </Row>
