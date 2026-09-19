@@ -214,5 +214,30 @@ export const PhoneSnapshot = z
   .strict()
 export type PhoneSnapshot = z.infer<typeof PhoneSnapshot>
 
+/**
+ * Everything the phone's one screen shows, in one poll: the open session and its goal, the
+ * latest judgement, what is blocked, and this phone as the server sees it.
+ */
+export const MobileSession = z
+  .object({
+    session: z
+      .object({
+        id: z.string(),
+        startedAt: z.string(),
+        goal: z.string(),
+        budgetMinutes: z.number().int().positive().nullable(),
+      })
+      .strict()
+      .nullable(),
+    /** The latest judgement of the session: on the goal, off it, or none yet. */
+    state: z.enum(['focused', 'off_goal', 'waiting']),
+    judgedAt: z.string().nullable(),
+    blocklist: MobileBlocklist,
+    /** Null before this phone's first signal reaches a server that is still up. */
+    phone: PhoneSnapshot.nullable(),
+  })
+  .strict()
+export type MobileSession = z.infer<typeof MobileSession>
+
 export const PhoneListResponse = z.array(PhoneSnapshot)
 export type PhoneListResponse = z.infer<typeof PhoneListResponse>

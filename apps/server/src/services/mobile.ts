@@ -1,7 +1,7 @@
 import { randomInt, randomUUID } from 'node:crypto'
 
 import { PHONE_SIGNAL, PhoneMotion } from '@heli/contracts'
-import type { MobileBlocklist, PhoneSnapshot, Signal } from '@heli/contracts'
+import type { MobileBlocklist, MobileSession, PhoneSnapshot, Signal } from '@heli/contracts'
 
 import { childLogger } from '../logger.js'
 import { prisma } from '../lib/prisma.js'
@@ -337,5 +337,39 @@ export async function phoneBlocklist(): Promise<MobileBlocklist> {
     sessionId: row?.id ?? null,
     goal: goal?.objective ?? null,
     apps: allowed ? apps : [],
+  }
+}
+
+/** The phone's one screen: the open session, its latest judgement, the blocklist, this phone. */
+export async function phoneSession(phoneId: string): Promise<MobileSession> {
+  const row = await prisma.session.findFirst({
+    where: { endedAt: null },
+    orderBy: { startedAt: 'desc' },
+    select: {
+      id: true,
+      startedAt: true,
+      goal: { select: { objective: true, timeBudgetMinutes: true } },
+      observations: {
+        orderBy: { ts: 'desc' },
+        take: 1,
+        select: { ts: true, assessment: true },
+      },
+    },
+  })
+  const latest = row?.observations[0] ?? null
+  const onTask = (latest?.assessment as { onTask?: unknown } | null)?.onTask
+  return {
+    session: row
+      ? {
+          id: row.id,
+          startedAt: row.startedAt.toISOString(),
+          goal: row.goal.objective,
+          budgetMinutes: row.goal.timeBudgetMinutes ?? null,
+        }
+      : null,
+    state: typeof onTask === 'boolean' ? (onTask ? 'focused' : 'off_goal') : 'waiting',
+    judgedAt: latest ? latest.ts.toISOString() : null,
+    blocklist: await phoneBlocklist(),
+    phone: phoneSnapshot(phoneId),
   }
 }
