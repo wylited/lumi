@@ -34,18 +34,18 @@ indistinguishable from live.
 **Touches:** `docs/DEMO.md`
 **Do:** Ninety seconds, written as beats with the exact words. Who sits down, what the goal is, when
 the distraction is introduced, when the first nudge fires, what the device says, when to cut to the
-dashboard, when to show that the policy blocked the site, and the closing line about the model
+desktop's History, when to show that the policy blocked the site, and the closing line about the model
 proposing and the policy disposing. Include the **fallback line for every beat** if it fails.
 **Done when:** someone else on the team can run the demo from this document without the author.
 
-### HELI-063 · fix(web): projector pass
-**Depends:** P5 **Parallel-safe:** yes **Owner:** —
-**Touches:** `apps/web/app/(app)/**` (styling only), `apps/desktop/src/**` (styling only)
+### HELI-063 · fix(desktop): projector pass
+**Depends:** P3 **Parallel-safe:** yes **Owner:** —
+**Touches:** `apps/desktop/src/**` (styling only)
 **Do:** Look at every demo surface on an actual projector. Bump the smallest type, raise the
 contrast of muted text on the dark surface, thicken rails and hairlines. Projectors crush dark
 greys — what reads beautifully on a laptop disappears on the wall. Verify the tray icon colour is
 distinguishable from three metres.
-**Done when:** every element on the dashboard and the desktop is legible from three metres on a real
+**Done when:** every element of the desktop's Live and History is legible from three metres on a real
 projector.
 
 ### HELI-064 · test(repo): end-to-end rehearsal

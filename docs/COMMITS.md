@@ -15,7 +15,7 @@ notes for every commit below. Read your phase before you claim anything.
 | P2 | [`phases/P2-observer-loop.md`](./phases/P2-observer-loop.md) | **1 · the loop** (critical path) |
 | P3 | [`phases/P3-desktop.md`](./phases/P3-desktop.md) | **3 · desktop + web** |
 | P4 | [`phases/P4-edge-media.md`](./phases/P4-edge-media.md) | **4 · hardware + edge** |
-| P5 | [`phases/P5-web.md`](./phases/P5-web.md) | **3 · desktop + web** |
+| P5 | [`phases/P5-web.md`](./phases/P5-web.md) | **3 · desktop + web** (storefront only) |
 | P6 | [`phases/P6-hackathon-day.md`](./phases/P6-hackathon-day.md) | all four |
 | policy | [`02-intervention-policy.md`](./02-intervention-policy.md) | 1 |
 
@@ -114,6 +114,7 @@ free id after P3's range. Adding rows to a phase is now cheaper than repairing o
 | ☑ | HELI-037 | `feat(desktop): notifications and audio` | 030 | yes | desktop+web |
 | ☑ | HELI-038 | `feat(desktop): history and analytics` | 030, 018 | yes | desktop+web |
 | ☑ | HELI-039 | `feat(ui): metrics kit` | 007 | yes | desktop+web |
+| ☐ | HELI-070 | `feat(desktop): devices and pairing` (from 054) | 033, 011 | yes | desktop+web |
 
 ## P4 · Edge and media
 
@@ -124,16 +125,24 @@ free id after P3's range. Adding rows to a phase is now cheaper than repairing o
 | ☐ | HELI-042 | `feat(edge): led and shutter` | 040 | yes | — |
 | ☐ | HELI-043 | `feat(edge): barge-in and playback` | 040, 022 | yes | — |
 
-## P5 · Web
+## P5 · Web — the storefront
+
+The web is marketing only: home, the desk unit, the download, reservations, privacy. See the
+decision note in `phases/P5-web.md`. Retired rows stay, struck through.
 
 | ✓ | id | commit | depends | ∥ | owner |
 |---|----|--------|---------|---|-------|
 | ☑ | HELI-050 | `feat(web): next app shell` | P0 | **no** | desktop+web |
-| ☑ | HELI-051 | `feat(web): analytics dashboard` | 050, 018 | yes | desktop+web |
-| ☑ | HELI-052 | `feat(web): session replay` | 050 | yes | desktop+web |
-| ☐ | HELI-053 | `feat(web): landing page` | 050 | yes | desktop+web |
-| ☐ | HELI-054 | `feat(web): devices and pairing` | 050, 011 | yes | desktop+web |
+| — | ~~HELI-051~~ | ~~`feat(web): analytics dashboard`~~ — moved to desktop 038 | | | |
+| — | ~~HELI-052~~ | ~~`feat(web): session replay`~~ — moved to desktop 038 | | | |
+| ☑ | HELI-053 | `feat(web): home page` | 050 | yes | desktop+web |
+| — | ~~HELI-054~~ | ~~`feat(web): devices and pairing`~~ — moved to desktop 070 | | | |
 | ☑ | HELI-055 | `feat(fixtures): contract-shaped demo data` | 004 | yes | desktop+web |
+| ☑ | HELI-056 | `feat(web): the desk unit in 3D` | 050 | yes | desktop+web |
+| ☑ | HELI-057 | `feat(web): device page` | 056 | yes | desktop+web |
+| ☑ | HELI-058 | `feat(web): download page` | 050 | yes | desktop+web |
+| ☑ | HELI-059 | `feat(web): order and reservations` | 056 | yes | desktop+web |
+| ☑ | HELI-05A | `feat(web): privacy page` | 050 | yes | desktop+web |
 
 ## P6 · Hackathon day
 
@@ -142,22 +151,22 @@ free id after P3's range. Adding rows to a phase is now cheaper than repairing o
 | ☐ | HELI-060 | `chore(repo): one-command boot` | P0–P5 | **no** | — |
 | ☐ | HELI-061 | `feat(server): demo replay mode` | 060 | yes | — |
 | ☐ | HELI-062 | `docs(repo): the run of show` | 060 | yes | — |
-| ☐ | HELI-063 | `fix(web): projector pass` | P5 | yes | desktop+web |
+| ☐ | HELI-063 | `fix(desktop): projector pass` | P3 | yes | desktop+web |
 | ☐ | HELI-064 | `test(repo): end-to-end rehearsal` | all | **no** | — |
 
 ---
 
 ## Suggested split for four people
 
-Four of you. Five phases. So **desktop and web sit together** — they are the same person's surfaces
-and share `@heli/tokens` and `@heli/ui` — and the loop is its own person because it is the critical
+Four of you. Five phases. So **desktop and web sit together** — the product and the storefront that sells it,
+sharing `@heli/tokens` and `@heli/ui` — and the loop is its own person because it is the critical
 path.
 
 | who | phase(s) | claim | notes |
 |---|---|---|---|
 | **1 · the loop** | P2 | 020, 021, 023, 024, 025, 026 | the critical path. Protect this person from everything else. |
 | **2 · server** | P1 (+ media relay) | 010–018, 041 | server core. Start the moment P0 lands. |
-| **3 · desktop + web** | P3 + P5 | 030–038, 050–054, 063 | the base app and the after-the-fact review, one design system. |
+| **3 · desktop + web** | P3 + P5 | 030–039, 070, 050–05A, 063 | the product (the Mac app) and the storefront that sells it with the unit. |
 | **4 · hardware + edge** | P4 + the contract | 009, 040, 042, 043 | owns `docs/03-device-contract.md`; never touches `apps/` except `apps/edge`. |
 | **all four** | P0 | 001–008 | 001 alone first, then 002–008 in parallel, the night before. |
 

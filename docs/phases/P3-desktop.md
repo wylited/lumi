@@ -1,6 +1,7 @@
 # P3 · Desktop — the base app
 
-**Goal:** the app a person actually opens. It holds the goal, shows the live session, plays the
+**Goal:** the product. With the desk unit, this is what a person buys into; the web only sells it.
+The app a person actually opens. It holds the goal, shows the live session, plays the
 audio, sends notifications, and reads the machine through macOS. This is the base experience; the
 web and the phone review it afterwards.
 
@@ -121,6 +122,16 @@ value, unit, delta), `Sparkline` (inline SVG, 0–1 series, optional threshold l
 tier) and `Meter` (a ratio bar). Tokens only, both themes, no chart library.
 **Done when:** each is exported from `@heli/ui`, renders in both themes in the web kitchen sink,
 and `pnpm --filter @heli/ui typecheck` passes.
+
+### HELI-070 · feat(desktop): devices and pairing
+**Depends:** 033, P1/011 **Parallel-safe:** yes **Owner:** 3
+**Touches:** `apps/desktop/src/routes/settings.tsx`, `apps/desktop/src/components/devices/**`, `apps/desktop/src/lib/devices.ts`
+**Do:** Moved here from the web (`054`) when the web became the storefront. In Settings: the desk
+units with state and last seen, the pairing code as text and as a QR the Pi reads with its own
+camera, rotate the code, identify (blink the ring). The live camera view, when a session is live,
+sits behind a disclosure — the desktop is where the person already is.
+**Done when:** the QR pairs a unit in one scan, rotating refuses the old code, and identify blinks
+the ring.
 
 ---
 

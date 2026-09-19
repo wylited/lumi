@@ -1,7 +1,7 @@
 # Helicopter
 
-An observer that helps one person finish what they sat down to do. A camera and mic watch the
-desk; a desktop app watches the machine; the server keeps the record and **acts** — an ambient
+An observer that helps one person finish what they sat down to do. A desk unit (camera, mic, speaker)
+watches the desk; a Mac app watches the machine; the server keeps the record and **acts** — an ambient
 signal, a nudge, a spoken line, or an automatic change — so the goal you set actually happens.
 
 Built for the "Automate your studies / job / life" brief.
@@ -21,7 +21,7 @@ Built for the "Automate your studies / job / life" brief.
 pnpm install
 docker compose up -d          # postgres + minio
 pnpm --filter server db:reset # schema + seed
-pnpm dev                      # server :3001 · web :3000
+pnpm dev                      # server :3001 · storefront :3000
 pnpm --filter server dev:mock # a fake desk and a fake desktop
 ```
 
@@ -31,7 +31,7 @@ pnpm --filter server dev:mock # a fake desk and a fake desktop
 apps/desktop    the base app. goal, live state, audio, native macOS signals
 apps/edge       the Pi. camera, mic, speaker, LED
 apps/server     the aggregator. the only component that persists or holds a key
-apps/web        analytics dashboard + landing
+apps/web        the storefront: home, desk unit, download, order, privacy
 packages/contracts  zod schemas → TS types + JSON Schema for the Python side
 packages/tokens     the design system as code
 packages/ui         components

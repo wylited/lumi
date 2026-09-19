@@ -124,7 +124,7 @@ roles. Anything else is out of scope and will be reverted.
 | server | Fastify 5, TypeScript, zod, Prisma + Postgres |
 | desktop | Tauri 2 (Rust sidecar + webview), React + Vite, `@heli/tokens` |
 | edge | Python 3.11 + uv on the Pi — camera, mic, speaker, LED (see `docs/03-device-contract.md`) |
-| web | Next.js 15 App Router, Tailwind v4, `@heli/tokens` |
+| web | Next.js 15 App Router, Tailwind v4, `@heli/tokens`, three.js for the unit — the storefront only |
 | models | DeepSeek Flash (vision + text, structured output) primary; Gemini behind the same adapter as escalation |
 | voice | speech out through the server bridge; a local adapter so the path works with no keys |
 | native | macOS APIs, read-only signals: NSWorkspace, CGWindowList, AXUIElement, CGEventTap counts, ScreenCaptureKit |
@@ -140,7 +140,7 @@ Do not introduce a library that is not already in a `package.json` without it be
 apps/desktop    the base app. goal, live state, audio, native signals
 apps/edge       the Pi. camera, mic, speaker, LED — see docs/03-device-contract.md
 apps/server     the aggregator. the only component that persists or holds a key
-apps/web        analytics dashboard + landing
+apps/web        the storefront: home, desk unit, download, order — marketing only
 packages/contracts  zod schemas → TS types + JSON Schema for the Python side
 packages/tokens     the design system as code
 packages/ui         components

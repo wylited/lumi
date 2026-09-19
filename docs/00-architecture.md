@@ -45,7 +45,7 @@ Most windows end at **silence**. That is the intended default, not a gap.
 | **desktop** (Tauri) | the base app. goal, live state, audio, and the native macOS signals | hold a model key, or act on the machine without logging it |
 | **edge** (Pi) | camera frames, mic audio, speaker out, LED state | call a model, or store anything |
 | **server** | aggregate, assess, policy, persist, push, speech and vision adapters | invent pedagogy or a goal |
-| **web** | analytics after the fact, and the landing page | write to the session |
+| **web** | the storefront: what it is, the desk unit, the download, reservations | read or write a session, or hold anything about a user beyond a reservation |
 
 ### desktop (Tauri 2)
 A Rust sidecar reads read-only signals, a webview renders the goal and the live state.
@@ -69,7 +69,19 @@ Everything that persists; the only holder of a key. Goals and sessions, the obse
 policy, provider adapters, the media relay, analytics and SSE.
 
 ### web (Next.js)
-Read-only review: what happened, what the policy did, what worked. Plus marketing.
+The storefront, and nothing else. **The product is the desktop app and the desk unit**; the web
+explains them, sells the unit and hands out the app:
+
+| page | job |
+|---|---|
+| `/` | what it does, shown: the unit in 3D, the app's real screens, one session as a ribbon, the escalation ladder |
+| `/device` | the desk unit: its states (try the ring and the shutter), parts, what it never does, specs, buy |
+| `/download` | the Mac app: download, the three permissions and what each never reads, setup in three steps |
+| `/order` | reserve a unit — no payment exists in this build; a reservation is a line on the web server |
+| `/privacy` | the privacy promise in plain words |
+
+Review of your own sessions (history, what brings you back, replay) and device pairing live in the
+desktop app. The web never talks to the server.
 
 ---
 

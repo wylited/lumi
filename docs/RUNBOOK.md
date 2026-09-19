@@ -30,7 +30,7 @@ Then, in two terminals:
 
 ```bash
 pnpm --filter @heli/server dev   # API on :3001
-pnpm --filter @heli/web dev      # web on :3000
+pnpm --filter @heli/web dev      # the storefront on :3000 (needs no server)
 ```
 
 `db:reset` applies the Prisma schema and seeds one user, one device (`HELI-DEMO`), one goal and
@@ -146,7 +146,7 @@ a handful of route curls, printing a pass or fail per check. Until then, use **F
 
 ## Device
 
-**Pair.** The seed ships one device with code `HELI-DEMO`. Web → Devices shows the code and a QR.
+**Pair.** The seed ships one device with code `HELI-DEMO`. The desktop's Settings shows the code and a QR (`HELI-070`).
 `POST /v1/devices/pair` is idempotent, so reconnecting with the same code returns the same device.
 The Pi connects to `wss://<api>/ws/device` with the header:
 
