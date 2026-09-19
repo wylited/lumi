@@ -10,6 +10,20 @@ dependencies = [
     "websockets>=13",
 ]
 
+[project.optional-dependencies]
+# The servo bus. lerobot is what already knows this arm's Feetech STS3215 chain,
+# its homing offsets and its EEPROM travel limits, and it is the one layer that
+# must not be reimplemented: it moves a physical arm at 100 Hz. It drags in
+# torch (hundreds of MB) and pins numpy<2.3, so it is an extra rather than a
+# default - the camera, the detector and the aiming loop need none of it, and a
+# rig with no arm installs nothing here.
+#   uv sync --extra arm
+arm = [
+    "lerobot==0.6.1",
+    "feetech-servo-sdk==1.0.0",
+    "pyserial>=3.5",
+]
+
 [project.scripts]
 heli-rig = "heli_rig.__main__:main"
 

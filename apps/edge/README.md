@@ -145,6 +145,10 @@ re-plugged device is picked up without restarting the rig.
 | `HELI_BRIDGE_DIR` | `~/Repos/tracking` | the project the `serial` fallback starts a bridge from: it holds `tracking/bridge.py` and a `lerobot` install. Not part of this repo — the doctor names it when the arm is unreachable |
 | `HELI_BRIDGE_PYTHON` | `<HELI_BRIDGE_DIR>/.venv/bin/python` | the interpreter that bridge runs under, when it is not the project's own `.venv` |
 | `HELI_SPEAKER` | `true` | play the spoken line on this Mac; `false` acknowledges it `no_speaker` instead of pretending |
+| `HELI_TRACKING` | `off` | `off` \| `auto`: follow the person at the desk without being asked |
+| `HELI_MODEL` | `models/yolo11n-pose.onnx` | the pose model; a relative path resolves against `apps/edge`, so it is found whatever the working directory is |
+| `HELI_TRACK_FPS` | `10` | the tracker's own cadence (detection is ~25 fps on CPU) |
+| `HELI_TRACK_DEADBAND` | `0.08` | the share of the frame the chest may sit off the aim point before the arm moves |
 | `HELI_LOG_LEVEL` | `info` | `debug` \| `info` \| `warning` \| `error` \| `critical` |
 | `HELI_DIR` | `~/.heli` | where the desk id, token and arm calibration are kept |
 | `HELI_DESK_RECT` | — | the desk rectangle in millimetres (`x,y,w,h`) that `--calibrate` records |
@@ -221,10 +225,63 @@ Honest list, so nobody goes looking for these in the code:
 - **No microphone, so no barge-in.** The tracking console owns the mic on this Mac. `HELI_SPEAKER=true`
   means the rig *plays* the line; it cannot hear you start talking over one.
 - **One camera at a time.** The wrist UVC device belongs to `tracking.visiond` while the console runs.
-  Reading it directly (`HELI_CAMERA_SOURCE=opencv`) is for a bench where the console is stopped, and
-  the console's frames are the tracker's view — annotated when it has a target.
+  Reading it directly (`HELI_CAMERA_SOURCE=opencv`) is for a bench where the console is stopped.
+  **Take `opencv` when lumi is the one watching**: the console's frame has the tracker's green
+  bounding box, magenta chest crosshair and its `id … fps … ms` text burned into the pixels, and lumi
+  uploads exactly the bytes it is handed — so an observer's frame from the console arrives with
+  another program's annotations drawn on it. `HELI_CAMERA_SOURCE=opencv HELI_CAMERA_INDEX=0` opens the
+  device itself and uploads clean footage (verified: the same desk, no overlay).
 - **Frames are resized, never cropped.** The capture rectangle in `~/.heli/rig.json` is the arm's
   calibration; the rig downscales the whole frame rather than cropping to it.
+
+---
+
+## What the desktop needs
+
+Written for whoever owns the app, because the rig cannot change what the app draws. Numbers here are
+measured on this bench, not estimates.
+
+**The pane rate is the app's to choose, and the rig will feed it.** `GET /v1/sessions/:id/frame.jpg`
+answers `cache-control: private, no-store`, so a poll loop gets a new picture every time — 12 of 12
+fetches 120 ms apart returned a different JPEG. The rig publishes at `HELI_FPS` (12 on this bench);
+below that, the pane's poll interval decides what you see, and a pane polling at 1 Hz shows a 1 fps
+desk no matter what the rig does.
+
+**Nothing needs a new endpoint to track a person.** The overlay the app draws is its own: the rig's
+aim point is `(0.5, 0.5)` of the frame (the tracking project's `aim`, and what `arm.point` maps
+through the desk rectangle), so a chest at `(x, y)` normalized in the frame is drawn at
+`(x, y) * 100%` of the image box. When the rig is following someone, the person it is following is
+the one whose chest is nearest that aim point.
+
+**What the app can already ask for:** `capture`, `stream.start { fps }`, `stream.stop`, `arm.aim
+{ pan, tilt }`, `arm.point { x, y }` (desk-plane millimetres, needs a calibration),
+`arm.nod { times }`, `arm.home`. `arm.track { on }` is the new one (below).
+
+**Frames are resized, never cropped.** The setup rectangle is the arm's calibration and the app's
+overlay; the rig uploads the whole frame downscaled, so the overlay's rectangle and the picture share
+one coordinate space — no crop offset to apply.
+
+---
+
+## Following a person
+
+`HELI_TRACKING=auto` (or `--tracking auto`) makes the rig follow the person at the desk: the pose
+model finds them, the control law turns that into pan and tilt, and the arm keeps their chest at the
+aim point. It is off by default — an observer that moves on its own is a decision, not a default.
+
+- **What it needs:** the pose model (`HELI_MODEL`, default `models/yolo11n-pose.onnx`, in the tree),
+  a camera, and an arm. No calibration: following a person is closed on the pixels, so it needs no
+  desk rectangle (`arm.point` still does).
+- **Who holds the arm.** `arm.aim`, `arm.point` and `arm.home` pause the tracker for their duration
+  and it resumes after — a move that is asked for is never fought by the loop. Tracking while the
+  operator console is in `track` mode is refused at `hello`: two things driving one arm is the one
+  thing this rig will not do.
+- **`arm.track { on }`** is the server's control over it: `on: true` starts following (the rig's
+  `HELI_TRACKING=auto` must be set — a rig configured `off` refuses with `tracking_disabled` rather
+  than turning on a camera and an arm nobody asked for), `on: false` stops and leaves the arm where
+  it is. Acked with `pose` (where the arm ended up) like the other arm actions.
+- **Silence is the default here too.** Inside `HELI_TRACK_DEADBAND` (8% of the frame) the arm does not
+  move at all: a person sitting still is not chased by a camera twitching at keypoint jitter.
 
 ---
 

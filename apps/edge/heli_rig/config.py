@@ -18,6 +18,16 @@ from typing import Callable, Mapping, Sequence
 from urllib.parse import urlsplit, urlunsplit
 
 API_URL_DEFAULT = "http://localhost:3001"
+#: The pose model the rig tracks people with: YOLO11n-pose as ONNX, run by
+#: `cv2.dnn`. In the tree rather than downloaded, because a rig on a desk with no
+#: network still has to see the person sitting at it.
+MODEL_PATH_DEFAULT = "models/yolo11n-pose.onnx"
+#: The tracker's own cadence, and the share of the frame its aim point may be off
+#: by before the arm is asked to move. The deadband is what keeps a person who is
+#: sitting still from being chased by a camera: without it the arm twitches at
+#: every keypoint jitter.
+TRACK_FPS_DEFAULT = 10.0
+TRACK_DEADBAND_DEFAULT = 0.08
 CONSOLE_URL_DEFAULT = "http://127.0.0.1:8643"
 HELI_DIR_DEFAULT = "~/.heli"
 # Where the arm bridge lives: a project of its own, with a `tracking.bridge` module
@@ -38,6 +48,9 @@ CAMERA_SOURCES = ("auto", "console", "opencv")
 # `serial` is `heli_rig.arm`'s second driver: the tracking bridge, which it only
 # opens when the console is not running, so there is still one writer on the bus.
 ARM_DRIVERS = ("auto", "console", "serial", "none")
+#: Who holds the arm while the rig follows a person. `off` is the observer's rig:
+#: it aims when it is told to and does not move on its own.
+TRACKING_MODES = ("off", "auto")
 LOG_LEVELS = ("debug", "info", "warning", "error", "critical")
 
 
@@ -71,6 +84,29 @@ class Config:
     doctor: bool
     #: The desk rectangle in millimetres (`x,y,w,h`) that `--calibrate` records.
     rect: str | None
+    #: The pose model, resolved against the package's own directory by `model_path`.
+    model: Path
+    #: `off` | `auto`: whether the rig follows a person on its own.
+    tracking: str
+    #: The cadence the tracker runs at, which is not the upload cadence: detection
+    #: is ~25 fps on CPU, and 10 is enough to keep a person centred.
+    track_fps: float
+    #: The share of the frame the chest may sit off-centre before the arm moves.
+    track_deadband: float
+
+
+def model_path(cfg: Config) -> Path:
+    """The pose model, resolved against the rig's own directory when it is relative.
+
+    `models/yolo11n-pose.onnx` is where the file lives in the tree, and a rig run
+    from anywhere else (`uv run heli-rig` from the repo root, a launchd job with
+    another cwd) still has to find it, so a relative setting is resolved against
+    the package rather than the process's working directory. An absolute setting
+    is taken as given, because that is what a person who typed a path meant.
+    """
+    if cfg.model.is_absolute():
+        return cfg.model
+    return Path(__file__).resolve().parent.parent / cfg.model
 
 
 def websocket_url(api_url: str) -> str:
@@ -124,6 +160,10 @@ def load(env: Mapping[str, str] | None = None, argv: Sequence[str] | None = None
         calibrate=False,
         doctor=False,
         rect=_optional(source, "HELI_DESK_RECT"),
+        model=Path(_text(source, "HELI_MODEL", MODEL_PATH_DEFAULT)).expanduser(),
+        tracking=_choice(source, "HELI_TRACKING", "off", TRACKING_MODES),
+        track_fps=_number(source, "HELI_TRACK_FPS", TRACK_FPS_DEFAULT, float),
+        track_deadband=_number(source, "HELI_TRACK_DEADBAND", TRACK_DEADBAND_DEFAULT, float),
     )
     checked = _apply_argv(cfg, list(sys.argv[1:] if argv is None else argv))
     _check(checked)
@@ -168,6 +208,12 @@ def _apply_argv(cfg: Config, argv: list[str]) -> Config:
         help="debug | info | warning | error | critical",
     )
     parser.add_argument("--api-url", metavar="URL", help="the server")
+    parser.add_argument(
+        "--tracking",
+        choices=TRACKING_MODES,
+        help="off | auto: follow the person at the desk (or HELI_TRACKING)",
+    )
+    parser.add_argument("--model", metavar="PATH", help="the pose model (or HELI_MODEL)")
     args = parser.parse_args(argv)
     if args.log_level is not None and args.log_level not in LOG_LEVELS:
         parser.error(f"argument --log-level: must be one of {', '.join(LOG_LEVELS)}")
@@ -193,6 +239,10 @@ def _apply_argv(cfg: Config, argv: list[str]) -> Config:
         changes["fps"] = args.fps
     if args.log_level is not None:
         changes["log_level"] = args.log_level
+    if args.tracking:
+        changes["tracking"] = args.tracking
+    if args.model:
+        changes["model"] = Path(args.model).expanduser()
     if args.api_url:
         api_url = args.api_url.rstrip("/")
         changes["api_url"] = api_url
@@ -214,6 +264,12 @@ def _check(cfg: Config) -> None:
         raise ConfigError(f"jpeg_quality must be 1..100, not {cfg.jpeg_quality!r}")
     if cfg.camera_index < 0:
         raise ConfigError(f"camera_index cannot be negative ({cfg.camera_index})")
+    if not math.isfinite(cfg.track_fps) or cfg.track_fps <= 0:
+        raise ConfigError(f"track_fps must be a finite number greater than zero, not {cfg.track_fps!r}")
+    if not 0 <= cfg.track_deadband < 0.5:
+        # Half the frame is the whole frame: a deadband that wide means the tracker
+        # never moves, which is a setting that silently disables a feature.
+        raise ConfigError(f"track_deadband must be in [0, 0.5), not {cfg.track_deadband!r}")
 
 
 def _text(env: Mapping[str, str], key: str, default: str) -> str:
