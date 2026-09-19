@@ -173,6 +173,15 @@ export const PhoneSnapshot = z
     /** Seconds in that app in the current window (Android only). */
     appSeconds: z.number().nonnegative(),
     unlocks: z.number().int().nonnegative(),
+    /**
+     * Seconds per app since the server first heard this phone, most first, at most eight
+     * (Android only). Running totals, like `unlocks`: a reader wanting a session's share
+     * subtracts the totals it saw when the session began.
+     */
+    topApps: z
+      .array(z.object({ app: z.string(), seconds: z.number().nonnegative() }).strict())
+      .max(8)
+      .default([]),
     motion: PhoneMotion,
     screenOn: z.boolean().nullable(),
     away: z.boolean(),

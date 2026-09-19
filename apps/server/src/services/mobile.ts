@@ -253,6 +253,11 @@ const snapshotOf = (record: PhoneRecord, now: number): PhoneSnapshot => {
     app,
     appSeconds: app === null ? 0 : Math.round(record.usage.get(app) ?? 0),
     unlocks: record.unlocks,
+    topApps: [...record.usage]
+      .map(([name, seconds]) => ({ app: name, seconds: Math.round(seconds) }))
+      .filter((a) => a.seconds > 0)
+      .sort((a, b) => b.seconds - a.seconds)
+      .slice(0, 8),
     motion: fresh ? record.motion : 'unknown',
     screenOn: fresh ? record.screenOn : null,
     // Unknown is not away: a stale phone must not move the tutor to a pocket
