@@ -2,7 +2,7 @@
 name = "heli-edge-rig"
 version = "0.1.0"
 description = "The desk rig: camera frames up, actions and speech down."
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.27",
     "numpy>=1.26",
@@ -18,6 +18,10 @@ dependencies = [
 # default - the camera, the detector and the aiming loop need none of it, and a
 # rig with no arm installs nothing here.
 #   uv sync --extra arm
+#
+# `requires-python` is >=3.12 for this extra's sake: lerobot 0.6.1 declares 3.12
+# and up, and a project that allowed 3.11 made `uv sync` itself unresolvable on a
+# fresh clone - the extra failed, and so did the plain install beside it.
 arm = [
     "lerobot==0.6.1",
     "feetech-servo-sdk==1.0.0",
