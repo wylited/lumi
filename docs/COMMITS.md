@@ -146,7 +146,7 @@ server owns intake, actions and persistence. Full detail, including the Python i
 |---|----|--------|---------|---|-------|
 | ☐ | HELI-040 | `feat(edge): the rig agent, camera capture and frame upload` | 009 | yes | 4 · hardware + rig |
 | ☑ | HELI-041 | `feat(server): frame intake and the newest frame` | 040, 014 | **no** | 2 |
-| ☐ | HELI-042 | `feat(edge): the arm adapter and aiming` | 040 | yes | 4 |
+| ☐ | HELI-042 | `feat(edge): the arm adapter and aiming` | 040 | yes | 4 · hardware + rig |
 | ☑ | HELI-043 | `feat(contracts): the desk socket, registration and actions` | 004 | **no** | 2 |
 | ☐ | HELI-044 | `feat(server): desks, the desk socket, and actions with acks` | 043, 041 | **no** | 2 |
 | ☐ | HELI-045 | `feat(edge): the action client and audio playback` | 042, 044 | yes | 4 |
