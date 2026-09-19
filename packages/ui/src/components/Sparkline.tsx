@@ -63,7 +63,8 @@ export function Sparkline({
           x2={W}
           y1={y(threshold)}
           y2={y(threshold)}
-          stroke="var(--border-strong)"
+          stroke="var(--text-faint)"
+          strokeOpacity="0.5"
           strokeDasharray="2 3"
           vectorEffect="non-scaling-stroke"
         />

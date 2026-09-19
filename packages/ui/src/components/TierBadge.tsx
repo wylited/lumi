@@ -16,8 +16,8 @@ const tones: Record<TierLevel, { text: string; bar: string; wash: string }> = {
   0: { text: 'text-text-faint', bar: 'bg-ink-300', wash: 'bg-surface border-border' },
   1: { text: 'text-accent-link', bar: 'bg-accent', wash: 'bg-accent-wash border-accent/25' },
   2: { text: 'text-text', bar: 'bg-warn', wash: 'bg-warn-wash border-warn/40' },
-  3: { text: 'text-text', bar: 'bg-warn', wash: 'bg-warn-wash border-warn/60' },
-  4: { text: 'text-text', bar: 'bg-danger', wash: 'bg-danger-wash border-danger/40' },
+  3: { text: 'text-ink-900', bar: 'bg-ink-900', wash: 'bg-warn border-warn' },
+  4: { text: 'text-ink-50', bar: 'bg-ink-50', wash: 'bg-danger border-danger' },
   5: { text: 'text-text-muted', bar: 'bg-text-muted', wash: 'bg-surface border-border-strong' },
 }
 
@@ -48,7 +48,10 @@ export function TierBadge({ tier, compact = false, className }: TierBadgeProps) 
           {Array.from({ length: rungs }, (_, i) => (
             <span
               key={i}
-              className={cn('w-[3px] rounded-[1px]', i < t ? tone.bar : 'bg-border-strong')}
+              className={cn(
+                'w-[3px] rounded-[1px]',
+                i < t ? tone.bar : t >= 3 ? 'bg-current opacity-30' : 'bg-border-strong',
+              )}
               style={{ height: `${40 + i * 20}%` }}
             />
           ))}

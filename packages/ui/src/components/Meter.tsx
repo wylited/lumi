@@ -24,7 +24,7 @@ export function Meter({ value, tone = 'accent', label, className }: MeterProps) 
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={pct}
-      className={cn('h-1.5 w-full overflow-hidden rounded-pill bg-border', className)}
+      className={cn('h-1.5 w-full overflow-hidden rounded-pill bg-border-strong/60', className)}
     >
       <div
         className={cn(
