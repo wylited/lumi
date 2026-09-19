@@ -1,0 +1,296 @@
+"""`heli-rig` — the rig's entry point, in two modes.
+
+`--once` is the bench check: one frame, one upload, one JSON line on stdout, and
+an exit code a script can branch on. The default is the long-running rig, which
+captures at the cadence and — once the desk socket has landed and the integrator
+has filled the marked block below — speaks to the server beside it.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import importlib.util
+import json
+import logging
+import sys
+from functools import partial
+from typing import Callable, Sequence
+
+import httpx
+
+from . import AGENT_VERSION
+from .camera import CameraUnavailable, ConsoleSource, FrameSource, OpenCvSource, open_source
+from .capture import CAMERA_RETRY_S, CaptureLoop
+from .config import Config, load
+from .upload import UploadOutcome, Uploader
+
+LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+DEV_LOGIN_PATH = "/v1/auth/dev-login"
+TOKEN_TIMEOUT_S = 5.0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Read the config, set logging up once, and run the rig."""
+    cfg = load(argv=argv)
+    logging.basicConfig(level=cfg.log_level.upper(), format=LOG_FORMAT)
+    if cfg.log_level != "debug":
+        # httpx names every request at INFO. The rig's own lines are the story,
+        # and a debug run can still have httpx's when it wants them.
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+    log = logging.getLogger("heli_rig")
+    log.debug("heli-rig %s: api=%s ws=%s camera=%s", AGENT_VERSION, cfg.api_url, cfg.ws_url, cfg.camera_source)
+    try:
+        if cfg.once:
+            return asyncio.run(_once(cfg, log))
+        asyncio.run(run_rig(cfg, log))
+    except KeyboardInterrupt:
+        log.info("stopped")
+    return 0
+
+
+async def run_rig(cfg: Config, log: logging.Logger) -> None:
+    """The long-running rig: capture at the cadence, with the desk socket beside it."""
+    arm = None
+    speaker = None
+    if _landed("heli_rig.arm"):
+        from .arm import open_arm
+
+        # `open_arm` probes the bus and can block on a serial timeout, so it goes
+        # to a thread: a dead arm must not delay the first frame.
+        arm = await asyncio.to_thread(open_arm, cfg, log)
+    if _landed("heli_rig.audio"):
+        from .audio import Speaker
+
+        speaker = Speaker(log=log)
+    try:
+        source = await open_source(cfg, log)
+    except CameraUnavailable as exc:
+        # A rig whose camera is missing at boot still belongs up: the loop reopens
+        # the source on its next tick, and every 5 s after that.
+        log.error("camera: %s; the rig will keep looking, every %gs", exc, CAMERA_RETRY_S)
+        source = _unopened_source(cfg, log)
+    tokens = _tokens(cfg, log, partial(_caps, cfg, source, arm))
+    uploader = Uploader(cfg, _upload_tokens(cfg, tokens, log), log)
+    capture = CaptureLoop(source, uploader, cfg, log)
+    tasks = [asyncio.create_task(capture.run(), name="heli-rig-capture")]
+
+    if _landed("heli_rig.socket"):
+        from .actions import Dispatcher
+        from .socket import DeskClient
+
+        # Two directions, one process: `capture` uploads frames up, and the desk
+        # socket takes actions and a line's PCM down. `tokens` here is the store
+        # itself, not the uploader's bridged view of it: `hello` needs
+        # `desk_id()`, and a registration the server refuses must stay a failure
+        # rather than becoming a user token the desk route will reject.
+        client = DeskClient(
+            cfg,
+            Dispatcher(capture, arm, speaker, cfg, log),
+            capture,
+            arm,
+            speaker,
+            tokens,
+            log,
+        )
+        tasks.append(asyncio.create_task(client.run(), name="heli-rig-socket"))
+    else:
+        log.warning("heli_rig.socket is missing; the rig will upload and hear nothing")
+
+    try:
+        await asyncio.gather(*tasks)
+    finally:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        await uploader.aclose()
+        await source.close()
+
+
+async def _once(cfg: Config, log: logging.Logger) -> int:
+    """One frame, one upload, one line — the bench's acceptance in a single process."""
+    try:
+        source = await open_source(cfg, log)
+    except CameraUnavailable as exc:
+        log.error("camera: %s", exc)
+        _emit(UploadOutcome(False, 0, None, None, None, None, "camera_unavailable", False), None)
+        return 1
+    store = _tokens(cfg, log, partial(_caps, cfg, source))
+    uploader = Uploader(cfg, _upload_tokens(cfg, store, log), log)
+    try:
+        frame = await source.grab()
+        outcome = await uploader.upload(frame, 1)
+    except CameraUnavailable as exc:
+        log.error("camera: %s", exc)
+        outcome = UploadOutcome(False, 0, None, None, None, None, "camera_unavailable", False)
+    except Exception:
+        log.exception("the rig failed before the frame was uploaded")
+        outcome = UploadOutcome(False, 0, None, None, None, None, "rig_error", False)
+    finally:
+        await uploader.aclose()
+        await source.close()
+    _emit(outcome, 1)
+    return _exit_code(outcome)
+
+
+def _emit(outcome: UploadOutcome, seq: int | None) -> None:
+    """The `--once` line. A script reads this one, so it is stdout and not a log record.
+
+    `seq` is the server's own when it answered 201, and the rig's counter for the
+    frame it tried to send otherwise.
+    """
+    print(
+        json.dumps(
+            {
+                "ok": outcome.ok,
+                "status": outcome.status,
+                "seq": outcome.seq if outcome.seq is not None else seq,
+                "width": outcome.width,
+                "height": outcome.height,
+                "error": outcome.error,
+            }
+        ),
+        flush=True,
+    )
+
+
+def _exit_code(outcome: UploadOutcome) -> int:
+    """0 uploaded, 3 no open session, 4 the server refused the frame, 1 anything else."""
+    if outcome.ok:
+        return 0
+    if outcome.status == 409:
+        return 3
+    if outcome.rejected:
+        return 4
+    return 1
+
+
+def _unopened_source(cfg: Config, log: logging.Logger) -> FrameSource:
+    """The source the config asked for, not opened yet: the loop opens it on its next tick."""
+    return OpenCvSource(cfg, log) if cfg.camera_source == "opencv" else ConsoleSource(cfg, log)
+
+
+def _caps(cfg: Config, source: FrameSource, arm: object | None = None) -> dict:
+    """What `POST /v1/desks` registers: the desk's name, its camera and its arm.
+
+    A missing `arm` is reported as `null` on purpose: it is what tells the server
+    never to send an aim, and a rig that claimed an arm it cannot move would be
+    asked to point at a page and answer `no_arm` forever.
+    """
+    return {
+        "name": cfg.desk_name,
+        "camera": source.describe(),
+        "arm": arm.describe() if arm is not None else None,  # type: ignore[attr-defined]
+    }
+
+
+def _tokens(cfg: Config, log: logging.Logger, caps: Callable[[], dict]) -> TokenSource:
+    """The desk token store: `heli_rig.registration` when it has landed, else the environment.
+
+    This is what the desk socket presents, so its failures stay its own: a store
+    that could not register raises, and the socket reports why rather than
+    reconnecting against a token the server will refuse.
+    """
+    if _landed("heli_rig.registration"):
+        from .registration import DeskTokenStore
+
+        return DeskTokenStore(cfg, caps, log)
+    return _UserThenDesk(_UserTokenSource(cfg, log), _EnvDeskToken(cfg))
+
+
+def _upload_tokens(cfg: Config, store: TokenSource, log: logging.Logger) -> TokenSource:
+    """What the uploads present: the person's token, then the desk token.
+
+    `POST /v1/desk/frames` authenticates the **user**, not the desk, so a rig that
+    presented its desk token there was answered 401 on every frame -- and the store
+    read that 401 as a stale desk token and re-registered the desk on each retry,
+    which is a desk registration per frame. The person's token is borrowed from the
+    dev-login bootstrap, because a rig holds no credentials by design, and the desk
+    token stays behind it for the day the frames route takes one.
+
+    The socket does not get this: `/ws/desk` refuses anything but a desk token, and
+    a bridge there would only hide a failure the log needs to show.
+    """
+    return _UserThenDesk(_UserTokenSource(cfg, log), store)
+
+
+class _UserThenDesk:
+    """Two token stores, tried in order. Which one is first depends on the route."""
+
+    def __init__(self, first: TokenSource, second: TokenSource) -> None:
+        self._first = first
+        self._second = second
+
+    def token(self, refresh: bool = False) -> str | None:
+        return self._first.token(refresh=refresh) or self._second.token(refresh=refresh)
+
+
+class _EnvDeskToken:
+    """`HELI_DESK_TOKEN`: the token whatever set this rig up handed it."""
+
+    def __init__(self, cfg: Config) -> None:
+        self._token = cfg.desk_token
+
+    def token(self, refresh: bool = False) -> str | None:
+        del refresh  # a token from the environment cannot be refreshed
+        return self._token
+
+
+class _UserTokenSource:
+    """The person's token, borrowed from `POST /v1/auth/dev-login`.
+
+    The one route the rig calls that authenticates the user is reached through the
+    bootstrap of the seeded, single-user deployment: the rig has no credentials of
+    its own, which is exactly what the desk token is for. Cached for the process,
+    and `refresh=True` mints a new one -- which is what a 401 asks for.
+    """
+
+    def __init__(self, cfg: Config, log: logging.Logger) -> None:
+        self._cfg = cfg
+        self._log = log
+        self._cached: str | None = None
+
+    def token(self, refresh: bool = False) -> str | None:
+        if refresh:
+            self._cached = None
+        if self._cached is None:
+            self._cached = self._dev_login()
+        return self._cached
+
+    def _dev_login(self) -> str | None:
+        # Synchronous because `TokenSource.token` is: it blocks the loop for one
+        # loopback request, once per process, which is cheaper than a second async
+        # path for a token the rig already holds.
+        self._log.debug("minting a user token from the dev-login bootstrap")
+        try:
+            with httpx.Client(timeout=TOKEN_TIMEOUT_S) as client:
+                response = client.post(f"{self._cfg.api_url}{DEV_LOGIN_PATH}", json={})
+                response.raise_for_status()
+                payload = response.json()
+        except (httpx.HTTPError, httpx.InvalidURL) as exc:
+            self._log.error(
+                "dev-login failed, so frames cannot be uploaded: %s. The rig uploads as the "
+                "seeded user (a user route owns the frames), and a deployment that has stopped "
+                "serving dev-login leaves it no way to authenticate.",
+                exc,
+            )
+            return None
+        except ValueError as exc:
+            self._log.error("dev-login answered with something that is not JSON: %s", exc)
+            return None
+        token = payload.get("token") if isinstance(payload, dict) else None
+        if not isinstance(token, str) or not token:
+            self._log.error("dev-login answered without a token")
+            return None
+        return token
+
+
+def _landed(module: str) -> bool:
+    """Whether a module a later commit owns exists yet (HELI-042, HELI-045)."""
+    try:
+        return importlib.util.find_spec(module) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+if __name__ == "__main__":
+    sys.exit(main())

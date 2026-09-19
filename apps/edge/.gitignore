@@ -1,0 +1,10 @@
+# The rig's own state: the venv, the bytecode, the test cache, and the `.env`
+# a person copies from `.env.example` (the repo's root .gitignore covers it too,
+# this is here so the directory is safe to use on its own).
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.env
+.env.local

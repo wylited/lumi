@@ -1,0 +1,36 @@
+[project]
+name = "heli-edge-rig"
+version = "0.1.0"
+description = "The desk rig: camera frames up, actions and speech down."
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "numpy>=1.26",
+    "opencv-python-headless>=4.10",
+    "websockets>=13",
+    "psutil>=6.0",
+]
+
+[project.scripts]
+heli-rig = "heli_rig.__main__:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.28,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "heli_rig"
+module-root = ""
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+# The suite imports `heli_rig` out of this directory, so it also runs for a person
+# who has not installed the project yet.
+pythonpath = ["."]
