@@ -10,6 +10,8 @@ import { setTray } from './lib/tray'
 import { GoalRoute } from './routes/goal'
 import { HistoryRoute } from './routes/history'
 import { SettingsRoute } from './routes/settings'
+import { SetupRoute } from './routes/setup'
+import { setupDone } from './lib/setup'
 import { LiveRoute } from './routes/live'
 
 const LAST_ROUTE = 'heli.route'
@@ -26,6 +28,13 @@ function initialRoute(): Route {
 
 export function App() {
   const [route, setRoute] = useState<Route>(initialRoute)
+  // First run shows setup; Settings can bring it back with a `lumi:setup` event.
+  const [setup, setSetup] = useState(() => !setupDone())
+  useEffect(() => {
+    const again = () => setSetup(true)
+    window.addEventListener('lumi:setup', again)
+    return () => window.removeEventListener('lumi:setup', again)
+  }, [])
   const source = useDataSource()
 
   const navigate = useCallback((next: Route) => {
@@ -71,6 +80,20 @@ export function App() {
         : d.tray === 'speaking'
           ? { tone: 'focus', label: 'Speaking' }
           : { tone: 'focus', label: 'Watching' }
+
+  if (setup) {
+    return (
+      <>
+        <SetupRoute
+          onFinish={() => {
+            setSetup(false)
+            navigate('live')
+          }}
+        />
+        <NotificationLayer />
+      </>
+    )
+  }
 
   return (
     <div className="flex h-full bg-bg text-text">

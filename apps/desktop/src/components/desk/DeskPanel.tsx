@@ -1,0 +1,94 @@
+import { useEffect, useState } from 'react'
+import { DeskStatus } from '@heli/contracts'
+import { Button } from '@heli/ui'
+import { Group, Row } from '../kit'
+import { FramePane } from './FramePane'
+import { api } from '../../lib/api'
+
+function ago(iso: string | null) {
+  if (!iso) return 'never'
+  const s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000))
+  return s < 2 ? 'just now' : s < 60 ? `${s} s ago` : `${Math.round(s / 60)} min ago`
+}
+
+/** Lumi One in Settings: what the server knows about the desk, refreshed every few seconds. */
+export function DeskPanel() {
+  const [desk, setDesk] = useState<DeskStatus | null | undefined>(undefined)
+
+  useEffect(() => {
+    const load = async () => {
+      const parsed = DeskStatus.safeParse(await api.desk())
+      setDesk(parsed.success ? parsed.data : null)
+    }
+    void load()
+    const t = setInterval(() => void load(), 3000)
+    return () => clearInterval(t)
+  }, [])
+
+  const d = desk?.desk ?? null
+  const h = desk?.health ?? null
+  return (
+    <section className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between px-1">
+        <h2 className="text-small font-medium text-text-muted">Lumi One</h2>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => window.dispatchEvent(new Event('lumi:setup'))}
+        >
+          Run setup again
+        </Button>
+      </div>
+      {desk === undefined ? null : !d ? (
+        <Group>
+          <Row
+            label="No desk yet"
+            detail={
+              desk === null
+                ? 'The server is not reachable.'
+                : 'Lumi One registers itself the first time it runs on this Mac.'
+            }
+          />
+        </Group>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-[1fr_1fr]">
+          <FramePane
+            sessionId={desk?.session?.id ?? null}
+            source="camera"
+            label="Camera"
+            empty="No frame yet."
+            className="aspect-[4/3]"
+          />
+          <Group>
+            <Row label={d.name}>
+              <span
+                className={desk?.connected ? 'text-small text-accent-link' : 'text-small text-warn'}
+              >
+                {desk?.connected ? 'Connected' : 'Disconnected'}
+              </span>
+            </Row>
+            <Row label="Camera">
+              <span className="text-small text-text-muted">{d.camera?.model ?? 'none'}</span>
+            </Row>
+            <Row label="Arm">
+              <span className="tnum text-small text-text-muted">
+                {!d.arm
+                  ? 'none'
+                  : !desk?.connected
+                    ? 'disconnected'
+                    : h?.armPose
+                      ? `pan ${h.armPose.pan.toFixed(0)}° · tilt ${h.armPose.tilt.toFixed(0)}°`
+                      : d.arm.model}
+              </span>
+            </Row>
+            <Row label="Capture">
+              <span className="tnum text-small text-text-muted">
+                {h ? `${h.fps} fps · last frame ${ago(h.lastFrameAt)}` : '—'}
+              </span>
+            </Row>
+          </Group>
+        </div>
+      )}
+    </section>
+  )
+}

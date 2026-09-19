@@ -3,6 +3,7 @@ import type { Signal } from '@heli/contracts'
 import { Button } from '@heli/ui'
 import { Switch } from '../components/goal/Controls'
 import { NeverCapture } from '../components/settings/NeverCapture'
+import { DeskPanel } from '../components/desk/DeskPanel'
 import { Group, PageTitle, Row } from '../components/kit'
 import { audio, useAudio } from '../lib/audio'
 import { native, useRecentSignals, type PermissionState } from '../lib/native'
@@ -33,6 +34,8 @@ export function SettingsRoute() {
   return (
     <div className="mx-auto flex max-w-[720px] flex-col gap-8 px-10 pb-16 pt-2">
       <PageTitle>Settings</PageTitle>
+
+      <DeskPanel />
 
       <Group
         title="Permissions"

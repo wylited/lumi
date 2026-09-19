@@ -18,6 +18,14 @@ import {
   SessionDetailResponse,
   SessionListResponse,
   SignalWindowResponse,
+  GoalDraft,
+  DeviceListResponse,
+  OpenSessionResponse,
+  DeskActionRecord,
+  DeskRegisterResponse,
+  type DeskActionRequest,
+  type DeskRegistration,
+  type OpenSessionRequest,
   type SignalBatch,
   type GoalCreateRequest,
   type GoalUpdateRequest,
@@ -85,12 +93,22 @@ export async function socketTarget(): Promise<{ url: string; token: string } | n
   return { url: `${BASE.replace(/^http/, 'ws')}/ws/desktop`, token: bearer }
 }
 
+class HttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message)
+  }
+}
+
 async function call<S extends z.ZodTypeAny>(
   method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   path: string,
   schema: S,
   fallback: () => z.infer<S>,
   body?: unknown,
+  timeoutMs = TIMEOUT_MS,
 ): Promise<z.infer<S>> {
   const bearer = await auth()
   if (!bearer) return fallback()
@@ -102,9 +120,9 @@ async function call<S extends z.ZodTypeAny>(
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     })
-    if (!res.ok) throw new Error(`${method} ${path} ${res.status}`)
+    if (!res.ok) throw new HttpError(`${method} ${path} ${res.status}`, res.status)
     setSource('live')
     return schema.parse(await res.json())
   } catch (error) {
@@ -112,6 +130,12 @@ async function call<S extends z.ZodTypeAny>(
     if (method !== 'GET') {
       log.error(`${method} ${path} failed`, String(error))
       throw error instanceof Error ? error : new Error(String(error))
+    }
+    // Only an unreachable server makes the app demo-shaped. A route that errors (a 500, a 404) is
+    // that route's problem: fall back for this read and leave the rest of the app live.
+    if (error instanceof HttpError) {
+      log.warn(`${method} ${path} answered ${error.status}; using a fallback for this read`)
+      return fallback()
     }
     log.warn(`${method} ${path} failed, using demo data`, String(error))
     setSource('demo')
@@ -140,6 +164,24 @@ export const api = {
     call('GET', `/sessions/${sessionId}/window`, SignalWindowResponse.nullable(), () => null),
   /** Unparsed on purpose: `lib/desk` checks it against the contract and tolerates older servers. */
   desk: () => call('GET', '/desk', z.unknown().nullable(), () => null),
+  /** Sessions still attach to a `Device` row, not a desk (server-side, pending); the first one is the machine. */
+  devices: () => call('GET', '/devices', DeviceListResponse, () => []),
+  /** A sentence in, a goal draft out. Null with no server: the caller drafts locally. */
+  draftGoal: (sentence: string) =>
+    // The model takes seconds, not milliseconds; the screen shows "Reading your sentence…" meanwhile.
+    call('POST', '/goals/draft', GoalDraft.nullable(), () => null, { sentence }, 20_000),
+  openSession: (body: OpenSessionRequest) =>
+    call('POST', '/sessions', OpenSessionResponse.nullable(), () => null, body),
+  renameDesk: (body: DeskRegistration) =>
+    call('POST', '/desks', DeskRegisterResponse.nullable(), () => null, body),
+  deskAction: (deskId: string, body: DeskActionRequest) =>
+    call(
+      'POST',
+      `/desks/${encodeURIComponent(deskId)}/actions`,
+      DeskActionRecord.nullable(),
+      () => null,
+      body,
+    ),
   analytics: {
     summary: () =>
       call('GET', '/analytics/summary', AnalyticsSummary, () => demo().analytics.summary()),
@@ -163,6 +205,31 @@ function demoSave(goal: GoalCreateRequest | z.infer<typeof GoalResponse>) {
   })
   demo().world.goal = next
   return next
+}
+
+/**
+ * The newest frame of one source as an object URL, or null. `img` cannot send a bearer, so the
+ * bytes are fetched and handed over as a blob; the caller revokes the previous URL.
+ */
+export async function frameUrl(
+  sessionId: string,
+  source: 'camera' | 'screen',
+): Promise<string | null> {
+  const bearer = await auth()
+  if (!bearer) return null
+  try {
+    const res = await fetch(
+      `${BASE}/v1/sessions/${encodeURIComponent(sessionId)}/frame.jpg?source=${source}`,
+      {
+        headers: { authorization: `Bearer ${bearer}` },
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      },
+    )
+    if (!res.ok) return null
+    return URL.createObjectURL(await res.blob())
+  } catch {
+    return null
+  }
 }
 
 /** Desktop signals to the server. Returns false when there is no server to take them. */

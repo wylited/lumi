@@ -1,6 +1,7 @@
 // Prevents an extra console window on Windows in release. Harmless on macOS.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod rig;
 mod signals;
 mod tray;
 
@@ -58,6 +59,7 @@ fn main() {
             signals::screen::screen_denylist,
             signals::screen::set_screen_denylist,
             signals::screen::latest_screen_frame,
+            rig::rig_calibration,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build the Lumi app");

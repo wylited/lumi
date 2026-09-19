@@ -150,7 +150,7 @@ server owns intake, actions and persistence. Full detail, including the Python i
 | ☑ | HELI-043 | `feat(contracts): the desk socket, registration and actions` | 004 | **no** | 2 |
 | ☑ | HELI-044 | `feat(server): desks, the desk socket, and actions with acks` | 043, 041 | **no** | 2 |
 | ☐ | HELI-045 | `feat(edge): the action client and audio playback` | 042, 044 | yes | 4 |
-| ☐ | HELI-046 | `feat(desktop): setup — the goal, the watch, the desk` | 044, 072 | yes | 3 |
+| ☑ | HELI-046 | `feat(desktop): setup — the goal, the watch, the desk` (aim-here verified to the server; arm.point needs the rig and a calibration on this Mac) | 044, 072 | yes | 3 |
 | ☑ | HELI-047 | `feat(contracts): the line reaches the desk` | 043 | yes | 4 |
 | ☑ | HELI-048 | `feat(server): the observe loop starts` | 020 | **no** | 4 |
 
