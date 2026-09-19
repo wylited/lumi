@@ -72,15 +72,21 @@ of that chain.
 | ☑ | HELI-027 | `fix(server): make the zod type provider reach route generics` | 010 | **no** | 2 · server |
 | ☑ | HELI-028 | `feat(server): the row to contract mappers` | 011 | **no** | 2 · server |
 | ☑ | HELI-029 | `feat(contracts): the desktop socket union` | — | **no** | 2 · server |
+| ☑ | HELI-039 | `fix(server): a shared module may sit in a route folder` | 019 | **no** | 2 · server |
 
-`019`, `027`, `028` and `029` are additions to this phase, not in the original cut. `019` extends the
-folder loader to `src/ws/` so `012` and `015` can register handlers without touching the shared
-loader. `027` repairs `src/types/fastify.d.ts`, which `010` froze: the zod provider it installed
-never reached a route generic, so `request.body` was `unknown` on every route that declared a body
-schema. `028` gives Prisma-row-to-contract mapping one home, because `013` and `016` both need it
-while `016` lands first. `029` defines `DesktopToApi` / `ApiToDesktop`, which P0 and `015` both name
-and `packages/contracts` never had — `015` cannot satisfy its `Done when` without them. All four land
-ahead of the rows that need them.
+`019`, `027`, `028`, `029` and `039` are additions to this phase, not in the original cut. `019`
+extends the folder loader to `src/ws/` so `012` and `015` can register handlers without touching the
+shared loader. `027` repairs `src/types/fastify.d.ts`, which `010` froze: the zod provider it
+installed never reached a route generic, so `request.body` was `unknown` on every route that declared
+a body schema. `028` gives Prisma-row-to-contract mapping one home, because `013` and `016` both need
+it while `016` lands first. `029` defines `DesktopToApi` / `ApiToDesktop`, which P0 and `015` both
+name and `packages/contracts` never had. `039` repairs the loader `019` wrote, which made a library
+module in `src/ws/` impossible and crashed the boot.
+
+**`039` is numbered outside the P1 block on purpose, and the id space is now the constraint to fix
+before the next phase.** P1 addenda filled `027`–`029`, the gap between P2's last id and P3's first,
+so a fifth P1 repair had nowhere to go that did not collide with a planned P3 row; `039` is the first
+free id after P3's range. Adding rows to a phase is now cheaper than repairing one.
 
 ## P2 · The observer loop — this is the product
 
