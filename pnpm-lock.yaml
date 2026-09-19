@@ -270,6 +270,9 @@ importers:
       expo-audio:
         specifier: ~1.1.1
         version: 1.1.1(expo-asset@12.0.13(expo@54.0.37)(react-native@0.81.5(@babel/core@7.29.7(supports-color@7.2.0))(@types/react@19.3.0)(react@19.1.0)(supports-color@7.2.0))(react@19.1.0)(supports-color@7.2.0)(typescript@5.9.3))(expo@54.0.37)(react-native@0.81.5(@babel/core@7.29.7(supports-color@7.2.0))(@types/react@19.3.0)(react@19.1.0)(supports-color@7.2.0))(react@19.1.0)
+      expo-build-properties:
+        specifier: ~1.0.10
+        version: 1.0.10(expo@54.0.37)
       expo-device:
         specifier: ~8.0.10
         version: 8.0.10(expo@54.0.37)
@@ -3316,6 +3319,11 @@ packages:
       expo-asset: '*'
       react: '*'
       react-native: '*'
+
+  expo-build-properties@1.0.10:
+    resolution: {integrity: sha512-mFCZbrbrv0AP5RB151tAoRzwRJelqM7bCJzCkxpu+owOyH+p/rFC/q7H5q8B9EpVWj8etaIuszR+gKwohpmu1Q==}
+    peerDependencies:
+      expo: '*'
 
   expo-constants@18.0.14:
     resolution: {integrity: sha512-BUZm9mkl/TX7zNaN0N4C83ws7mEnesCFiKhqK+rMZwTD2+Q4wWB2kBltqnC/LrCRaMyRi40XxhCRVwuKnJkxXQ==}
@@ -8725,6 +8733,12 @@ snapshots:
       expo-asset: 12.0.13(expo@54.0.37)(react-native@0.81.5(@babel/core@7.29.7(supports-color@7.2.0))(@types/react@19.3.0)(react@19.1.0)(supports-color@7.2.0))(react@19.1.0)(supports-color@7.2.0)(typescript@5.9.3)
       react: 19.1.0
       react-native: 0.81.5(@babel/core@7.29.7(supports-color@7.2.0))(@types/react@19.3.0)(react@19.1.0)(supports-color@7.2.0)
+
+  expo-build-properties@1.0.10(expo@54.0.37):
+    dependencies:
+      ajv: 8.20.0
+      expo: 54.0.37(@babel/core@7.29.7(supports-color@7.2.0))(@expo/metro-runtime@6.1.2)(expo-router@6.0.24)(react-native@0.81.5(@babel/core@7.29.7(supports-color@7.2.0))(@types/react@19.3.0)(react@19.1.0)(supports-color@7.2.0))(react@19.1.0)(supports-color@7.2.0)(typescript@5.9.3)
+      semver: 7.8.5
 
   expo-constants@18.0.14(expo@54.0.37)(react-native@0.81.5(@babel/core@7.29.7(supports-color@7.2.0))(@types/react@19.3.0)(react@19.1.0)(supports-color@7.2.0))(supports-color@7.2.0):
     dependencies:
