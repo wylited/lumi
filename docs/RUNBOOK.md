@@ -20,6 +20,39 @@ This file is the only place we keep the "why is it broken on my machine" answers
 ## First run
 
 ```bash
+./scripts/demo.sh
+```
+
+One command, one terminal: Docker, the schema, the bootstrap seed, the API, the storefront and the
+desktop, with the URLs printed at the end. It follows the logs; **ctrl-c stops the apps it
+started** (Docker keeps running — `--down` stops that too). Safe to re-run: a second run stops the
+processes the previous one started and reuses anything it did not start.
+
+```bash
+./scripts/demo.sh --detach     # bring it up and hand back the prompt
+./scripts/demo.sh --stop       # stop the apps (leaves Postgres and MinIO up)
+./scripts/demo.sh --down       # stop the apps, then `docker compose down`
+./scripts/demo.sh --no-reset   # boot against the data already in the database
+./scripts/demo.sh --help       # every flag
+```
+
+Then, to check the checkout before you trust it:
+
+```bash
+./scripts/verify.sh            # install, lint, typecheck, tests, routes, both UIs
+./scripts/verify.sh --quick    # skip the three gates; the routes and the UIs only
+```
+
+It prints one line per check and exits **0** when every check ran and passed, **1** when something
+failed, and **3** when nothing failed but some checks could not run. Gate on `0`: on a fresh
+bootstrap the session-dependent checks are skipped, because the seed has no session, and `3` is the
+honest report of that rather than a green line for requests that were never sent.
+
+### By hand
+
+The same thing, unrolled, for when you want one piece at a time:
+
+```bash
 pnpm install
 docker compose -f apps/server/docker-compose.yml up -d
 cp apps/server/.env.example apps/server/.env
@@ -40,10 +73,62 @@ them the server serves HTTP and logs which key is missing.
 
 The root `pnpm server`, `pnpm web` and `pnpm desktop` are one-line shortcuts for the same filters.
 
+### What `demo.sh` deliberately does not do
+
+Four choices in it are surprising enough to write down, because each one is a bug avoided rather
+than a shortcut taken.
+
+- **It does not start any mocks, because there are none.** The mock device, the mock desktop, the
+  fixture generator, the canned assessor and `dev:mock` were deleted on purpose (`d5895ae`), and the
+  device socket and pairing behind them in `fceb42d`. So a boot produces an API, a storefront and a
+  desktop — and **no signals at all** until a rig or the app provides them. The script says whether
+  the observe loop started, reading the server's own log rather than assuming, and names the missing
+  key when it did not.
+- **It only starts Docker when Postgres and MinIO are not already reachable** at the address in
+  `apps/server/.env`. Running `compose up -d` unconditionally is quietly destructive: on a machine
+  whose running containers differ from the compose file — a database deliberately moved to another
+  host port, say — Compose sees config drift and *recreates* them, and the `.env` underneath stops
+  matching the container. Reachability is the honest question.
+- **It never kills a process it did not start.** A port already serving is reused and reported as
+  reused, after checking the app on it really is the one expected. `--stop` stops what it started
+  and nothing else, and it identifies its own processes by a marker rather than by trusting a pid,
+  because pids get recycled.
+- **The desktop runs in a browser by default.** The desktop's own dev task is `tauri dev`, which
+  needs Xcode and a Rust toolchain and a first build measured in minutes. The same React UI runs
+  under Vite, and since `246a3bd` the app has no fake data at all: `lib/api.ts` defaults to
+  `http://localhost:3001` and says plainly when it cannot reach the server. `--tauri` runs the real
+  window where the toolchain exists.
+
+Runtime state — pids and one log per process — lives in `$TMPDIR/heli-demo`, never in the repo. Set
+`HELI_DEMO_STATE` to move it.
+
+### The URLs it prints
+
+| what | where |
+|---|---|
+| storefront | `http://localhost:3000` — marketing only, needs no server, shows no live data |
+| desk unit | `http://localhost:3000/device` — the storefront page for the physical unit |
+| console | `http://localhost:1420` — the desktop's live monitor |
+| goal | `http://localhost:1420` — the same window |
+| api | `http://localhost:3001` |
+| desk status | `http://localhost:3001/v1/desk` (bearer token required) |
+| live stream | `http://localhost:3001/v1/live/<sessionId>?token=…` — SSE, once a session exists |
+
+The desktop's four screens are one window with in-app routing, so "the goal URL" and "the console
+URL" are the same address: `⌘1`–`⌘4` select Live, Goal, History and Settings **in the Tauri
+window**. In a browser those keys switch tabs instead, so click the sidebar. There is no per-screen
+URL to print, and inventing one would be a lie. A token for the two bearer routes above:
+
+```bash
+curl -X POST http://localhost:3001/v1/auth/dev-login -H 'content-type: application/json' -d '{}'
+```
+
 ## Root scripts
 
 | script | does |
 |---|---|
+| `./scripts/demo.sh` | one-command boot — the whole stack, then the URLs |
+| `./scripts/verify.sh` | install, lint, typecheck, tests, routes, UIs — one line per check |
 | `pnpm dev` | `turbo run dev` — every app that has a dev task |
 | `pnpm build` | `turbo run build` |
 | `pnpm lint` | `eslint .` at the repo root |
@@ -144,7 +229,9 @@ vendor's dialect.
 
 | symptom | fix |
 |---|---|
-| **Port in use** — `:3001` or `:3000` already bound | `lsof -i :3001` then kill the PID. Only one server and one web process at a time. |
+| **Port in use** — `:3001` or `:3000` already bound | `lsof -i :3001` then kill the PID. Only one server and one web process at a time. `./scripts/demo.sh --stop` clears anything the boot script started. |
 | **Prisma client stale** — generated types lag the schema after an edit | `pnpm --filter @heli/server db:generate`, or `pnpm --filter @heli/server db:reset` for a full reset and reseed. |
+| **`EROFS: read-only file system, utime '~/.cache/prisma/…'`** — `db:reset`/`db push` cannot touch Prisma's engine cache | Point the cache somewhere writable: `XDG_CACHE_HOME=<writable dir> pnpm --filter @heli/server db:reset`. **Also keep `COREPACK_HOME`** (`COREPACK_HOME=~/.cache/node/corepack`) or pnpm itself stops resolving — it looks for its own install under `XDG_CACHE_HOME`. |
+| **Boot says the observe loop did not start** | Expected without keys. Set `DEEPSEEK_API_KEY`, `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` in `apps/server/.env`; the log line names the one that is missing. There is no offline stand-in any more (`d5895ae`). |
 | **pnpm build-script approval** — a dependency's postinstall was skipped | run `pnpm approve-builds`, or add it to `allowBuilds` in `pnpm-workspace.yaml` (Prisma and esbuild are already listed). |
 | **Stuck `.next` cache** — web serves a stale bundle | stop the dev server, delete `apps/web/.next`, start again. **Never run `next build` while `next dev` is running** — they fight over the same `.next` directory. Stop `pnpm dev` / `pnpm web` before `pnpm build`. |

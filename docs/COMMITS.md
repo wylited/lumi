@@ -233,11 +233,29 @@ decision note in `phases/P5-web.md`. Retired rows stay, struck through.
 
 | ✓ | id | commit | depends | ∥ | owner |
 |---|----|--------|---------|---|-------|
-| ☐ | HELI-060 | `chore(repo): one-command boot` | P0–P5 | **no** | — |
+| ☑ | HELI-060 | `chore(repo): one-command boot` | P0–P5 | **no** | 2 · server |
 | — | ~~HELI-061~~ | ~~`feat(server): demo replay mode`~~ — no demo mode: the loop is real or it is silent | | | |
 | ☐ | HELI-062 | `docs(repo): the run of show` | 060 | yes | — |
 | ☑ | HELI-063 | `fix(desktop): projector pass` (presenter mode; not yet seen on a real projector) | P3, 074 | yes | desktop+web |
 | ☐ | HELI-064 | `test(repo): end-to-end rehearsal` | all | **no** | — |
+
+**`060` landed against a moving target, and three things about it need a human.** The row's `Do:`
+still says it "starts the mock desk and the mock desktop", but those were deleted on purpose —
+`d5895ae` removed the mock device, the mock desktop, the fixture generator, the canned assessor and
+`dev:mock`, and `fceb42d` removed the device socket and pairing behind them. A script that started
+them could not work, and inventing a replacement would re-introduce exactly what was taken out, so
+`scripts/demo.sh` boots the **real** stack and then reports whether the observe loop started,
+reading the server's own log (`runtime built`, or `could not be built` naming the missing key).
+**The row's mock clause should be struck the way `061` was.** Second, its `Touches:` lists
+`scripts/demo.sh` and `docs/RUNBOOK.md` while its own `Do:` requires `./scripts/verify.sh` — that
+third file is created because the row demands it, and the `Touches:` line should be corrected.
+Third, **`Done when` is not literally true and cannot be made so from a clean clone alone**: the
+seed is the bootstrap (one person, one machine — no goal, no session), and the loop needs
+`DEEPSEEK_API_KEY`, `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID`, so on a machine without keys a
+clean clone yields an API, a storefront and a desktop, and **no signals and no session**. The script
+says all of that out loud rather than printing a URL to a session that does not exist, and
+`verify.sh` exits **3** — not 0 — when the session-dependent checks are skipped, so a green
+pre-flight can never mean "nothing was verified".
 
 ## P7 · Onboarding and the live monitor
 
