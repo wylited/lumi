@@ -9,6 +9,22 @@ const config: NextConfig = {
     webpackConfig.resolve.extensionAlias = { '.js': ['.ts', '.tsx', '.js'] }
     return webpackConfig
   },
+  /**
+   * The APK is a file to save, not a page to render. Without the explicit type
+   * and disposition a phone browser is free to show a blank tab while it decides
+   * what the bytes are, which reads as "the site is broken".
+   */
+  async headers() {
+    return [
+      {
+        source: '/downloads/:file*.apk',
+        headers: [
+          { key: 'content-type', value: 'application/vnd.android.package-archive' },
+          { key: 'content-disposition', value: 'attachment' },
+        ],
+      },
+    ]
+  },
 }
 
 export default config
