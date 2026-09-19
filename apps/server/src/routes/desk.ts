@@ -29,12 +29,15 @@ import {
 } from '../services/desk.js'
 import { sessionExists } from '../services/session.js'
 import {
+  FRAME_SOURCES,
   FrameRejectedError,
   framesAccepted,
   getFrame,
   ingestVideoFrame,
+  isFrameSource,
   resolveLatestFrameRef,
 } from '../services/frames.js'
+import type { FrameSource } from '../services/frames.js'
 
 /**
  * The rig's HTTP surface. This replaces the retired device socket: the Mac
@@ -96,6 +99,26 @@ const rigSeq = (value: unknown): number | null => {
  * read before a byte reaches this process's memory.
  */
 const FRAME_BODY_LIMIT = 8 * 1024 * 1024
+
+/**
+ * `x-heli-source` on the way in, `?source=` on the way out.
+ *
+ * Absent means the camera, because the rig does not send the header at all — it
+ * has one lens. An unknown value is **refused** rather than folded into the
+ * default: a typo'd source that quietly became `camera` would drop a screenshot
+ * into the desk pane and nothing would ever say so, which is the same class of
+ * bug this row exists to fix. The rejected value is deliberately not echoed.
+ */
+const frameSourceOf = (value: unknown): FrameSource | null => {
+  const raw = Array.isArray(value) ? value[0] : value
+  if (raw === undefined || raw === '') return 'camera'
+  return isFrameSource(raw) ? raw : null
+}
+
+const sourceRefusal = (): { error: string; message: string } => ({
+  error: 'unknown_source',
+  message: `x-heli-source and ?source= must be one of: ${FRAME_SOURCES.join(', ')}.`,
+})
 
 const deskRoutes: FastifyPluginAsync = async (app) => {
   // Raw JPEG bodies, scoped to this plugin. A frame is not multipart and not
@@ -165,6 +188,7 @@ const deskRoutes: FastifyPluginAsync = async (app) => {
       schema: {
         response: {
           201: DeskFrameResponse,
+          400: DeskRefusal,
           409: DeskRefusal,
           422: FrameRefused,
         },
@@ -195,12 +219,15 @@ const deskRoutes: FastifyPluginAsync = async (app) => {
         })
       }
 
+      const source = frameSourceOf(request.headers['x-heli-source'])
+      if (source === null) return reply.code(400).send(sourceRefusal())
+
       try {
         const meta = await ingestVideoFrame({
           sessionId: session.id,
           bytes: body,
+          source,
           seq: rigSeq(request.headers['x-heli-seq']) ?? framesAccepted(session.id) + 1,
-          retain: 'newest',
           ...(() => {
             const ts = capturedAt(request.headers['x-heli-captured-at'])
             return ts === undefined ? {} : { ts }
@@ -248,15 +275,23 @@ const deskRoutes: FastifyPluginAsync = async (app) => {
     '/sessions/:id/frame.jpg',
     {
       preHandler: requireUser,
-      schema: { params: z.object({ id: z.string().min(1) }) },
+      schema: {
+        params: z.object({ id: z.string().min(1) }),
+        querystring: z.object({ source: z.string().optional() }),
+      },
     },
     async (request, reply) => {
       const { id } = request.params
       if (!(await sessionExists(id))) return reply.code(404).send({ error: `No session ${id}.` })
 
+      const source = frameSourceOf(request.query.source)
+      if (source === null) return reply.code(400).send(sourceRefusal())
+
       // Resolved from the store rather than the mirror, for the same reason
-      // `GET /v1/desk` does: the preview must survive a server restart.
-      const ref = await resolveLatestFrameRef(id)
+      // `GET /v1/desk` does: the preview must survive a server restart. Per
+      // source, because the desk pane and the screen pane are asking for two
+      // different pictures of the same moment.
+      const ref = await resolveLatestFrameRef(id, source)
       if (ref === null) return reply.code(204).header('cache-control', 'no-store').send()
 
       const bytes = await getFrame(ref)
@@ -264,9 +299,9 @@ const deskRoutes: FastifyPluginAsync = async (app) => {
 
       return reply
         .header('content-type', 'image/jpeg')
-        // One stable key per session on the desk path, so the still is
-        // short-lived by design: 5 s keeps a 2 fps preview from re-fetching on
-        // every paint, and is short enough that a new frame shows up.
+        // A stable key per source, so the still is short-lived by design: 5 s
+        // keeps a 2 fps preview from re-fetching on every paint, and is short
+        // enough that a new frame shows up.
         .header('cache-control', 'private, max-age=5')
         .send(Buffer.from(bytes))
     },

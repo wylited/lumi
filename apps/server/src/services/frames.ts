@@ -20,6 +20,30 @@ import { endHubSession, publish, resetHub } from '../media/hub.js'
 export const MAX_FRAME_BYTES = 2 * 1024 * 1024
 export const MAX_FRAME_DIMENSION = 1600
 
+/**
+ * The two lenses a frame can come from, as `x-heli-source` and the URL spell it.
+ *
+ * The rig does not send the header at all — it only has a camera — so `camera` is
+ * the default. The desktop's screen capture sends `screen`.
+ */
+export const FRAME_SOURCES = ['camera', 'screen'] as const
+export type FrameSource = (typeof FRAME_SOURCES)[number]
+
+export const isFrameSource = (value: unknown): value is FrameSource =>
+  typeof value === 'string' && (FRAME_SOURCES as readonly string[]).includes(value)
+
+/**
+ * What the assess step calls each source.
+ *
+ * `AssessFrame.kind` is `'desk' | 'screen'` — the loop's word for the camera is
+ * "desk", because from the model's point of view the camera is looking at the
+ * desk. The mapping lives here, once, so no caller invents its own.
+ */
+export const KIND_OF_SOURCE: Record<FrameSource, 'desk' | 'screen'> = {
+  camera: 'desk',
+  screen: 'screen',
+}
+
 /* ---- rejection ----------------------------------------------------------- */
 
 /**
@@ -156,6 +180,8 @@ const AUDIO_RING_LIMIT = 600
  */
 export interface VideoFrameMeta extends MediaFrameMeta {
   sessionId: string
+  /** Which lens. Two frames of one moment are not interchangeable. */
+  source: FrameSource
   ref: ObjectRef
 }
 
@@ -171,15 +197,15 @@ export interface VideoFrameInput {
   seq: number
   ts?: string
   /**
-   * How much of this session's video to hold.
+   * Which lens this came from. The rig's camera is the default because the rig
+   * does not send the header at all; the desktop's screen capture sends
+   * `x-heli-source: screen`.
    *
-   * `recent` (the default) keeps a bounded ring — what the live fan-out and the
-   * mock device want. `newest` keeps exactly one, which is the desk path: the rig
-   * uploads at about 2 fps, and a stale still is worse than a missing one, so it
-   * drops what it held rather than letting a backlog build behind the frame the
-   * next assessment is about to read.
+   * This is the field whose absence was a bug: without it a screenshot and a
+   * photograph of the desk shared one "newest frame", so the model could be shown
+   * the screen while the prompt called it the desk.
    */
-  retain?: 'recent' | 'newest'
+  source?: FrameSource
 }
 
 export interface AudioChunkInput {
@@ -195,9 +221,9 @@ interface MediaSessionState {
   audio: AudioChunkMeta[]
   /**
    * Frames accepted for this session since this process started, whether or not
-   * they are still held. This is what `DeskStatus.frames` means — the desk panel
-   * shows it climbing — and it is deliberately not `frames.length`, which is a
-   * retention ring and sits at 1 once a desk keeps only its newest frame.
+   * they are still held in the ring. This is what `DeskStatus.frames` means — the
+   * desk panel shows it climbing — and it is deliberately not `frames.length`,
+   * which is a bounded metadata ring and would stop climbing.
    */
   accepted: number
 }
@@ -205,16 +231,21 @@ interface MediaSessionState {
 const sessions = new Map<string, MediaSessionState>()
 
 /**
- * The mirrored latest still, deliberately NOT part of `MediaSessionState`.
+ * The newest still **per source**, deliberately NOT part of `MediaSessionState`.
  *
  * §6.4: "On our side the last frame is kept so a still can still be served."
  * `endMediaSession` runs when the device's **socket** closes, and the session it
  * was serving is usually still open — so a still that vanished at that moment
  * would 404 exactly when someone is looking at the screen wondering why the
- * video stopped. One `ObjectRef` per session costs nothing to keep, and the
- * bytes it points at are in the object store, which outlives all of this.
+ * video stopped. An `ObjectRef` per session per source costs nothing to keep, and
+ * the bytes it points at are in the object store, which outlives all of this.
+ *
+ * Keyed by source because the two are different views of the same moment and must
+ * never be confused for one another. Keeping one slot per session is exactly the
+ * bug HELI-071 fixes: the screen frame would overwrite the camera frame, and the
+ * assess step would be handed a screenshot labelled as the desk.
  */
-const latestFrames = new Map<string, ObjectRef>()
+const latestFrames = new Map<string, Map<FrameSource, ObjectRef>>()
 
 const sessionState = (sessionId: string): MediaSessionState => {
   let state = sessions.get(sessionId)
@@ -241,25 +272,30 @@ const pushBounded = <T>(ring: T[], value: T, limit: number): void => {
  * identifier from the database, and a `/` or a `..` in it must never be able to
  * reach outside its own prefix.
  */
-const frameKey = (sessionId: string, ts: string, seq: number): string =>
-  `sessions/${sessionId.replace(/[^A-Za-z0-9_-]/g, '_')}/frames/${ts.replace(/[:.]/g, '-')}-${seq}.jpg`
+const slug = (sessionId: string): string => sessionId.replace(/[^A-Za-z0-9_-]/g, '_')
+
+/** Every frame is kept, under its own key, for the whole session. */
+const archiveKey = (sessionId: string, source: FrameSource, ts: string, seq: number): string =>
+  `sessions/${slug(sessionId)}/${source}/${ts.replace(/[:.]/g, '-')}-${seq}.jpg`
 
 /* ---- intake -------------------------------------------------------------- */
 
 /**
- * The desk's one frame lives at one key, so every upload overwrites the last.
+ * The newest frame *per source* also lives at a stable key, so it survives a
+ * restart.
  *
- * This is what makes "only one frame is retained per session" true of the
- * **bytes** and not merely of the metadata ring. A per-frame key plus a delete
- * would need a delete in `lib/storage.ts`, which belongs to HELI-014 and not to
- * this row — and overwriting is better anyway, because it cannot fail halfway
- * and leave the previous frame sitting in the bucket.
+ * HELI-071 keeps every frame for the session — a short single-user session, so
+ * nothing is evicted and nothing is tiered — which means the per-frame keys can
+ * no longer be searched for "the newest" without listing the bucket. `lib/storage.ts`
+ * has no listing and is not in this row, so the newest of each source is
+ * *also* written here, one small overwrite per upload. Two extra objects per
+ * session, not per frame.
  *
- * A stable key is also a stable URL, which is what the desktop's preview wants:
- * `GET /v1/sessions/:id/frame.jpg` is pointed at one path and caches for 5 s.
+ * It is also the URL the still is served from, which is what the desktop's
+ * preview and the monitor want: one path, cached briefly.
  */
-const latestFrameKey = (sessionId: string): string =>
-  `sessions/${sessionId.replace(/[^A-Za-z0-9_-]/g, '_')}/frames/latest.jpg`
+const anchorKey = (sessionId: string, source: FrameSource): string =>
+  `sessions/${slug(sessionId)}/${source}/latest.jpg`
 
 /**
  * The timestamp is caller-supplied — a header on the desk path, a message field
@@ -306,16 +342,28 @@ export async function ingestVideoFrame(input: VideoFrameInput): Promise<VideoFra
     )
   }
 
+  const source = input.source ?? 'camera'
+
+  // The archive: one object per frame, kept for the whole session. HELI-071's
+  // plan is explicit that a short single-user session evicts nothing, so this is
+  // the record rather than a cache.
+  await putObject({
+    key: archiveKey(sessionId, source, ts, seq),
+    body: bytes,
+    contentType: 'image/jpeg',
+  })
+
+  // The anchor: the newest of this source at a stable key, so a restarted server
+  // can still resolve it and the preview has one URL to point at.
   const ref = await putObject({
-    // One key per session on the desk path, so the previous frame is overwritten
-    // rather than accumulating at the rig's ~2 fps.
-    key: input.retain === 'newest' ? latestFrameKey(sessionId) : frameKey(sessionId, ts, seq),
+    key: anchorKey(sessionId, source),
     body: bytes,
     contentType: 'image/jpeg',
   })
 
   const meta: VideoFrameMeta = {
     sessionId,
+    source,
     seq,
     ts,
     bytes: bytes.byteLength,
@@ -326,17 +374,11 @@ export async function ingestVideoFrame(input: VideoFrameInput): Promise<VideoFra
 
   const state = sessionState(sessionId)
   state.accepted += 1
-  if (input.retain === 'newest') {
-    // The desk path. Drop what we held instead of queueing behind it: the one
-    // frame that matters is the newest, and this is what makes
-    // "only one frame is retained per session" true without a second code path
-    // for storing it.
-    state.frames.length = 0
-    state.frames.push(meta)
-  } else {
-    pushBounded(state.frames, meta, FRAME_RING_LIMIT)
-  }
-  latestFrames.set(sessionId, ref)
+  pushBounded(state.frames, meta, FRAME_RING_LIMIT)
+
+  const mirrors = latestFrames.get(sessionId) ?? new Map<FrameSource, ObjectRef>()
+  mirrors.set(source, ref)
+  latestFrames.set(sessionId, mirrors)
 
   publish(sessionId, { kind: 'frame', frame: meta })
 
@@ -406,41 +448,49 @@ export async function ingestAudioChunk(input: AudioChunkInput): Promise<AudioChu
 /* ---- reads --------------------------------------------------------------- */
 
 /**
- * The still that is always resolvable for a session, or null if none arrived.
- * Survives `endMediaSession` on purpose — see `latestFrames`.
+ * The newest still for one source, or null if none arrived. Survives
+ * `endMediaSession` on purpose — see `latestFrames`.
+ *
+ * `source` defaults to `camera` so that callers which only ever had a camera
+ * keep working, and so the preview URL's default and this default cannot drift.
  */
-export const latestFrameRef = (sessionId: string): ObjectRef | null =>
-  latestFrames.get(sessionId) ?? null
+export const latestFrameRef = (sessionId: string, source: FrameSource = 'camera'): ObjectRef | null =>
+  latestFrames.get(sessionId)?.get(source) ?? null
 
 /**
- * The newest frame for a session, **resolved from the store** when this process
- * has not seen one.
+ * The newest frame for a session and source, **resolved from the store** when
+ * this process has not seen one.
  *
  * `latestFrameRef` is an in-memory mirror, which means a server that restarted
  * mid-session has no ref even though the rig's frame is sitting in the bucket —
  * and the loop would then assess nothing until the rig uploaded again. That is
  * not "the frame store is the truth", it is the mirror being the truth.
  *
- * The desk path writes to one stable key per session, so the ref is *derivable*:
- * when the mirror is empty we ask the store whether that key is there, and warm
- * the mirror with what we find. On the non-desk path the key carries a timestamp
- * and a seq, so this probe simply misses and answers null — the same answer the
- * mirror would have given, at the cost of one round trip per session.
+ * Each source keeps a stable anchor key, so the ref is *derivable*: when the
+ * mirror is empty we ask the store whether that key is there and warm the mirror
+ * with what we find. That is one round trip per source per restart, not per read.
  */
-export async function resolveLatestFrameRef(sessionId: string): Promise<ObjectRef | null> {
-  const mirrored = latestFrames.get(sessionId)
+export async function resolveLatestFrameRef(
+  sessionId: string,
+  source: FrameSource = 'camera',
+): Promise<ObjectRef | null> {
+  const mirrored = latestFrames.get(sessionId)?.get(source)
   if (mirrored !== undefined) return mirrored
 
-  const stored = await getObject(latestFrameKey(sessionId))
+  const key = anchorKey(sessionId, source)
+  const stored = await getObject(key)
   if (stored === null) return null
 
   const ref: ObjectRef = {
-    key: latestFrameKey(sessionId),
+    key,
     contentType: stored.contentType,
     bytes: stored.body.byteLength,
     backend: storageBackend(),
   }
-  latestFrames.set(sessionId, ref)
+
+  const mirrors = latestFrames.get(sessionId) ?? new Map<FrameSource, ObjectRef>()
+  mirrors.set(source, ref)
+  latestFrames.set(sessionId, mirrors)
   return ref
 }
 
@@ -463,9 +513,10 @@ export const framesAccepted = (sessionId: string): number =>
   sessions.get(sessionId)?.accepted ?? 0
 
 /** A copy: the ring is the server's, and a caller must not be able to mutate it. */
-export const listFrames = (sessionId: string): VideoFrameMeta[] => [
-  ...(sessions.get(sessionId)?.frames ?? []),
-]
+export const listFrames = (sessionId: string, source?: FrameSource): VideoFrameMeta[] => {
+  const held = sessions.get(sessionId)?.frames ?? []
+  return source === undefined ? [...held] : held.filter((frame) => frame.source === source)
+}
 
 export const countAudioChunks = (sessionId: string): number =>
   sessions.get(sessionId)?.audio.length ?? 0

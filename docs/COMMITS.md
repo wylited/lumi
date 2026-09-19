@@ -250,7 +250,7 @@ the specification. `071` and `072` unblock it. Full `Do` and `Done when` in
 
 | ✓ | id | commit | depends | ∥ | owner |
 |---|----|--------|---------|---|-------|
-| ☐ | HELI-071 | `fix(server): per-source frames, and the assess step sees both` | 041 | **no** | 2 · server |
+| ☑ | HELI-071 | `fix(server): per-source frames, and the assess step sees both` | 041 | **no** | 2 · server |
 | ☐ | HELI-072 | `feat(server): drafting the goal from a sentence` | 004, 020 | yes | 2 · server |
 | ☑ | HELI-073 | `feat(server): the loop's line reaches the desktop` | 044, 048 | **no** | 1 · the loop |
 | ☐ | HELI-074 | `feat(desktop): the live monitor, split` | 071, 032 | yes | 3 · desktop + web |

@@ -13,7 +13,13 @@ import {
 import { prisma as defaultPrisma } from '../lib/prisma.js'
 import type { ObjectRef } from '../lib/storage.js'
 import { getWindow } from '../services/signals.js'
-import { getFrame, listFrames, resolveLatestFrameRef } from '../services/frames.js'
+import {
+  FRAME_SOURCES,
+  KIND_OF_SOURCE,
+  getFrame,
+  listFrames,
+  resolveLatestFrameRef,
+} from '../services/frames.js'
 import type {
   AssessFrame,
   Bus,
@@ -81,30 +87,37 @@ export function createPrismaReader(
     },
 
     async frames(sessionId: string): Promise<AssessFrame[]> {
-      // The newest frame the rig uploaded wins, and it is resolved from the frame
-      // **store**: the signal window's `lastFrameRef` is only a hint, and the
-      // in-memory mirror is empty after a restart, so neither can be the truth.
-      // `resolveLatestFrameRef` falls back to the store and warms the mirror.
-      const ref = await resolveLatestFrameRef(sessionId)
-      if (ref === null) return []
-      const bytes = frameBytes ? await frameBytes(ref) : await getFrame(ref)
+      // **Both** lenses, each labelled, when both exist. The desk camera and the
+      // screen are two different pictures of the same moment, and handing the
+      // model only one of them — labelled "the desk" — is the bug HELI-071
+      // fixes: a screenshot presented as the page the person is looking at.
+      const frames: AssessFrame[] = []
 
-      // The dimensions come from the retained frame's metadata so the assessment
-      // knows how large the image it is looking at is. They are absent rather
-      // than wrong once `endMediaSession` has released the ring but the mirrored
-      // still is still being served.
-      const meta = listFrames(sessionId).at(-1)
+      for (const source of FRAME_SOURCES) {
+        // Resolved from the frame **store**: the signal window's `lastFrameRef` is
+        // only a hint, and the in-memory mirror is empty after a restart, so
+        // neither can be the truth on its own.
+        const ref = await resolveLatestFrameRef(sessionId, source)
+        if (ref === null) continue
 
-      return [
-        {
-          kind: 'desk',
+        const bytes = frameBytes ? await frameBytes(ref) : await getFrame(ref)
+
+        // The dimensions come from what we hold, so the assessment knows how
+        // large each image is. Absent rather than wrong once `endMediaSession`
+        // has released the ring but the mirrored still is still being served.
+        const meta = listFrames(sessionId, source).at(-1)
+
+        frames.push({
+          kind: KIND_OF_SOURCE[source],
           ref: typeof ref === 'string' ? ref : ref.key,
           mediaType: 'image/jpeg',
           bytes: bytes ? Buffer.from(bytes) : null,
           width: meta?.width ?? null,
           height: meta?.height ?? null,
-        },
-      ]
+        })
+      }
+
+      return frames
     },
 
     goalFor,
