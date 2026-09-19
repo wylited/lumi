@@ -144,15 +144,15 @@ server owns intake, actions and persistence. Full detail, including the Python i
 
 | ✓ | id | commit | depends | ∥ | owner |
 |---|----|--------|---------|---|-------|
-| ☐ | HELI-040 | `feat(edge): the rig agent, camera capture and frame upload` | 009 | yes | 4 · hardware + rig |
+| ☑ | HELI-040 | `feat(edge): the rig agent, camera capture and frame upload` | 009 | yes | 4 · hardware + rig |
 | ☑ | HELI-041 | `feat(server): frame intake and the newest frame` | 040, 014 | **no** | 2 |
-| ☐ | HELI-042 | `feat(edge): the arm adapter and aiming` | 040 | yes | 4 · hardware + rig |
+| ☑ | HELI-042 | `feat(edge): the arm adapter and aiming` | 040 | yes | 4 · hardware + rig |
 | ☑ | HELI-043 | `feat(contracts): the desk socket, registration and actions` | 004 | **no** | 2 |
 | ☐ | HELI-044 | `feat(server): desks, the desk socket, and actions with acks` | 043, 041 | **no** | 2 |
-| ☐ | HELI-045 | `feat(edge): the action client and audio playback` | 042, 044 | yes | 4 · hardware + rig |
+| ☑ | HELI-045 | `feat(edge): the action client and audio playback` | 042, 044 | yes | 4 · hardware + rig |
 | ☐ | HELI-046 | `chore(desktop): desk setup and the desk panel` | 044 | yes | 3 |
-| ☐ | HELI-047 | `feat(contracts): the line reaches the desk` | 043 | yes | 4 · hardware + rig |
-| ☐ | HELI-048 | `feat(server): the observe loop starts` | 020 | **no** | 4 · hardware + rig |
+| ☑ | HELI-047 | `feat(contracts): the line reaches the desk` | 043 | yes | 4 · hardware + rig |
+| ☑ | HELI-048 | `feat(server): the observe loop starts` | 020 | **no** | 4 · hardware + rig |
 
 `041` landed in `879a5d9` as a draft and was reviewed and finished by owner 2; its `Done when` is
 proved with curl uploads, so it does not wait on `040`'s rig agent. `043` is the contracts gate: nothing desk-shaped should be
@@ -172,6 +172,34 @@ senders from one lookup — session id in, live desk socket out — and **nothin
 it yet**: the desk socket is `044`'s and `ws/desktop.ts` keeps its connections private behind no
 session index. Until one of them exposes that lookup the loop records every line as undelivered,
 which is what its log says, one line per drop.
+
+`040`, `042`, `045`, `047` and `048` are ticked with the lines that are literally true and the
+lines that are not. `040`: `uv run heli-rig --once` answers `201` and `GET /v1/desk` counts the
+frames climbing; the camera going away is a logged error and a retry, proved by stopping the
+console's vision process under a running rig. `042`: `aim(5, -3)` from pan -5.01/tilt -60.75
+settled at pan 4.92/tilt -3.16 on the real arm, `nod` and `home` moved it and acked real poses,
+and with armd down the caps report `arm: null` and `arm.*` is refused with `no_arm` -- **its
+`Done when` is not met for `point(x, y)`**, which needs the capture rectangle the setup UI (046)
+records, and no calibration rect exists on this bench. `045`: every action in `DeskAction` was
+executed and acked against a desk server speaking the landed contract, with the real camera and
+the real speaker, a 1.2 s line audible and acked `done/durationMs: 1200`; **its `Done when` is not
+met end to end**, because "an action from `POST /v1/desks/:id/actions` is executed and acked from
+the rig" needs that route, and `044` has not landed -- the rig half is done and validated against
+the contract. `047`: `pnpm --filter @heli/contracts build` emits `ApiDeskAudioOut` and
+`DeskActionResult.durationMs` into the JSON Schema, and `pnpm typecheck` is clean across the
+workspace. `048`: the server boots with the loop, logs its cadence and its open-session count,
+answers `/healthz` while it runs, and stops the scheduler before it closes on SIGTERM; **its
+`desk` lookup is `() => null`**, so until `044` (or a session index on the desktop socket)
+supplies it, every line the loop decides on is recorded as undelivered, which the outbound log
+says once per drop.
+
+Three of the rows understated their `Touches:`, so the ledger now carries what was really
+touched: `040` also owns `heli_rig/capture.py`, `conftest.py`, `.gitignore` and its five test
+modules; `042` also owns `heli_rig/arm/console_arm.py` (the console transport is a driver of its
+own) and `tests/test_calibration.py`; `045` also owns `heli_rig/registration.py` (the desk's
+credentials) and its four test modules plus `tests/fake_desk.py`. `047` touches
+`packages/contracts/src/desk.ts` and `scripts/emit-json-schema.ts`; `048` touches
+`apps/server/src/index.ts` and nothing else.
 
 ## P5 · Web — the storefront
 
