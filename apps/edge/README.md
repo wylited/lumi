@@ -14,10 +14,13 @@ camera ──▶ heli_rig.camera ──▶ heli_rig.capture ──▶ heli_rig.u
              (console or cv2)      (the cadence)          (one POST in flight)
 ```
 
-`arm/`, `audio.py`, `socket.py` and `actions.py` are the other direction (actions and speech down
-the desk socket). `heli_rig/__main__.py` carries a clearly marked block where the integrator wires
-the socket client into the same event loop as the capture loop; until then `heli-rig` captures and
-uploads, which is the whole of the capture path.
+`arm/`, `audio.py`, `socket.py` and `actions.py` are the other direction, and they are wired: one
+process runs the capture loop and the desk socket together. Frames go up on `POST /v1/desk/frames`;
+`/ws/desk` carries the actions down (`capture`, `arm.aim`, `arm.point`, …) with an ack for each, and
+the spoken line as tagged PCM that `audio.py` plays through `afplay`. A rig whose camera has not
+answered yet still belongs up — the loop keeps retrying while the socket runs beside it.
+
+The rig half of "aim here" is `--calibrate`, below.
 
 ---
 
@@ -26,6 +29,7 @@ uploads, which is the whole of the capture path.
 ```bash
 cd apps/edge
 uv sync
+uv run heli-rig --doctor  # what this machine has, and the command that fixes what it has not
 uv run heli-rig --once    # one frame, one upload, one JSON line on stdout, exits
 uv run heli-rig           # the long-running rig: capture at the configured cadence
 ```
@@ -37,6 +41,38 @@ defaults). Two ways to set them:
 HELI_FPS=4 uv run heli-rig                  # one-off
 uv run --env-file .env heli-rig             # from the file you copied .env.example to
 ```
+
+### On a machine that has never run this (`--doctor`)
+
+```bash
+uv run heli-rig --doctor
+```
+
+It asks the things the rig needs, in the order they fail, and prints one line each: the server at
+`HELI_API_URL`, a user token from the dev-login bootstrap, **an open session** (a fresh database has
+none, and every frame is refused 409 until something opens one), the desk registration and the
+`/ws/desk` handshake, the camera, one real upload through the whole path, the arm, the desk plane
+`arm.point` needs, and the speaker. Under a line that is wrong it prints the command that fixes it.
+Exit code: **0** ready, **1** runs but degraded (no arm, no calibration), **2** blocked.
+
+```
+ok   upload       35 KiB accepted as sessions/…/frames/latest.jpg (seq 1)
+warn desk plane   0 pose(s) recorded, and arm.point needs 3 spanning the desk plane
+                  -> record it on this machine, with the arm free: heli-rig --calibrate --rect x,y,w,h
+```
+
+What the doctor cannot install for you, because it is not part of this repo:
+
+| what | why it is needed | where it comes from |
+|---|---|---|
+| the arm | the serial bus, `lerobot`, and the servo calibration | the tracking project; point `HELI_BRIDGE_DIR` at it (default `~/Repos/tracking`), or run the operator console, which drives the same arm at `HELI_CONSOLE_URL` |
+| the camera | on this Mac `tracking.visiond` holds the UVC device and serves frames | the same project's console; without it `HELI_CAMERA_SOURCE=opencv` opens the device itself (index `HELI_CAMERA_INDEX`) |
+| macOS Camera permission | the process that opens the device | System Settings → Privacy & Security → Camera, for the terminal (or app) that runs the rig |
+| the desk plane | `arm.point` maps millimetres to pan/tilt through it | recorded on this machine: `heli-rig --calibrate --rect x,y,w,h`, five operator poses (see below) |
+
+A rig with no arm at all is still a rig: `HELI_ARM_DRIVER=none` (or nothing answering) registers
+`arm: null`, and the server sends it no `arm.*` action instead of asking it to point and collecting
+`no_arm`.
 
 ### The camera the tracking console already holds (the usual case)
 
@@ -106,15 +142,17 @@ re-plugged device is picked up without restarting the rig.
 | `HELI_JPEG_QUALITY` | `80` | the encoder's quality |
 | `HELI_DESK_NAME` | `Desk 1` | the name the desk registers under |
 | `HELI_ARM_DRIVER` | `auto` | `auto` \| `console` \| `serial` \| `none` |
-| `HELI_SPEAKER` | `true` | play the spoken line on this Mac |
+| `HELI_BRIDGE_DIR` | `~/Repos/tracking` | the project the `serial` fallback starts a bridge from: it holds `tracking/bridge.py` and a `lerobot` install. Not part of this repo — the doctor names it when the arm is unreachable |
+| `HELI_BRIDGE_PYTHON` | `<HELI_BRIDGE_DIR>/.venv/bin/python` | the interpreter that bridge runs under, when it is not the project's own `.venv` |
+| `HELI_SPEAKER` | `true` | play the spoken line on this Mac; `false` acknowledges it `no_speaker` instead of pretending |
 | `HELI_LOG_LEVEL` | `info` | `debug` \| `info` \| `warning` \| `error` \| `critical` |
 | `HELI_DIR` | `~/.heli` | where the desk id, token and arm calibration are kept |
 | `HELI_DESK_RECT` | — | the desk rectangle in millimetres (`x,y,w,h`) that `--calibrate` records |
 | `HELI_DESK_TOKEN` | — | a desk token handed to this rig; otherwise it registers one |
 | `HELI_EMAIL` | — | the seeded user's address, for the dev-login bootstrap |
 
-Flags: `--once`, `--calibrate`, `--rect`, `--camera-index`, `--console`, `--fps`, `--log-level`,
-`--api-url`. A flag beats the environment.
+Flags: `--doctor`, `--once`, `--calibrate`, `--rect`, `--camera-index`, `--console`, `--fps`,
+`--log-level`, `--api-url`, `--bridge-dir`, `--bridge-python`. A flag beats the environment.
 
 `uv run heli-rig --help` prints them.
 

@@ -79,6 +79,22 @@ _NO_TOKEN = (
 )
 
 
+def hello_frame(desk_id: str, camera: dict | None, arm: dict | None) -> dict:
+    """The caps go in `hello`; there is no separate caps frame.
+
+    A null camera or arm is the whole capability negotiation: the server sends no
+    action for what is not there. Exported because `--doctor` sends the same frame
+    to find out whether the server and this rig still agree on it.
+    """
+    return {
+        "t": "hello",
+        "deskId": desk_id,
+        "agentVersion": AGENT_VERSION,
+        "camera": camera,
+        "arm": arm,
+    }
+
+
 class DeskClient:
     """Serves the desk's half of the socket until it is cancelled."""
 
@@ -220,13 +236,7 @@ class DeskClient:
         say about themselves — a rig whose camera will not describe itself still
         has a socket and a speaker.
         """
-        return {
-            "t": "hello",
-            "deskId": self._desk_id(),
-            "agentVersion": AGENT_VERSION,
-            "camera": self._describe("camera"),
-            "arm": self._describe("arm"),
-        }
+        return hello_frame(self._desk_id(), self._describe("camera"), self._describe("arm"))
 
     def _desk_id(self) -> str:
         """The id `hello` announces.

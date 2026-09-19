@@ -39,6 +39,20 @@ __all__ = [
 DRIVERS = ('auto', 'console', 'serial', 'none')
 
 
+def bridge_kwargs(cfg) -> dict:
+    """Where the arm bridge is, as `SerialArm` wants it.
+
+    From the config in every real run; a test's stand-in may carry only the fields it exercises,
+    and an absent bridge location then reports itself as unconfigured instead of guessing a path.
+    """
+    directory = getattr(cfg, 'bridge_dir', None)
+    python = getattr(cfg, 'bridge_python', None)
+    return {
+        'cwd': str(directory) if directory else None,
+        'python': str(python) if python else None,
+    }
+
+
 def open_arm(cfg, log: logging.Logger) -> ArmDriver | None:
     """The arm this rig can drive, or None when there is no arm to drive.
 
@@ -47,6 +61,9 @@ def open_arm(cfg, log: logging.Logger) -> ArmDriver | None:
     reason, which is more useful than a silent None. `auto` probes: the console first, since it
     owns the bus while it runs, then a bridge of the rig's own, and reports no arm when neither
     answers. `none` means this rig has no arm at all.
+
+    The bridge is not part of this repo: it is a project of its own that owns the serial bus and
+    has lerobot, and `HELI_BRIDGE_DIR` / `HELI_BRIDGE_PYTHON` say where it and its interpreter are.
     """
     choice = str(getattr(cfg, 'arm_driver', 'auto') or 'auto').strip().lower()
     if choice not in DRIVERS:
@@ -60,7 +77,7 @@ def open_arm(cfg, log: logging.Logger) -> ArmDriver | None:
     if choice == 'console':
         return ConsoleArm(cfg.console_url, calibration=calibration, log=log)
     if choice == 'serial':
-        return SerialArm(cfg.console_url, calibration=calibration, log=log)
+        return SerialArm(cfg.console_url, **bridge_kwargs(cfg), calibration=calibration, log=log)
 
     if console_answers(cfg.console_url):
         answered, why = armd_answers(cfg.console_url)
@@ -73,7 +90,7 @@ def open_arm(cfg, log: logging.Logger) -> ArmDriver | None:
             return None
         log.info('arm through the console at %s', cfg.console_url)
         return ConsoleArm(cfg.console_url, calibration=calibration, log=log)
-    arm = SerialArm(cfg.console_url, calibration=calibration, log=log)
+    arm = SerialArm(cfg.console_url, **bridge_kwargs(cfg), calibration=calibration, log=log)
     try:
         arm.connect()
     except ArmError as exc:

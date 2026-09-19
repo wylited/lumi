@@ -1,11 +1,14 @@
-"""`heli-rig` — the rig's entry point, in three modes.
+"""`heli-rig` — the rig's entry point, in four modes.
 
 `--once` is the bench check: one frame, one upload, one JSON line on stdout, and
-an exit code a script can branch on. `--calibrate` records the desk plane — five
-prompts, five poses, one file — and exits. The default is the long-running rig:
-frames up at the cadence, actions and a line's PCM down the desk socket, with the
-arm and the speaker beside it. Each of those three is loaded only when its module
-is in the tree, so the capture path still runs on a rig with no arm and no speaker.
+an exit code a script can branch on. `--doctor` walks everything the rig needs on
+this machine — server, token, session, desk, socket, camera, one real upload, arm,
+desk plane, speaker — and prints what is missing with the command that fixes it.
+`--calibrate` records the desk plane — five prompts, five poses, one file — and
+exits. The default is the long-running rig: frames up at the cadence, actions and
+a line's PCM down the desk socket, with the arm and the speaker beside it. Each of
+those three is loaded only when its module is in the tree, so the capture path
+still runs on a rig with no arm and no speaker.
 """
 
 from __future__ import annotations
@@ -43,6 +46,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     log = logging.getLogger("heli_rig")
     log.debug("heli-rig %s: api=%s ws=%s camera=%s", AGENT_VERSION, cfg.api_url, cfg.ws_url, cfg.camera_source)
     try:
+        if cfg.doctor:
+            return asyncio.run(_doctor(cfg, log))
         if cfg.calibrate:
             return _calibrate(cfg, log)
         if cfg.once:
@@ -108,10 +113,15 @@ async def run_rig(cfg: Config, log: logging.Logger) -> None:
         # `open_arm` probes the bus and can block on a serial timeout, so it goes
         # to a thread: a dead arm must not delay the first frame.
         arm = await asyncio.to_thread(open_arm, cfg, log)
-    if _landed("heli_rig.audio"):
+    if _landed("heli_rig.audio") and cfg.speaker:
         from .audio import Speaker
 
         speaker = Speaker(log=log)
+    elif not cfg.speaker:
+        # `HELI_SPEAKER=false` is a rig that hears nothing: the socket acks the line
+        # `no_speaker` rather than pretending, which is what its own path already does
+        # for a rig with no speaker module at all.
+        log.info("HELI_SPEAKER=false: the rig will acknowledge a spoken line without playing it")
     try:
         source = await open_source(cfg, log)
     except CameraUnavailable as exc:
@@ -154,6 +164,86 @@ async def run_rig(cfg: Config, log: logging.Logger) -> None:
         await asyncio.gather(*tasks, return_exceptions=True)
         await uploader.aclose()
         await source.close()
+
+
+async def _doctor(cfg: Config, log: logging.Logger) -> int:
+    """The preflight: build the same pieces the run builds, then let `doctor` question them.
+
+    Nothing here is started — no capture loop, no socket client — because the point is to find out
+    whether they *would* work. The two things that can fail while being built (the arm, the camera)
+    are caught and handed on as notes, so one missing device does not end the report.
+    """
+    from .doctor import Rig, doctor
+
+    arm = None
+    arm_note = None
+    if cfg.arm_driver != "none" and _landed("heli_rig.arm"):
+        from .arm import open_arm
+
+        notes: list[str] = []
+        handler = _Collector(notes)
+        # On the package logger, not `heli_rig.arm`: `open_arm` reports the missing
+        # arm through the logger the caller handed it, and both are children of this.
+        rig_log = logging.getLogger("heli_rig")
+        rig_log.addHandler(handler)
+        try:
+            # `open_arm` probes the bus and can block on a serial timeout, so it goes to a thread.
+            arm = await asyncio.to_thread(open_arm, cfg, log)
+        finally:
+            rig_log.removeHandler(handler)
+        # The last word is the arm's: `open_arm` is the only thing running here.
+        arm_note = notes[-1] if notes and arm is None else None
+    elif not _landed("heli_rig.arm"):
+        arm_note = "the arm adapter is not in this tree"
+
+    source: FrameSource
+    camera_note = None
+    try:
+        source = await open_source(cfg, log)
+    except CameraUnavailable as exc:
+        camera_note = str(exc)
+        source = _unopened_source(cfg, log)
+
+    tokens = _tokens(cfg, log, partial(_caps, cfg, source, arm))
+    uploader = Uploader(cfg, _upload_tokens(cfg, tokens, log), log)
+    try:
+        return await doctor(
+            Rig(
+                cfg=cfg,
+                log=log,
+                source=source,
+                uploader=uploader,
+                arm=arm,
+                user_tokens=_UserTokenSource(cfg, log),
+                desk_tokens=tokens,
+                arm_note=arm_note,
+                camera_note=camera_note,
+            )
+        )
+    finally:
+        await uploader.aclose()
+        await source.close()
+        if arm is not None:
+            arm.close()
+
+
+class _Collector(logging.Handler):
+    """Keeps the WARNING+ lines a device logs while it is being opened.
+
+    `open_arm` reports a missing arm as a warning and a `None`; the doctor has to
+    quote that warning, because "no arm" without a reason is the answer nobody can
+    act on.
+    """
+
+    def __init__(self, into: list[str]) -> None:
+        super().__init__(level=logging.WARNING)
+        self._into = into
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            self._into.append(record.getMessage())
+        except Exception:  # a report must not be the thing that breaks
+            pass
 
 
 async def _once(cfg: Config, log: logging.Logger) -> int:

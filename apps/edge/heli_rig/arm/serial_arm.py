@@ -20,6 +20,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Sequence
+from pathlib import Path
 from typing import IO
 
 from .driver import (
@@ -32,9 +33,10 @@ from .driver import (
 )
 
 # The bridge lives in the tracking project, whose interpreter has lerobot and the arm's own
-# calibration; the rig's own interpreter has neither and must not grow them.
-BRIDGE_PYTHON = '/Users/wyli/Repos/tracking/.venv/bin/python'
-BRIDGE_DIR = '/Users/wyli/Repos/tracking'
+# calibration; the rig's own interpreter has neither and must not grow them. Where that project
+# lives is a setting (`HELI_BRIDGE_DIR` / `HELI_BRIDGE_PYTHON`, `--bridge-dir` / `--bridge-python`):
+# it used to be a constant here, and on every machine but the one it was written on that constant
+# was a missing directory, which the rig reported as "no arm" and nobody could act on.
 BRIDGE_ARGS = ('-m', 'tracking.bridge', '--no-vision')
 BRIDGE_START_TIMEOUT_S = 10.0   # armd opens the arm (handshake, calibration, travel) first
 BRIDGE_STOP_TIMEOUT_S = 3.0
@@ -54,9 +56,9 @@ class SerialArm(BridgeArm):
         tol_deg: float = 1.5,
         timeout_s: float = 5.0,
         *,
-        python: str = BRIDGE_PYTHON,
+        python: str | None = None,
         args: Sequence[str] = BRIDGE_ARGS,
-        cwd: str = BRIDGE_DIR,
+        cwd: str | None = None,
         calibration=None,
         log: logging.Logger | None = None,
         kp: float = AIM_KP,
@@ -88,6 +90,10 @@ class SerialArm(BridgeArm):
         """Start the bridge, unless the console holds the arm."""
         if console_answers(self.console_url):
             raise ArmUnavailable(CONSOLE_HOLDS_ARM)
+        missing = self._bridge_missing()
+        if missing is not None:
+            raise ArmUnavailable(missing)
+        assert self.python is not None and self.cwd is not None
         command = [self.python, *self.args]
         self.log.info('starting the bridge: %s (cwd %s)', ' '.join(command), self.cwd)
         try:
@@ -110,6 +116,32 @@ class SerialArm(BridgeArm):
         ]
         for pump in self._pumps:
             pump.start()
+
+    def _bridge_missing(self) -> str | None:
+        """Why this rig is not configured to start a bridge, or None when it is.
+
+        Answered before `Popen`, because the OS error for a missing interpreter ("No such file")
+        names a path and not the setting behind it — and the path that used to be baked in here
+        only existed on one machine.
+        """
+        if not self.python or not self.cwd:
+            return (
+                'the bridge is not configured - set HELI_BRIDGE_DIR to the project that '
+                'owns the serial bus (it has `tracking.bridge` and an interpreter with lerobot), and '
+                'HELI_BRIDGE_PYTHON if its interpreter is not <dir>/.venv/bin/python'
+            )
+        if not Path(self.cwd).is_dir():
+            return (
+                f'the bridge project {self.cwd} is not a directory - the arm needs that '
+                f'project; point HELI_BRIDGE_DIR at it (or drop the console, which drives the same '
+                f'arm at {self.console_url})'
+            )
+        if not Path(self.python).exists():
+            return (
+                f'the bridge interpreter {self.python} is not there - set HELI_BRIDGE_PYTHON '
+                f'to the interpreter of {self.cwd}, or run its own installer so its .venv exists'
+            )
+        return None
 
     def _pump_out(self, stream: IO[str] | None) -> None:
         """stdout: one JSON object per line. The None at the end is the child's obituary - without

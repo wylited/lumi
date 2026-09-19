@@ -19,6 +19,12 @@ from urllib.parse import urlsplit, urlunsplit
 API_URL_DEFAULT = "http://localhost:3001"
 CONSOLE_URL_DEFAULT = "http://127.0.0.1:8643"
 HELI_DIR_DEFAULT = "~/.heli"
+# Where the arm bridge lives: a project of its own, with a `tracking.bridge` module
+# and an interpreter that has lerobot. It is not this repo and it is not installed
+# with the rig, so its location is a setting rather than a constant - the previous
+# hardcoded path only existed on the machine the rig was written on, and every
+# other machine silently got "no arm".
+BRIDGE_DIR_DEFAULT = "~/Repos/tracking"
 DESK_NAME_DEFAULT = "Desk 1"
 FPS_DEFAULT = 2.0
 MAX_EDGE_PX_DEFAULT = 1600
@@ -45,7 +51,6 @@ class Config:
     api_url: str
     ws_url: str
     desk_token: str | None
-    email: str | None
     console_url: str
     camera_source: str
     camera_index: int
@@ -54,11 +59,15 @@ class Config:
     jpeg_quality: int
     desk_name: str
     arm_driver: str
+    #: The arm bridge: the project that owns the serial bus, and the interpreter that runs it.
+    bridge_dir: Path
+    bridge_python: str
     speaker: bool
     log_level: str
     heli_dir: Path
     once: bool
     calibrate: bool
+    doctor: bool
     #: The desk rectangle in millimetres (`x,y,w,h`) that `--calibrate` records.
     rect: str | None
 
@@ -85,11 +94,11 @@ def load(env: Mapping[str, str] | None = None, argv: Sequence[str] | None = None
     """
     source = os.environ if env is None else env
     api_url = _text(source, "HELI_API_URL", API_URL_DEFAULT).rstrip("/")
+    bridge_dir = Path(_text(source, "HELI_BRIDGE_DIR", BRIDGE_DIR_DEFAULT)).expanduser()
     cfg = Config(
         api_url=api_url,
         ws_url=websocket_url(api_url),
         desk_token=_optional(source, "HELI_DESK_TOKEN"),
-        email=_optional(source, "HELI_EMAIL"),
         console_url=_text(source, "HELI_CONSOLE_URL", CONSOLE_URL_DEFAULT).rstrip("/"),
         camera_source=_choice(source, "HELI_CAMERA_SOURCE", "auto", CAMERA_SOURCES),
         camera_index=_number(source, "HELI_CAMERA_INDEX", CAMERA_INDEX_DEFAULT, int),
@@ -98,11 +107,16 @@ def load(env: Mapping[str, str] | None = None, argv: Sequence[str] | None = None
         jpeg_quality=_number(source, "HELI_JPEG_QUALITY", JPEG_QUALITY_DEFAULT, int),
         desk_name=_text(source, "HELI_DESK_NAME", DESK_NAME_DEFAULT),
         arm_driver=_choice(source, "HELI_ARM_DRIVER", "auto", ARM_DRIVERS),
+        bridge_dir=bridge_dir,
+        bridge_python=str(
+            Path(_text(source, "HELI_BRIDGE_PYTHON", str(bridge_dir / ".venv" / "bin" / "python"))).expanduser()
+        ),
         speaker=_flag(source, "HELI_SPEAKER", True),
         log_level=_choice(source, "HELI_LOG_LEVEL", "info", LOG_LEVELS),
         heli_dir=Path(_text(source, "HELI_DIR", HELI_DIR_DEFAULT)).expanduser(),
         once=False,
         calibrate=False,
+        doctor=False,
         rect=_optional(source, "HELI_DESK_RECT"),
     )
     checked = _apply_argv(cfg, list(sys.argv[1:] if argv is None else argv))
@@ -127,6 +141,13 @@ def _apply_argv(cfg: Config, argv: list[str]) -> Config:
         help="record the desk plane: five prompts, five arm poses, one file, then exit",
     )
     parser.add_argument(
+        "--doctor",
+        action="store_true",
+        help="check what this machine has (server, camera, arm, calibration, speaker) and exit",
+    )
+    parser.add_argument("--bridge-dir", metavar="DIR", help="the arm bridge project (or HELI_BRIDGE_DIR)")
+    parser.add_argument("--bridge-python", metavar="PATH", help="its interpreter (or HELI_BRIDGE_PYTHON)")
+    parser.add_argument(
         "--rect",
         metavar="X,Y,W,H",
         help="the desk rectangle in millimetres that --calibrate records (or HELI_DESK_RECT)",
@@ -150,6 +171,12 @@ def _apply_argv(cfg: Config, argv: list[str]) -> Config:
         changes["once"] = True
     if args.calibrate:
         changes["calibrate"] = True
+    if args.doctor:
+        changes["doctor"] = True
+    if args.bridge_dir:
+        changes["bridge_dir"] = Path(args.bridge_dir).expanduser()
+    if args.bridge_python:
+        changes["bridge_python"] = str(Path(args.bridge_python).expanduser())
     if args.rect:
         changes["rect"] = args.rect
     if args.camera_index is not None:

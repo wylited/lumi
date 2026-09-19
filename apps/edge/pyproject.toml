@@ -8,7 +8,6 @@ dependencies = [
     "numpy>=1.26",
     "opencv-python-headless>=4.10",
     "websockets>=13",
-    "psutil>=6.0",
 ]
 
 [project.scripts]

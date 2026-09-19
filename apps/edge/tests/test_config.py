@@ -24,7 +24,6 @@ def test_defaults_are_the_ones_the_contract_names():
     assert cfg.log_level == "info"
     assert cfg.once is False
     assert cfg.desk_token is None
-    assert cfg.email is None
     assert cfg.heli_dir == Path.home() / ".heli"
 
 
