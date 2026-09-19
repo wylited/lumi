@@ -14,7 +14,7 @@ notes for every commit below. Read your phase before you claim anything.
 | P1 | [`phases/P1-server-core.md`](./phases/P1-server-core.md) | **2 · server** |
 | P2 | [`phases/P2-observer-loop.md`](./phases/P2-observer-loop.md) | **1 · the loop** (critical path) |
 | P3 | [`phases/P3-desktop.md`](./phases/P3-desktop.md) | **3 · desktop + web** |
-| P4 | [`phases/P4-edge-media.md`](./phases/P4-edge-media.md) | **4 · hardware + edge** |
+| P4 | [`phases/P4-desk-capture.md`](./phases/P4-desk-capture.md) | **4 · hardware + rig** |
 | P5 | [`phases/P5-web.md`](./phases/P5-web.md) | **3 · desktop + web** (storefront only) |
 | P6 | [`phases/P6-hackathon-day.md`](./phases/P6-hackathon-day.md) | all four |
 | policy | [`02-intervention-policy.md`](./02-intervention-policy.md) | 1 |
@@ -129,14 +129,21 @@ the runtime reports audio as undelivered rather than pretending.
 | ☑ | HELI-039 | `feat(ui): metrics kit` | 007 | yes | desktop+web |
 | ☐ | HELI-070 | `feat(desktop): devices and pairing` (from 054) | 033, 011 | yes | desktop+web |
 
-## P4 · Edge and media
+## P4 · Desk capture and the arm
+
+**Change of plan, recorded here.** There is no Pi. The rig is a Mac with a camera mounted on a
+robotic arm, driven over USB from the same machine. Pairing codes, the device socket, the LED ring
+and the shutter are all retired; `docs/03-device-contract.md` is superseded by
+`docs/03-desk-capture.md`. Registration is now a three-field setup in the app, and "camera control"
+means **aiming the arm**. P1/011's pairing routes stay in the tree but nothing calls them.
 
 | ✓ | id | commit | depends | ∥ | owner |
 |---|----|--------|---------|---|-------|
-| ☐ | HELI-040 | `feat(edge): camera and audio agent` | 009 | yes | — |
-| ☐ | HELI-041 | `feat(server): media relay and mjpeg` | 014 | yes | — |
-| ☐ | HELI-042 | `feat(edge): led and shutter` | 040 | yes | — |
-| ☐ | HELI-043 | `feat(edge): barge-in and playback` | 040, 022 | yes | — |
+| ☐ | HELI-040 | `feat(desktop): camera capture and frame upload` | 009 | yes | 4 |
+| ☐ | HELI-041 | `feat(server): frame intake and the latest frame` | 040, 014 | **no** | 4 |
+| ☐ | HELI-042 | `feat(desktop): arm control and aiming` | 040 | yes | 4 |
+| ☐ | HELI-043 | `feat(server): desk actions and physical interventions` | 041, 042, 022 | yes | 4 |
+| ☐ | HELI-044 | `chore(desktop): desk setup replaces pairing` | 040, 042 | yes | 4 |
 
 ## P5 · Web — the storefront
 
@@ -180,8 +187,8 @@ path.
 | **1 · the loop** | P2 | 020, 021, 023, 024, 025, 026 | the critical path. Protect this person from everything else. |
 | **2 · server** | P1 (+ media relay) | 010–018, 041 | server core. Start the moment P0 lands. |
 | **3 · desktop + web** | P3 + P5 | 030–039, 070, 050–05A, 063 | the product (the desktop app) and the storefront that sells it with the unit. |
-| **4 · hardware + edge** | P4 + the contract | 009, 040, 042, 043 | owns `docs/03-device-contract.md`; never touches `apps/` except `apps/edge`. |
+| **4 · hardware + rig** | P4 + the contract | 009, 040–044 | owns `docs/03-desk-capture.md` and the arm adapter; nobody else touches `src-tauri/src/arm/**`. |
 | **all four** | P0 | 001–008 | 001 alone first, then 002–008 in parallel, the night before. |
 
-`022` (speech out) and `041` (media relay) are the two server-side pieces the loop and edge depend
-on, so they land inside P1/P2 as written and are called out in each phase doc.
+`022` (speech out) is the server-side piece the loop needs; it lands inside P2 as written. The old
+`041` media relay is retired with the Pi — frame intake is now `041` in the new P4.

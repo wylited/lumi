@@ -13,7 +13,7 @@ This file is the only place we keep the "why is it broken on my machine" answers
 | pnpm | 12.4.1 (`packageManager` in the root `package.json`) |
 | Docker | for `apps/server/docker-compose.yml` (Postgres + MinIO), or a local Postgres |
 | Xcode | for the Tauri desktop (`apps/desktop`) |
-| Python 3.11 + uv | for the edge agent (`apps/edge`), see `docs/03-device-contract.md` |
+| A camera, and maybe an arm | the rig is a Mac with a camera on a robotic arm; see `docs/03-desk-capture.md` |
 
 ---
 
@@ -129,7 +129,7 @@ changing it. The recorded replay used by the demo lives in `apps/server/src/dev/
 
 `DEMO_MODE=replay` plays a recorded session — real signals, assessments, interventions and timings —
 through the **identical** bus and SSE path the live loop uses. Flip one env var and the demo still
-runs if the Pi dies, the wifi dies or the model rate-limits.
+runs if the camera dies, the wifi dies or the model rate-limits.
 
 Once `HELI-060` lands, the one-command boot is:
 
@@ -138,30 +138,35 @@ Once `HELI-060` lands, the one-command boot is:
 ```
 
 It brings up Postgres and MinIO, the server, the desktop and the web, seeds the DB, starts the mock
-device and mock desktop, and prints the pairing code, the goal URL and the console URL. It is
+desk and mock desktop, and prints the desk URL and the console URL. It is
 idempotent and safe to re-run. `./scripts/verify.sh` runs install check, lint, typecheck, tests and
 a handful of route curls, printing a pass or fail per check. Until then, use **First run** above.
 
 ---
 
-## Device
+## Desk
 
-**Pair.** The seed ships one device with code `HELI-DEMO`. The desktop's Settings shows the code and a QR (`HELI-070`).
-`POST /v1/devices/pair` is idempotent, so reconnecting with the same code returns the same device.
-The Pi connects to `wss://<api>/ws/device` with the header:
+**Setup replaces pairing.** There is no code and no QR. First run in the desktop app asks for a desk
+name, a camera (with a live preview) and optionally an arm (serial port + model), then one
+**"aim here"** calibration: drag a rectangle over the desk area to watch, and the app stores the
+pose that frames it. Re-running setup updates the same desk (`POST /v1/desks` is idempotent).
 
+**Frames.** The app uploads the newest frame to `POST /v1/sessions/:id/frames` with
+`content-type: image/jpeg`. To test by hand:
+
+```bash
+curl -X POST http://localhost:3001/v1/sessions/<sessionId>/frames \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: image/jpeg' \
+  --data-binary @frame.jpg
 ```
-Sec-WebSocket-Protocol: heli.v1, <pairing-code>
-```
 
-An unknown code returns 404 and a bad token closes with 401.
+An oversized (>2 MB), too wide (>1600 px) or non-JPEG upload is refused with a specific code and
+stores nothing. Only the newest frame per session is kept.
 
-**Rotate a code.** `POST /v1/devices/:id/rotate-code` issues a fresh code and immediately
-invalidates the old one. The device must re-pair; a rotated code rejects the old one.
-
-**Point the Pi at a laptop.** Run the server locally and give the agent the laptop's LAN address as
-its API base, e.g. `ws://<laptop-ip>:3001/ws/device`, keeping the same `heli.v1, <code>`
-subprotocol. The Pi and the laptop must be on the same network, and a local run does not need TLS.
+**The arm.** `arm.point { x, y }` aims at a point on the desk plane using the saved calibration;
+`arm.home` returns. If no arm is configured the aim actions are refused and everything else works.
+The adapter lives in `apps/desktop/src-tauri/src/arm/**` and is the only place that knows the
+vendor's dialect.
 
 ---
 

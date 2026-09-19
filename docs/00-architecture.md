@@ -42,8 +42,7 @@ Most windows end at **silence**. That is the intended default, not a gap.
 
 | | what it does | what it must never do |
 |---|---|---|
-| **desktop** (Tauri) | the base app. goal, live state, audio, and the native macOS signals | hold a model key, or act on the machine without logging it |
-| **edge** (Pi) | camera frames, mic audio, speaker out, LED state | call a model, or store anything |
+| **desktop** (Tauri) | the base app. goal, live state, audio, the native macOS signals, camera capture and arm aiming | hold a model key, or act on the machine without logging it |
 | **server** | aggregate, assess, policy, persist, push, speech and vision adapters | invent pedagogy or a goal |
 | **web** | the storefront: what it is, the desk unit, the download, reservations | read or write a session, or hold anything about a user beyond a reservation |
 
@@ -59,10 +58,10 @@ Native signals, all requiring consent:
 The desktop app owns the interruption surfaces: menu-bar state, notifications with an action, and
 audio playback.
 
-### edge (Pi)
-One frame per trigger, plus continuous media when a session is live. Tagged binary to the server
-(`0x01` video JPEG, `0x02` audio PCM). No provider key, no storage. See
-`docs/03-device-contract.md`.
+### rig (the Mac and the arm)
+The camera is mounted on a robotic arm on USB. The app captures frames, uploads the newest one, and
+can **aim** the camera when the server is unsure what it is looking at. No provider key, no device
+pairing. See `docs/03-desk-capture.md`.
 
 ### server (Fastify)
 Everything that persists; the only holder of a key. Goals and sessions, the observation row, the
@@ -80,7 +79,7 @@ explains them, sells the unit and hands out the app:
 | `/order` | reserve a unit — no payment exists in this build; a reservation is a line on the web server |
 | `/privacy` | the privacy promise in plain words |
 
-Review of your own sessions (history, what brings you back, replay) and device pairing live in the
+Review of your own sessions (history, what brings you back, replay) and desk setup live in the
 desktop app. The web never talks to the server.
 
 ---

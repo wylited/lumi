@@ -8,10 +8,11 @@ work.
 
 ## The product, in four lines
 
-An **observer** for a person trying to get something done. A camera and mic watch the desk; the
-desktop app watches the machine (apps, windows, browser, input, idle). We aggregate every signal,
-keep the stats, and **act** — a nudge, a line spoken out loud, or an automatic change — so the
-goal you set actually happens.
+An **observer** for a person trying to get something done. A camera on a robotic arm watches the
+desk — and can be aimed at what the observer is unsure about; the desktop app watches the machine
+(apps, windows, browser, input, idle). We aggregate every signal, keep the stats, and **act** — a
+nudge, a line spoken out loud, a physical point at the page, or an automatic change — so the goal
+you set actually happens.
 
 The theme is **Automate your studies / job / life.** An observer that only watches loses. Every
 session must end with something the system *did*, not only something it *saw*.
@@ -69,7 +70,7 @@ HELI-021
 ```
 
 Types: `feat` `fix` `refactor` `chore` `docs` `test` `style`.
-Scopes: `server` `desktop` `edge` `web` `contracts` `tokens` `ui` `repo` `ledger`.
+Scopes: `server` `desktop` `rig` `web` `contracts` `tokens` `ui` `repo` `ledger`.
 
 One commit = one entry in the ledger = one PR.
 
@@ -123,7 +124,7 @@ roles. Anything else is out of scope and will be reverted.
 | repo | pnpm workspaces + Turborepo; Node 22 |
 | server | Fastify 5, TypeScript, zod, Prisma + Postgres |
 | desktop | Tauri 2 (Rust sidecar + webview), React + Vite, `@heli/tokens` |
-| edge | Python 3.11 + uv on the Pi — camera, mic, speaker, LED (see `docs/03-device-contract.md`) |
+| rig | the Mac app drives a camera mounted on a robotic arm — capture, aiming, playback (see `docs/03-desk-capture.md`) |
 | web | Next.js 15 App Router, Tailwind v4, `@heli/tokens`, three.js for the unit — the storefront only |
 | models | DeepSeek Flash (vision + text, structured output) primary; Gemini behind the same adapter as escalation |
 | voice | speech out through the server bridge; a local adapter so the path works with no keys |
@@ -138,7 +139,6 @@ Do not introduce a library that is not already in a `package.json` without it be
 
 ```
 apps/desktop    the base app. goal, live state, audio, native signals
-apps/edge       the Pi. camera, mic, speaker, LED — see docs/03-device-contract.md
 apps/server     the aggregator. the only component that persists or holds a key
 apps/web        the storefront: home, desk unit, download, order — marketing only
 packages/contracts  zod schemas → TS types + JSON Schema for the Python side

@@ -12,7 +12,7 @@ room. Claim these early in the day, not at hour 34.
 **Depends:** P0–P5 **Parallel-safe:** no **Owner:** —
 **Touches:** `scripts/demo.sh`, `docs/RUNBOOK.md`
 **Do:** `./scripts/demo.sh` brings up Postgres and MinIO, the server, the desktop app and the web,
-seeds the DB, starts the mock device and the mock desktop, and prints the pairing code, the goal
+seeds the DB, starts the mock desk and the mock desktop, and prints the desk URL and the goal
 URL and the console URL. One terminal, one command, no ordering to remember. Idempotent and safe to
 re-run. Add `./scripts/verify.sh` that runs install check, lint, typecheck, tests and a handful of
 route curls, printing a pass or fail line per check.
@@ -24,7 +24,7 @@ live session in under three minutes.
 **Touches:** `apps/server/src/dev/replay.ts`
 **Do:** `DEMO_MODE=replay` plays a recorded session — real signals, real assessments, real
 interventions, real timings — through the **identical** bus and SSE path the live loop uses. Not a
-mock UI: the same code path, fed from disk. If the Pi dies, the wifi dies, or the model rate-limits
+mock UI: the same code path, fed from disk. If the camera dies, the wifi dies, or the model rate-limits
 at the worst moment, you flip one env var and the demo still runs.
 **Done when:** with the network off and the device stopped, the console plays a full session
 indistinguishable from live.

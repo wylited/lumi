@@ -92,23 +92,24 @@ tabbing through shifts nothing.
 **Depends:** 001 **Parallel-safe:** yes **Owner:** —
 **Touches:** `README.md`, `docs/RUNBOOK.md`
 **Do:** Five-minute setup. Every `pnpm` script explained in one line. Runbook: reset the DB, point
-the Pi at a laptop, the macOS consent checklist (Accessibility, Screen Recording, Input
+the camera and arm at the desktop, the macOS consent checklist (Accessibility, Screen Recording, Input
 Monitoring) with where each prompt appears, what to do when the model rate-limits, where replay
 mode lives, and how to rotate a device code.
 **Done when:** someone who has never seen the repo gets `pnpm dev` running from the README alone.
 
-### HELI-009 · docs(edge): the device contract
+### HELI-009 · docs(rig): the desk capture contract
 **Depends:** — **Parallel-safe:** yes **Owner:** 4 · hardware
-**Touches:** `docs/03-device-contract.md`
+**Touches:** `docs/03-desk-capture.md`
 **Do:** The single document the hardware person needs, written independently of the rest of the
 build: responsibilities, the `heli.v1` handshake and pairing, the full device→api and api→device
 message tables with JSON examples, caps, the frame budget, tagged media framing with a worked byte
 example, telemetry, the state machine and LED table, the 200 ms shutter promise, backpressure and
 offline behaviour, the error codes, and a twelve-point acceptance checklist.
-**Done when:** someone can build the Pi agent from this file alone, and the checklist passes against
-a running server.
-**Notes:** land this **before P4** so the hardware person can start on day one. `040` then
-implements against it rather than writing it.
+**Done when:** someone can build the rig from this file alone, and the checklist passes against a
+running server.
+**Notes:** land this **before P4** so the rig person can start on day one. The original Pi version
+(`docs/03-device-contract.md`) is kept marked superseded: the rig turned out to be a Mac with a
+camera on an arm.
 
 ---
 

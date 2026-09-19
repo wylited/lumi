@@ -123,15 +123,16 @@ tier) and `Meter` (a ratio bar). Tokens only, both themes, no chart library.
 **Done when:** each is exported from `@heli/ui`, renders in both themes in the web kitchen sink,
 and `pnpm --filter @heli/ui typecheck` passes.
 
-### HELI-070 · feat(desktop): devices and pairing
-**Depends:** 033, P1/011 **Parallel-safe:** yes **Owner:** 3
-**Touches:** `apps/desktop/src/routes/settings.tsx`, `apps/desktop/src/components/devices/**`, `apps/desktop/src/lib/devices.ts`
-**Do:** Moved here from the web (`054`) when the web became the storefront. In Settings: the desk
-units with state and last seen, the pairing code as text and as a QR the Pi reads with its own
-camera, rotate the code, identify (blink the ring). The live camera view, when a session is live,
-sits behind a disclosure — the desktop is where the person already is.
-**Done when:** the QR pairs a unit in one scan, rotating refuses the old code, and identify blinks
-the ring.
+### HELI-070 · feat(desktop): the desk panel
+**Depends:** 033, 040, 042 **Parallel-safe:** yes **Owner:** 3
+**Touches:** `apps/desktop/src/routes/settings.tsx`, `apps/desktop/src/components/desk/**`, `apps/desktop/src/lib/desk.ts`
+**Do:** The desk's home in Settings, after `044` has run the first-time setup: the registered desk
+with its name and id, the camera with a live preview, the arm's connection state and pose, the
+capture rectangle and a "re-aim" action, and the capture fps with the last frame time. No pairing
+code, no QR, no device token — that design is retired with the Pi. If the server is unreachable the
+panel says so and keeps what it knows locally.
+**Done when:** the panel shows the camera live, re-aiming updates the stored rectangle, and an
+unplugged arm reads as disconnected rather than unknown.
 
 ---
 

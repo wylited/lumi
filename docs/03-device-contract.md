@@ -1,3 +1,6 @@
+> **SUPERSEDED.** There is no Pi. The rig is a Mac with a camera on a robotic arm; see
+> `docs/03-desk-capture.md`. This file is kept only so the retired design is not lost.
+
 # Device contract
 
 **Audience: whoever is building the Pi agent.** This is the only software document you need.

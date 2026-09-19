@@ -163,7 +163,13 @@ export const Intervention = z.object({
 
 ---
 
-## 6. Device socket — `wss://api/ws/device`, protocol `heli.v1`
+## 6. Device socket — RETIRED
+
+> There is no Pi. Desk capture and arm control live in `docs/03-desk-capture.md`, and the actions
+> travel over the **desktop** socket (`ApiToDesktop`). This section is kept only so the retired
+> shapes are not lost.
+
+### (retired) `wss://api/ws/device`, protocol `heli.v1`
 
 Binary frames are **tagged** (`0x01` video JPEG, `0x02` audio PCM S16LE, `0x03` reserved).
 Everything else is JSON. The device authenticates with a pairing code in
