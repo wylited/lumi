@@ -2,7 +2,7 @@
 
 The Mac's half of Helicopter. It takes one frame at a time off the camera and posts it to the
 server, and the rest of the rig hangs off the same settings: the arm that aims the camera, and the
-speaker that plays the line. Python 3.11, headless, managed by `uv`.
+speaker that plays the line. Python 3.12+, headless, managed by `uv`.
 
 The rig never sees a user id or a session id: it posts a frame, the server attributes it to the one
 open session, and the newest frame wins every time. A frame that is late is worse than a frame that
@@ -42,62 +42,98 @@ HELI_FPS=4 uv run heli-rig                  # one-off
 uv run --env-file .env heli-rig             # from the file you copied .env.example to
 ```
 
-### On a machine that has never run this (`--doctor`)
+`--doctor` is the machine check: it walks every requirement in the order they fail and prints the
+command that fixes each wrong line. The setup guide below is the same thing in prose.
+
+## Setting up a machine that has never run this
+
+The whole rig is one directory and one command. What follows is the order that works, and what each
+step is actually waiting for.
+
+### 1. The stack (server + database + app)
+
+From the repo root, on the machine that will hold the database:
 
 ```bash
-uv run heli-rig --doctor
+./scripts/demo.sh --detach      # Docker, the schema, the seed, the API, the storefront, the desktop
 ```
 
-It asks the things the rig needs, in the order they fail, and prints one line each: the server at
-`HELI_API_URL`, a user token from the dev-login bootstrap, **an open session** (a fresh database has
-none, and every frame is refused 409 until something opens one), the desk registration and the
-`/ws/desk` handshake, the camera, one real upload through the whole path, the arm, the desk plane
-`arm.point` needs, and the speaker. Under a line that is wrong it prints the command that fixes it.
-Exit code: **0** ready, **1** runs but degraded (no arm, no calibration), **2** blocked.
+It prints the URLs when it is up. If the observe loop reports `OFF — missing: <key>`, that is the
+server telling you which provider key it wants; the rig does not need one.
 
-```
-ok   upload       35 KiB accepted as sessions/…/frames/latest.jpg (seq 1)
-warn desk plane   0 pose(s) recorded, and arm.point needs 3 spanning the desk plane
-                  -> record it on this machine, with the arm free: heli-rig --calibrate --rect x,y,w,h
+### 2. The rig
+
+```bash
+cd apps/edge
+uv sync                         # Python 3.12+; uv fetches the interpreter if the machine has none
+uv run heli-rig --doctor        # what this machine has, and the command that fixes what it has not
 ```
 
-What the doctor cannot install for you, because it is not part of this repo:
+`uv sync` is the whole install. It brings the camera, the pose model (`models/yolo11n-pose.onnx`,
+committed in the tree), the control law and the desk socket — no torch, no second virtualenv, no
+system Python packages.
 
-| what | why it is needed | where it comes from |
+`--doctor` then walks every requirement in the order they fail, and under each wrong line prints the
+command that fixes it. Read it top to bottom; the first `fail` is the thing to fix.
+
+### 3. The two things the repo cannot install for you
+
+Everything above is in the tree. Two things are not, and the doctor names whichever is missing.
+
+**macOS Camera permission.** The process that opens the device needs it: System Settings → Privacy &
+Security → Camera, for the terminal (or app) that runs the rig. Without it the camera opens and
+returns nothing, which reads as a broken camera.
+
+**An arm.** This is the real dependency, and it is worth being blunt about it. The rig can *aim* an
+arm through one of two routes, and both need something outside this repo:
+
+| route | what it needs | how to point the rig at it |
 |---|---|---|
-| the arm | the serial bus, `lerobot`, and the servo calibration | the tracking project; point `HELI_BRIDGE_DIR` at it (default `~/Repos/tracking`), or run the operator console, which drives the same arm at `HELI_CONSOLE_URL` |
-| the camera | on this Mac `tracking.visiond` holds the UVC device and serves frames | the same project's console; without it `HELI_CAMERA_SOURCE=opencv` opens the device itself (index `HELI_CAMERA_INDEX`) |
-| macOS Camera permission | the process that opens the device | System Settings → Privacy & Security → Camera, for the terminal (or app) that runs the rig |
-| the desk plane | `arm.point` maps millimetres to pan/tilt through it | recorded on this machine: `heli-rig --calibrate --rect x,y,w,h`, five operator poses (see below) |
+| the operator console | the `tracking` project running `bun ui/server.ts` — it owns the serial bus and supervises `armd` | `HELI_CONSOLE_URL` (default `http://127.0.0.1:8643`). `HELI_ARM_DRIVER=auto` prefers it whenever it answers |
+| the serial bridge | the same project, plus an interpreter with `lerobot` in it | `HELI_BRIDGE_DIR` (default `~/Repos/tracking`) and `HELI_BRIDGE_PYTHON` if its `.venv` is elsewhere |
 
-A rig with no arm at all is still a rig: `HELI_ARM_DRIVER=none` (or nothing answering) registers
-`arm: null`, and the server sends it no `arm.*` action instead of asking it to point and collecting
-`no_arm`.
+That project is **not** in this repo and has no remote, so a machine that has never had it cannot
+`git clone` it: it has to be copied across (`scp -r`, a shared drive) along with its two virtualenvs,
+and then started with `bun ui/server.ts` from its own directory. The rig's arm half is otherwise
+complete and tested — it is the bus, and only the bus, that lives outside.
 
-### The camera the tracking console already holds (the usual case)
+`lerobot` is what knows this arm's Feetech STS3215 chain, its homing offsets and its EEPROM travel
+limits. It is not vendored here on purpose: it drags in torch and pins `numpy<2.3`, which would slow
+the detector down for every rig that has no arm. It is declared as an optional extra
+(`uv sync --extra arm`) for the slice that owns the bus directly; today the rig reaches the arm
+through the console or a bridge process, both of which are the tracking project.
 
-On this Mac the wrist UVC camera (`[0] USB Camera`, 640×480) is held by `tracking.visiond`, and its
-console serves the newest frame at `http://127.0.0.1:8643/api/frame.jpg`. The default
-`HELI_CAMERA_SOURCE=auto` prefers that frame whenever the console reports one less than 5 s old, and
-says so in the log:
+**Without either route the rig is still a rig.** `HELI_ARM_DRIVER=none` (or nothing answering)
+registers `arm: null`, the server sends it no `arm.*` action, and the camera, the frames, the upload
+and the spoken line all keep working. What does not work is aiming, pointing and following.
+
+### 4. Watch something
+
+The seed is the bootstrap — one person, one machine — and no session. A session is what frames attach
+to, so open one from the app: **the desktop's setup flow opens it when you press Start watching**
+(`apps/desktop/src/routes/setup.tsx`). Until then every frame is answered `409 no_open_session` and
+the rig slows to a fifth of its cadence rather than stopping.
+
+### 5. The camera
+
+`HELI_CAMERA_SOURCE` decides, and the answer for lumi is **`opencv`**:
+
+- **`opencv`** opens the UVC device itself (`HELI_CAMERA_INDEX`, `0` on this Mac) and uploads clean
+  footage. **Use this one.**
+- `console` takes the frame the tracking console serves at `http://127.0.0.1:8643/api/frame.jpg`,
+  which has the tracker's green bounding box, magenta chest crosshair and its `id … fps … ms` text
+  **drawn into the pixels**. The rig uploads exactly the bytes it is handed, so an observer's frame
+  from the console arrives with another program's annotations on it (verified on this bench: same
+  desk, overlay visible; `opencv` gives the same desk clean).
+- `auto` (the default) prefers the console's frame when one is less than 5 s old and falls back to
+  the device, and says which it took:
 
 ```
 camera: the console's frame, 640x480 camera: USB Camera
-```
-
-`auto` falls back to opening the device itself when the console is not there or has stopped
-writing frames, and logs the reason:
-
-```
 camera: no console frame (no console at http://127.0.0.1:8643: ...); opening AVFoundation index 0 instead
 ```
 
-Frames from the console are already inside the server's limits, so the rig uploads them **untouched**
-— it does not decode and re-encode 45 kB twice a second for no reason.
-
-### A free UVC device (no console in the way)
-
-Any camera the console is not holding can be opened directly. On this Mac `[1] FaceTime HD` is free,
+Any camera the console is not holding can be opened directly — `[1] FaceTime HD` is free on this Mac,
 so it works with the console still running:
 
 ```bash
@@ -109,15 +145,13 @@ camera: AVFoundation index 1, 1920x1080 camera: AVFoundation camera 1
 ```
 
 The device delivers 1920×1080; the rig downscales by a whole factor (2) and uploads 960×540, because
-the server refuses anything over `HELI_MAX_EDGE_PX` (1600 by default) or 2 MB. `HELI_CAMERA_SOURCE=opencv`
-is also what to use when the console is stopped and you want the wrist camera itself.
+the server refuses anything over `HELI_MAX_EDGE_PX` (1600 by default) or 2 MB.
 
 OpenCV does not report a device name through AVFoundation, so a directly-opened camera is named by
 its index. That is thin, but it is true — the console's frames come with the device's real name.
 
-### When the camera goes away
-
-Unplug it, or stop the console. The rig logs the reason once and keeps running, retrying every 5 s:
+**When the camera goes away** — unplug it, or stop the console — the rig logs the reason once and
+keeps running, retrying every 5 s:
 
 ```
 WARNING heli_rig.capture: camera USB Camera: the console did not answer /api/frame.jpg: ...; retrying every 5s
@@ -147,7 +181,7 @@ re-plugged device is picked up without restarting the rig.
 | `HELI_SPEAKER` | `true` | play the spoken line on this Mac; `false` acknowledges it `no_speaker` instead of pretending |
 | `HELI_TRACKING` | `off` | `off` \| `auto`: follow the person at the desk without being asked |
 | `HELI_MODEL` | `models/yolo11n-pose.onnx` | the pose model; a relative path resolves against `apps/edge`, so it is found whatever the working directory is |
-| `HELI_TRACK_FPS` | `10` | the tracker's own cadence (detection is ~25 fps on CPU) |
+| `HELI_TRACK_FPS` | `10` | the tracker's own cadence (detection is ~15 fps on this Mac's CPU — 51–69 ms a frame) |
 | `HELI_TRACK_DEADBAND` | `0.04` | the share of the frame the chest may sit off the aim point before the arm moves |
 | `HELI_LOG_LEVEL` | `info` | `debug` \| `info` \| `warning` \| `error` \| `critical` |
 | `HELI_DIR` | `~/.heli` | where the desk id, token and arm calibration are kept |
@@ -242,10 +276,14 @@ Written for whoever owns the app, because the rig cannot change what the app dra
 measured on this bench, not estimates.
 
 **The pane rate is the app's to choose, and the rig will feed it.** `GET /v1/sessions/:id/frame.jpg`
-answers `cache-control: private, no-store`, so a poll loop gets a new picture every time — 12 of 12
-fetches 120 ms apart returned a different JPEG. The rig publishes at `HELI_FPS` (12 on this bench);
-below that, the pane's poll interval decides what you see, and a pane polling at 1 Hz shows a 1 fps
-desk no matter what the rig does.
+answers `cache-control: private, max-age=5` today, so a browser reuses the body between polls and a
+10 Hz pane shows one picture every five seconds. The rig is publishing 12 distinct frames a second
+(12 of 12 fetches 120 ms apart returned a different JPEG), so the header — not the rig — is what
+caps a fast pane. `no-store` (or a `?t=` cache-buster on the app's side) is the one-line fix, and it
+is the server's file: the rig cannot make it.
+
+The rig publishes at `HELI_FPS` (12 on this bench); below that, the pane's poll interval decides
+what you see, and a pane polling at 1 Hz shows a 1 fps desk no matter what the rig does.
 
 **Nothing needs a new endpoint to track a person.** The overlay the app draws is its own: the rig's
 aim point is `(0.5, 0.5)` of the frame (the tracking project's `aim`, and what `arm.point` maps
@@ -280,6 +318,10 @@ aim point. It is off by default — an observer that moves on its own is a decis
   `HELI_TRACKING=auto` must be set — a rig configured `off` refuses with `tracking_disabled` rather
   than turning on a camera and an arm nobody asked for), `on: false` stops and leaves the arm where
   it is. Acked with `pose` (where the arm ended up) like the other arm actions.
+- **The rig reports it in `desk.health.following`**, every heartbeat: `true` while it is following,
+  `false` when it has a tracker and is not, `null` when it has none at all (no arm, no model,
+  `HELI_TRACKING=off` at wiring time). `null` and `false` are different claims — a desk that cannot
+  follow is not a desk that is not following — and the app's Follow me switch reads it that way.
 - **Silence is the default here too.** Inside `HELI_TRACK_DEADBAND` (4% of the frame — the tracking
   project's own hand-tuned value) the arm does not move: a person sitting still is not chased by a
   camera twitching at keypoint jitter. It is deliberately tight, because a person sitting at the

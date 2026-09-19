@@ -40,10 +40,12 @@ SOCKET_TIMEOUT_S = 5.0
 HELLO_QUIET_S = 1.5
 DESK_PATH = "/v1/desk"
 SESSION_BODY = '{"deviceId":"dev_seed","goalId":"goal_seed"}'
-# The session a fresh database does not have: the seed writes only a closed one, and nothing in the
-# desktop app opens another yet, so this command is how a person starts watching.
+# The session a fresh database does not have: the seed is the bootstrap (one person, one machine)
+# and no session, so a person opens one from the app's setup flow. This command is the same thing
+# by hand, for a rig being checked before the app is up.
 SESSION_FIX = (
-    "open one (the desktop app cannot yet): curl -sX POST $HELI_API_URL/v1/sessions "
+    "open one from the desktop app (its setup flow does this when you press Start watching), or by "
+    "hand: curl -sX POST $HELI_API_URL/v1/sessions "
     f"-H \"authorization: Bearer $USER_TOKEN\" -H 'content-type: application/json' -d '{SESSION_BODY}'"
 )
 
