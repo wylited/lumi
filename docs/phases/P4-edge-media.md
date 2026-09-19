@@ -13,19 +13,19 @@ audio to the server, the server fans it out and samples frames into the loop, an
 ---
 
 ### HELI-040 · feat(edge): camera and audio agent
-**Depends:** — **Parallel-safe:** yes **Owner:** D + hardware
-**Touches:** `apps/edge/**`, `docs/03-device-contract.md`
-**Do:** The Python agent on the Pi (3.11 + uv). Frame-difference at ~5 fps with OpenCV; when ink
-changes and the scene is still for `policy.stillMs`, that is a trigger — one JPEG, never a stream.
-Plus a media mode: on `media.start`, stream tagged binary to the socket (`0x01` video JPEG at the
-requested fps, `0x02` audio PCM S16LE 16 kHz mono) and stop on `media.stop`. Authenticate with
+**Depends:** P0/009 **Parallel-safe:** yes **Owner:** D + hardware
+**Touches:** `apps/edge/**`
+**Do:** The Python agent on the Pi (3.11 + uv), built to `docs/03-device-contract.md` (which lands
+in P0 as `HELI-009` — do not rewrite it here; if the contract and reality disagree, fix the contract
+in its own commit first). Frame-difference at ~5 fps with OpenCV; when ink changes and the scene is
+still for `policy.stillMs`, that is a trigger — one JPEG, never a stream. Plus a media mode: on
+`media.start`, stream tagged binary to the socket (`0x01` video JPEG at the requested fps, `0x02`
+audio PCM S16LE 16 kHz mono) and stop on `media.stop`. Authenticate with
 `Sec-WebSocket-Protocol: heli.v1, <pairing-code>`. Report caps on `hello`: camera model, mic count,
-speaker, shutter, ptz, transports, resolutions, fps options. Write `docs/03-device-contract.md` as
-the **only** document the hardware person needs: pinout, the state machine, the message tables, the
-frame budget, and the acceptance checklist.
+speaker, shutter, ptz, transports, resolutions, fps options. Emit telemetry every ~5 s.
 **Done when:** the agent connects to the server, opens a session, delivers one frame per trigger,
-streams media in media mode, and `docs/03-device-contract.md` lets someone else build the agent
-without reading any other file.
+streams media in media mode, and every line of the §10 acceptance checklist in the device contract
+passes.
 
 ### HELI-041 · feat(server): media relay and mjpeg
 **Depends:** P1/014 **Parallel-safe:** yes **Owner:** D

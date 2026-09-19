@@ -53,6 +53,7 @@ of that chain.
 | ☐ | HELI-006 | `chore(repo): env and secrets` | 001 | yes | — |
 | ☐ | HELI-007 | `feat(ui): component kit` | 001, 003 | yes | — |
 | ☐ | HELI-008 | `docs(repo): readme and runbook` | 001 | yes | — |
+| ☐ | HELI-009 | `docs(edge): the device contract` | — | yes | hardware |
 
 ## P1 · Server core — no model calls yet
 
@@ -98,7 +99,7 @@ of that chain.
 
 | ✓ | id | commit | depends | ∥ | owner |
 |---|----|--------|---------|---|-------|
-| ☐ | HELI-040 | `feat(edge): camera and audio agent` | — | yes | — |
+| ☐ | HELI-040 | `feat(edge): camera and audio agent` | 009 | yes | — |
 | ☐ | HELI-041 | `feat(server): media relay and mjpeg` | 014 | yes | — |
 | ☐ | HELI-042 | `feat(edge): led and shutter` | 040 | yes | — |
 | ☐ | HELI-043 | `feat(edge): barge-in and playback` | 040, 022 | yes | — |
@@ -133,7 +134,7 @@ of that chain.
 | **B** | 010–018 | server core. Start the moment P0 lands. |
 | **C** | 030–038 | the desktop app and the native signals. The base experience. |
 | **D** | 040–043, 050–054 | edge, media, and web. The demo surfaces. |
-| **hardware** | `docs/03-device-contract.md`, 040, 042 | never touches `apps/` |
+| **hardware** | 009, 040, 042 | never touches `apps/`; 009 lands first so they can start day one |
 | **shared** | 001–008 | do P0 together, the night before. |
 
 P0 is eight commits; after 001 lands, 002–008 run in parallel. Do it before the day, not on it.

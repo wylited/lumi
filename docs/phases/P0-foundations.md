@@ -17,8 +17,11 @@ with contracts and the design system already real. Nothing product-facing ships 
 `helicopter`. Pin `minimumReleaseAge: 0` and `allowBuilds` for prisma/esbuild in
 `pnpm-workspace.yaml` (hackathon; note it in the runbook). No apps yet beyond the empty folders.
 **Done when:** `pnpm install && pnpm typecheck` exits 0 on a clean clone.
-**Notes:** most of this already exists from the bootstrap — verify the pipeline names and the
-`@heli/*` scope, and that `turbo run` sees zero tasks without erroring.
+**Notes:** the root config is **already bootstrapped** (apps/packages folders, workspace yaml, turbo,
+tsconfig, eslint, prettier, `.nvmrc`, the `@heli/*` scope, and `@heli/tokens`/`@heli/ui` ported).
+This commit is **verify and fix**, not from scratch: check the turbo task names are `build/dev/lint/
+typecheck/test`, that `turbo run` sees zero tasks without erroring, and that `@heli/tokens` and
+`@heli/ui` resolve from a scratch file. Do not rewrite what works.
 
 ### HELI-002 · chore(repo): lint and format
 **Depends:** 001 **Parallel-safe:** yes **Owner:** —
@@ -93,6 +96,19 @@ the Pi at a laptop, the macOS consent checklist (Accessibility, Screen Recording
 Monitoring) with where each prompt appears, what to do when the model rate-limits, where replay
 mode lives, and how to rotate a device code.
 **Done when:** someone who has never seen the repo gets `pnpm dev` running from the README alone.
+
+### HELI-009 · docs(edge): the device contract
+**Depends:** — **Parallel-safe:** yes **Owner:** hardware
+**Touches:** `docs/03-device-contract.md`
+**Do:** The single document the hardware person needs, written independently of the rest of the
+build: responsibilities, the `heli.v1` handshake and pairing, the full device→api and api→device
+message tables with JSON examples, caps, the frame budget, tagged media framing with a worked byte
+example, telemetry, the state machine and LED table, the 200 ms shutter promise, backpressure and
+offline behaviour, the error codes, and a twelve-point acceptance checklist.
+**Done when:** someone can build the Pi agent from this file alone, and the checklist passes against
+a running server.
+**Notes:** land this **before P4** so the hardware person can start on day one. `040` then
+implements against it rather than writing it.
 
 ---
 
