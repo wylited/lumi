@@ -5,7 +5,7 @@
  * `@heli/fixtures`, and `source` says `demo` so the chrome can be honest about it.
  */
 import { useSyncExternalStore } from 'react'
-import type { z } from 'zod'
+import { z } from 'zod'
 import {
   AnalyticsAppsResponse,
   AnalyticsHeatmapResponse,
@@ -101,6 +101,11 @@ async function call<S extends z.ZodTypeAny>(
     setSource('live')
     return schema.parse(await res.json())
   } catch (error) {
+    // A read may fall back to demo data; a write to a live server may not — "Saved" has to be true.
+    if (method !== 'GET') {
+      log.error(`${method} ${path} failed`, String(error))
+      throw error instanceof Error ? error : new Error(String(error))
+    }
     log.warn(`${method} ${path} failed, using demo data`, String(error))
     setSource('demo')
     return fallback()
@@ -126,6 +131,8 @@ export const api = {
     call('GET', `/sessions/${id}`, SessionDetailResponse.nullable(), () => demo().session(id)),
   window: (sessionId: string) =>
     call('GET', `/sessions/${sessionId}/window`, SignalWindowResponse.nullable(), () => null),
+  /** Unparsed on purpose: `lib/desk` checks it against the contract and tolerates older servers. */
+  desk: () => call('GET', '/desk', z.unknown().nullable(), () => null),
   analytics: {
     summary: () =>
       call('GET', '/analytics/summary', AnalyticsSummary, () => demo().analytics.summary()),
@@ -169,25 +176,28 @@ export async function postSignals(batch: SignalBatch): Promise<boolean> {
   }
 }
 
-/** One screen frame, raw JPEG, tagged with the ref its `screen.frame` signal carried. */
-export async function postScreenFrame(
-  sessionId: string,
-  ref: string,
-  jpeg: ArrayBuffer,
-): Promise<boolean> {
+/**
+ * One screen frame, raw JPEG, through the same intake the rig uses (docs/03-desk-capture.md). The
+ * server attributes it to the open session; `x-heli-source: screen` says it is the screen, not the
+ * desk camera.
+ */
+export async function postScreenFrame(jpeg: ArrayBuffer, capturedAt: string): Promise<boolean> {
   const bearer = await auth()
   if (!bearer) return false
   try {
-    const res = await fetch(
-      `${BASE}/v1/signals/screen?sessionId=${encodeURIComponent(sessionId)}&ref=${encodeURIComponent(ref)}`,
-      {
-        method: 'POST',
-        headers: { authorization: `Bearer ${bearer}`, 'content-type': 'image/jpeg' },
-        body: jpeg,
-        signal: AbortSignal.timeout(10_000),
+    const res = await fetch(`${BASE}/v1/desk/frames`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${bearer}`,
+        'content-type': 'image/jpeg',
+        'x-heli-source': 'screen',
+        'x-heli-captured-at': capturedAt,
       },
-    )
-    return res.ok
+      body: jpeg,
+      signal: AbortSignal.timeout(10_000),
+    })
+    // 409 means nothing is being watched: nowhere to put it, and not an error.
+    return res.ok || res.status === 409
   } catch {
     return false
   }

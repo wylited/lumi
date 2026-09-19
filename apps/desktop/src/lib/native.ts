@@ -27,13 +27,13 @@ export interface PermissionState {
 
 let recent: Signal[] = []
 let pending: Signal[] = []
-let frameRef: string | null = null
+let frame: { at: string } | null = null
 const listeners = new Set<() => void>()
 
 function push(s: Signal) {
   recent = [s, ...recent].slice(0, 60)
   pending.push(s)
-  if (s.kind === 'screen.frame' && typeof s.payload.ref === 'string') frameRef = s.payload.ref
+  if (s.kind === 'screen.frame') frame = { at: s.ts }
   listeners.forEach((l) => l())
 }
 
@@ -50,11 +50,11 @@ async function flush() {
     signals: pending.splice(0, 500),
   }
   if (!(await postSignals(batch))) pending.unshift(...batch.signals)
-  if (frameRef) {
-    const ref = frameRef
-    frameRef = null
+  if (frame) {
+    const { at } = frame
+    frame = null
     const jpeg = await invoke<ArrayBuffer>('latest_screen_frame')
-    if (jpeg.byteLength) await postScreenFrame(snap.session.id, ref, jpeg)
+    if (jpeg.byteLength) await postScreenFrame(jpeg, at)
   }
 }
 

@@ -17,6 +17,7 @@ import {
   sendNotification,
 } from '@tauri-apps/plugin-notification'
 import { audio } from './audio'
+import { desk } from './desk'
 import { live } from './live'
 import { logger } from './log'
 
@@ -86,6 +87,11 @@ function handle(i: Intervention, focusMode: boolean) {
     }
     // Escalation supersedes the nudge card: the spoken line is the current ask.
     set({ nudge: null })
+    // One voice: with the rig connected, Lumi One says it on the desk and the desktop stays quiet.
+    if (desk.rigConnected()) {
+      decide({ tier: 3, shown: 'speech', reason: `${i.reason} · spoken by Lumi One` })
+      return
+    }
     const played = audio.say(i.message)
     decide({ tier: 3, shown: played ? 'speech' : 'tray', reason: played ? i.reason : 'muted' })
   }
@@ -100,9 +106,14 @@ export const notify = {
 
   /** Wire the surfaces to the live store. Returns the unhook. */
   attach(): () => void {
-    return live.onEvent((e, snap) => {
+    const stopDesk = desk.watch()
+    const stopLive = live.onEvent((e, snap) => {
       if (e.event === 'intervention') handle(e.data, snap.window?.focusMode ?? false)
     })
+    return () => {
+      stopDesk()
+      stopLive()
+    }
   },
 
   backToGoal() {
