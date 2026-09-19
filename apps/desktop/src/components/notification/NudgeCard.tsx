@@ -16,17 +16,17 @@ export function NudgeCard({ nudge }: { nudge: Nudge }) {
     <div
       role="alertdialog"
       aria-label="Nudge"
-      className="pointer-events-auto w-[340px] rounded-lg border border-border bg-surface-raised p-4 shadow-lg"
+      className="pointer-events-auto w-[320px] rounded-md border border-border-strong/70 bg-bg p-3.5 shadow-md"
     >
       <div className="flex items-start gap-3">
-        <Mark className="size-8 shrink-0" />
+        <Mark className="size-6 shrink-0" />
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-small font-semibold text-text">Helicopter</span>
-          <p className="text-small text-text-muted">{nudge.message}</p>
+          <span className="text-caption text-text-faint">Helicopter</span>
+          <p className="text-small text-text">{nudge.message}</p>
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <Button size="sm" onClick={() => notify.backToGoal()} autoFocus>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Button size="sm" onClick={() => notify.backToGoal()}>
           Back to the goal
         </Button>
         <Button size="sm" variant="secondary" onClick={() => notify.snooze()}>

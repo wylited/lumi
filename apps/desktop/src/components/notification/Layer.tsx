@@ -12,9 +12,10 @@ export function NotificationLayer() {
   useEffect(() => notify.attach(), [])
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-40 flex flex-col items-end justify-between p-5 pt-[68px]">
-      <div>{nudge ? <NudgeCard nudge={nudge} /> : null}</div>
-      <div className="self-center">{speaking ? <SpeechBar line={speaking} /> : null}</div>
+    // Bottom-right, out of the way of the numbers you are reading; never takes focus.
+    <div className="pointer-events-none fixed inset-0 z-40 flex flex-col items-end justify-end gap-2 p-5">
+      {nudge ? <NudgeCard nudge={nudge} /> : null}
+      {speaking ? <SpeechBar line={speaking} /> : null}
     </div>
   )
 }

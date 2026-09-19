@@ -58,7 +58,7 @@ export function Switch({
     >
       <span
         className={cn(
-          'absolute top-[2px] size-[18px] rounded-pill bg-bg shadow-sm transition-transform duration-base ease-heli',
+          'absolute left-0 top-[2px] size-[18px] rounded-pill bg-bg shadow-sm transition-transform duration-base ease-heli',
           checked ? 'translate-x-[18px]' : 'translate-x-[2px]',
         )}
       />
@@ -164,7 +164,7 @@ export function Tokens({
         onKeyDown={onKey}
         onBlur={() => text && add(text)}
         placeholder={placeholder}
-        className="w-24 bg-transparent px-1 py-0.5 text-right text-small text-text outline-none placeholder:text-text-faint focus:w-40"
+        className="w-32 bg-transparent px-1 py-0.5 text-right text-small text-text outline-none placeholder:text-text-faint focus:w-40"
       />
     </div>
   )

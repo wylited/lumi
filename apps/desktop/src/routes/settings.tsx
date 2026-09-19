@@ -1,134 +1,108 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Signal } from '@heli/contracts'
-import { Button, Card, CardBody, EmptyState, Pill, type PillTone } from '@heli/ui'
-import { Tokens } from '../components/goal/Controls'
+import { Button } from '@heli/ui'
+import { Switch, Tokens } from '../components/goal/Controls'
+import { Group, PageTitle, Row } from '../components/kit'
+import { audio, useAudio } from '../lib/audio'
 import { native, useRecentSignals, type PermissionState } from '../lib/native'
 
-const TONE: Record<PermissionState['state'], { tone: PillTone; label: string }> = {
-  granted: { tone: 'accent', label: 'granted' },
-  missing: { tone: 'warn', label: 'missing' },
-  unavailable: { tone: 'neutral', label: 'not available' },
+const STATE: Record<PermissionState['state'], { label: string; className: string }> = {
+  granted: { label: 'Allowed', className: 'text-accent-link' },
+  missing: { label: 'Not allowed', className: 'text-warn' },
+  unavailable: { label: 'Unavailable', className: 'text-text-faint' },
 }
 
 export function SettingsRoute() {
-  const [perms, setPerms] = useState<PermissionState[] | null>(null)
-  const [checking, setChecking] = useState(false)
+  const [perms, setPerms] = useState<PermissionState[]>([])
   const [deny, setDeny] = useState<string[]>([])
+  const [showSignals, setShowSignals] = useState(false)
+  const { muted } = useAudio()
   const signals = useRecentSignals()
 
-  const check = useCallback(async () => {
-    setChecking(true)
-    try {
-      setPerms(await native.permissions())
-    } finally {
-      setChecking(false)
-    }
-  }, [])
+  const check = useCallback(async () => setPerms(await native.permissions()), [])
 
   useEffect(() => {
     void check()
     void native.denylist().then(setDeny)
-    // Coming back from System Settings is the moment a grant lands.
-    const onFocus = () => void check()
-    window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
+    // Coming back from System Settings is when a grant lands.
+    window.addEventListener('focus', check)
+    return () => window.removeEventListener('focus', check)
   }, [check])
 
   return (
-    <div className="mx-auto flex max-w-[860px] flex-col gap-10 px-8 py-8">
-      <section className="flex flex-col gap-4">
-        <div className="flex items-end justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-title-2 font-semibold text-text">What it can see</h2>
-            <p className="text-small text-text-muted">
-              Each signal needs its own consent. A missing one is simply absent — the rest keep
-              working.
-            </p>
-          </div>
-          <Button variant="secondary" size="sm" onClick={() => void check()} loading={checking}>
-            Re-check
-          </Button>
-        </div>
+    <div className="mx-auto flex max-w-[720px] flex-col gap-8 px-10 pb-16 pt-2">
+      <PageTitle>Settings</PageTitle>
 
+      <Group
+        title="Permissions"
+        footer="Missing ones switch that signal off; nothing else changes. Input Monitoring applies after a restart."
+      >
         {!native.available ? (
-          <EmptyState title="Native signals only exist in the desktop app, not in a browser preview." />
+          <Row
+            label="Only in the desktop app"
+            detail="The browser preview has no native signals."
+          />
         ) : (
-          <div className="flex flex-col divide-y divide-border overflow-hidden rounded-md border border-border">
-            {(perms ?? []).map((p) => (
-              <div key={p.id} className="flex items-center gap-4 bg-surface-raised px-5 py-4">
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="flex items-center gap-2.5">
-                    <span className="text-body-strong font-medium text-text">{p.label}</span>
-                    <Pill tone={TONE[p.state].tone} dot>
-                      {TONE[p.state].label}
-                    </Pill>
-                  </span>
-                  <span className="text-small text-text-faint">{p.usedFor}</span>
-                </div>
-                {p.state === 'missing' && p.pane ? (
-                  <div className="flex shrink-0 items-center gap-2">
-                    {p.id === 'screen' || p.id === 'input' ? (
-                      <Button variant="ghost" size="sm" onClick={() => void native.request(p.id)}>
-                        Ask macOS
-                      </Button>
-                    ) : null}
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => void native.openPane(p.pane!)}
-                    >
-                      Open System Settings
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </div>
+          perms.map((p) => (
+            <Row key={p.id} label={p.label} detail={p.usedFor}>
+              <span className={`text-small ${STATE[p.state].className}`}>
+                {STATE[p.state].label}
+              </span>
+              {p.state === 'missing' && p.pane ? (
+                <Button variant="secondary" size="sm" onClick={() => void native.openPane(p.pane!)}>
+                  Open
+                </Button>
+              ) : null}
+            </Row>
+          ))
         )}
-        <p className="text-caption text-text-faint">
-          Input Monitoring takes effect the next time Helicopter starts. Keystrokes are counted,
-          never recorded.
-        </p>
-      </section>
+      </Group>
 
-      <section className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-title-2 font-semibold text-text">Never capture</h2>
-          <p className="text-small text-text-muted">
-            No screen frame is taken while one of these apps is in front. Bundle identifiers.
-          </p>
-        </div>
-        <Tokens
-          tone="block"
-          values={deny}
-          placeholder="com.example.app"
-          onChange={(v) => {
-            setDeny(v)
-            void native.setDenylist(v)
-          }}
-        />
-      </section>
+      <Group title="Voice">
+        <Row label="Speak out loud" detail="When a nudge is ignored">
+          <Switch label="Speak out loud" checked={!muted} onChange={(on) => audio.setMuted(!on)} />
+        </Row>
+      </Group>
 
-      <section className="flex flex-col gap-4">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-title-2 font-semibold text-text">Signals, as they leave</h2>
-          <span className="text-caption text-text-faint">the last {signals.length}</span>
-        </div>
-        <Card>
-          <CardBody className="max-h-[360px] overflow-y-auto p-0">
+      <Group
+        title="Never capture"
+        footer="No screen frame is taken while one of these apps is in front. The lock screen is never captured."
+      >
+        <Row label="Apps">
+          <Tokens
+            label="Add a bundle identifier"
+            values={deny}
+            placeholder="Add bundle id"
+            onChange={(v) => {
+              setDeny(v)
+              void native.setDenylist(v)
+            }}
+          />
+        </Row>
+      </Group>
+
+      <section className="flex flex-col gap-2">
+        <button
+          type="button"
+          onClick={() => setShowSignals((s) => !s)}
+          aria-expanded={showSignals}
+          className="self-start px-1 text-small font-medium text-text-muted hover:text-text"
+        >
+          {showSignals ? '▾' : '▸'} Signals sent ({signals.length})
+        </button>
+        {showSignals ? (
+          <div className="max-h-[320px] overflow-y-auto rounded-md border border-border">
             {signals.length === 0 ? (
-              <p className="p-5 text-small text-text-faint">
-                Nothing yet. Switch apps or type for a few seconds.
-              </p>
+              <p className="px-4 py-3 text-small text-text-faint">None yet.</p>
             ) : (
-              <ol className="flex flex-col divide-y divide-border">
+              <ol className="divide-y divide-border">
                 {signals.map((s, i) => (
                   <SignalRow key={`${s.ts}${i}`} s={s} />
                 ))}
               </ol>
             )}
-          </CardBody>
-        </Card>
+          </div>
+        ) : null}
       </section>
     </div>
   )
@@ -140,17 +114,10 @@ function SignalRow({ s }: { s: Signal }) {
     .map(([k, v]) => `${k} ${String(v)}`)
     .join(' · ')
   return (
-    <li className="flex items-baseline gap-3 px-5 py-2.5" data-selectable>
-      <span className="tnum w-16 shrink-0 font-mono text-[11px] text-text-faint">
-        {new Date(s.ts).toLocaleTimeString('en-GB')}
-      </span>
-      <span className="w-28 shrink-0 font-mono text-[11px] text-accent-link">{s.kind}</span>
-      <span className="min-w-0 truncate text-caption text-text-muted">{summary}</span>
-      {s.confidence < 1 ? (
-        <span className="ml-auto shrink-0 font-mono text-[10px] text-text-faint">
-          {s.confidence}
-        </span>
-      ) : null}
+    <li className="grid grid-cols-[64px_110px_1fr] gap-3 px-4 py-2 text-small" data-selectable>
+      <span className="tnum text-text-faint">{new Date(s.ts).toLocaleTimeString('en-GB')}</span>
+      <span className="text-text">{s.kind}</span>
+      <span className="truncate text-text-muted">{summary}</span>
     </li>
   )
 }

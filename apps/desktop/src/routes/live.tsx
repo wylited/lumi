@@ -5,6 +5,7 @@ import { Dot, Figure, SectionTitle } from '../components/kit'
 import { Actions } from '../components/session/Actions'
 import { dur, mm } from '../components/session/format'
 import { Ribbon, RibbonLegend } from '../components/session/Ribbon'
+import { loadGoal } from '../lib/goals'
 import { derive, live, settledOutcome, useLive } from '../lib/live'
 
 function breakMarks(goal: Goal | null, total: number): number[] {
@@ -21,6 +22,11 @@ export function LiveRoute() {
   const snap = useLive()
   const d = derive(snap)
   const [looking, setLooking] = useState(false)
+  const [goal, setGoal] = useState<Goal | null>(null)
+
+  useEffect(() => {
+    void loadGoal().then(setGoal)
+  }, [])
 
   useEffect(() => {
     if (live.get().status !== 'idle') return
@@ -32,9 +38,12 @@ export function LiveRoute() {
     return (
       <div className="grid h-full place-items-center px-10 pb-16">
         <div className="flex flex-col items-center gap-5 text-center">
-          <h1 className="text-title-2 font-semibold text-text">
-            {looking ? 'Looking for your desk…' : 'No session'}
-          </h1>
+          <div className="flex flex-col gap-1">
+            <h1 className="text-title-2 font-semibold text-text">
+              {looking ? 'Looking for your desk…' : 'No session'}
+            </h1>
+            {goal ? <p className="text-body text-text-faint">{goal.objective}</p> : null}
+          </div>
           <div className="flex items-center gap-2">
             <Button onClick={() => live.startDemo('drifting')} disabled={looking}>
               Run the demo
@@ -48,8 +57,8 @@ export function LiveRoute() {
     )
   }
 
-  const goal = snap.goal
-  const budget = goal?.timeBudgetMinutes ?? null
+  const sessionGoal = snap.goal
+  const budget = sessionGoal?.timeBudgetMinutes ?? null
   const latest = d.latest
   const a = latest?.assessment
   const where = latest?.signals.topSites[0]?.title ?? latest?.signals.topApps[0]?.app ?? null
@@ -69,7 +78,7 @@ export function LiveRoute() {
     <div className="mx-auto flex max-w-[980px] flex-col gap-10 px-10 pb-12 pt-2">
       <header className="flex items-start justify-between gap-8">
         <h1 className="text-title-1 font-semibold tracking-tight text-balance text-text">
-          {goal?.objective ?? 'Session'}
+          {sessionGoal?.objective ?? 'Session'}
         </h1>
         <div className="flex shrink-0 flex-col items-end">
           <span className="tnum text-title-1 font-semibold tracking-tight text-text">
@@ -97,7 +106,7 @@ export function LiveRoute() {
         <Ribbon
           observations={snap.observations}
           minutes={budget}
-          breaks={breakMarks(goal, Math.max(budget ?? 0, d.minutes))}
+          breaks={breakMarks(sessionGoal, Math.max(budget ?? 0, d.minutes))}
         />
         <RibbonLegend />
       </section>

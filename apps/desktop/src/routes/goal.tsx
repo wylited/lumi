@@ -178,11 +178,11 @@ export function GoalRoute() {
         <textarea
           value={form.objective}
           maxLength={280}
-          rows={1}
-          onChange={(e) => set('objective', e.target.value)}
+          rows={Math.max(1, Math.ceil(form.objective.length / 46))}
+          onChange={(e) => set('objective', e.target.value.replace(/\n/g, ' '))}
           placeholder="What are you here to do?"
           aria-label="Objective"
-          className="field-sizing-content resize-none bg-transparent text-title-2 font-semibold text-text outline-none placeholder:text-text-faint"
+          className="resize-none bg-transparent text-title-2 font-semibold text-text outline-none placeholder:text-text-faint"
         />
         <input
           value={form.successCriteria ?? ''}

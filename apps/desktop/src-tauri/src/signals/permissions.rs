@@ -60,29 +60,28 @@ pub fn permissions() -> Vec<Permission> {
             id: "accessibility",
             label: "Accessibility",
             state: state(accessibility()),
-            used_for: "The focused element inside the frontmost app.",
+            used_for: "The focused element in the front app.",
             pane: Some("Privacy_Accessibility"),
         },
         Permission {
             id: "screen",
             label: "Screen Recording",
             state: state(screen_recording()),
-            used_for: "Window titles, and one downscaled screen frame at most every 10 s.",
+            used_for: "Window titles, and a small screen frame at most every 10 s.",
             pane: Some("Privacy_ScreenCapture"),
         },
         Permission {
             id: "input",
             label: "Input Monitoring",
             state: state(input_monitoring()),
-            used_for: "How often you type and click — counts only, never which keys.",
+            used_for: "How often you type and click. Never which keys.",
             pane: Some("Privacy_ListenEvent"),
         },
         Permission {
             id: "focus",
             label: "Focus",
             state: "unavailable",
-            used_for:
-                "Whether Do Not Disturb is on. macOS does not expose this to apps like this one.",
+            used_for: "Do Not Disturb. macOS does not let apps read it.",
             pane: None,
         },
     ]
