@@ -1,8 +1,9 @@
 /**
  * The desktop's one door to the server. Everything crossing it is parsed by `@heli/contracts`.
  *
- * `VITE_HELI_API` points at the server. When it is unset or unreachable the same calls answer from
- * `@heli/fixtures`, and `source` says `demo` so the chrome can be honest about it.
+ * `VITE_HELI_API` points at the server (default `http://localhost:3001`). There is no fake data:
+ * when the server cannot be reached a read comes back empty, `connection` says `offline`, and the
+ * chrome says so. A write that fails throws.
  */
 import { useSyncExternalStore } from 'react'
 import { z } from 'zod'
@@ -30,31 +31,24 @@ import {
   type GoalCreateRequest,
   type GoalUpdateRequest,
 } from '@heli/contracts'
-import { fixtures } from '@heli/fixtures'
 import { logger } from './log'
 
 const log = logger('api')
-const BASE = (import.meta.env.VITE_HELI_API as string | undefined)?.replace(/\/$/, '') ?? null
+const BASE = ((import.meta.env.VITE_HELI_API as string | undefined) ?? 'http://localhost:3001').replace(/\/$/, '')
 const TIMEOUT_MS = 2500
 
-export type DataSource = 'live' | 'demo'
+export type Connection = 'online' | 'offline'
 
-let demoData: ReturnType<typeof fixtures> | null = null
-export function demo() {
-  demoData ??= fixtures()
-  return demoData
-}
+/* ---- connection, observable -------------------------------------------- */
 
-/* ---- source, observable ------------------------------------------------ */
-
-let source: DataSource = BASE ? 'live' : 'demo'
+let source: Connection = 'online'
 const listeners = new Set<() => void>()
-function setSource(next: DataSource) {
+function setSource(next: Connection) {
   if (next === source) return
   source = next
   listeners.forEach((l) => l())
 }
-export function useDataSource(): DataSource {
+export function useConnection(): Connection {
   return useSyncExternalStore(
     (l) => (listeners.add(l), () => listeners.delete(l)),
     () => source,
@@ -66,7 +60,6 @@ export function useDataSource(): DataSource {
 let token: Promise<string | null> | null = null
 function auth(): Promise<string | null> {
   token ??= (async () => {
-    if (!BASE) return null
     try {
       const res = await fetch(`${BASE}/v1/auth/dev-login`, {
         method: 'POST',
@@ -77,9 +70,9 @@ function auth(): Promise<string | null> {
       if (!res.ok) throw new Error(`dev-login ${res.status}`)
       return DevLoginResponse.parse(await res.json()).token
     } catch (error) {
-      log.warn(`${BASE} unreachable, using demo data`, String(error))
+      log.warn(`${BASE} unreachable`, String(error))
       token = null // retry on the next call
-      setSource('demo')
+      setSource('offline')
       return null
     }
   })()
@@ -92,7 +85,7 @@ export const serverBase = () => BASE
 /** The bearer and the socket base, for `lib/socket`. Null when there is no server. */
 export async function socketTarget(): Promise<{ url: string; token: string } | null> {
   const bearer = await auth()
-  if (!bearer || !BASE) return null
+  if (!bearer) return null
   return { url: `${BASE.replace(/^http/, 'ws')}/ws/desktop`, token: bearer }
 }
 
@@ -109,12 +102,16 @@ async function call<S extends z.ZodTypeAny>(
   method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   path: string,
   schema: S,
-  fallback: () => z.infer<S>,
+  /** What a read answers with when it cannot be read: always empty, never invented. */
+  empty: () => z.infer<S>,
   body?: unknown,
   timeoutMs = TIMEOUT_MS,
 ): Promise<z.infer<S>> {
   const bearer = await auth()
-  if (!bearer) return fallback()
+  if (!bearer) {
+    if (method !== 'GET') throw new Error(`The server at ${BASE} is not reachable.`)
+    return empty()
+  }
   try {
     const res = await fetch(`${BASE}/v1${path}`, {
       method,
@@ -126,52 +123,49 @@ async function call<S extends z.ZodTypeAny>(
       signal: AbortSignal.timeout(timeoutMs),
     })
     if (!res.ok) throw new HttpError(`${method} ${path} ${res.status}`, res.status)
-    setSource('live')
+    setSource('online')
     return schema.parse(await res.json())
   } catch (error) {
-    // A read may fall back to demo data; a write to a live server may not — "Saved" has to be true.
+    // A write that did not land throws: "Saved" has to be true.
     if (method !== 'GET') {
       log.error(`${method} ${path} failed`, String(error))
       throw error instanceof Error ? error : new Error(String(error))
     }
-    // Only an unreachable server makes the app demo-shaped. A route that errors (a 500, a 404) is
-    // that route's problem: fall back for this read and leave the rest of the app live.
-    if (error instanceof HttpError) {
-      log.warn(`${method} ${path} answered ${error.status}; using a fallback for this read`)
-      return fallback()
+    // A route that errors (a 500, a 404) is that route's problem; an unreachable server is everyone's.
+    if (error instanceof HttpError) log.warn(`${method} ${path} answered ${error.status}`)
+    else {
+      log.warn(`${method} ${path} failed`, String(error))
+      setSource('offline')
     }
-    log.warn(`${method} ${path} failed, using demo data`, String(error))
-    setSource('demo')
-    return fallback()
+    return empty()
   }
 }
 
 /* ---- the reads and the few writes the desktop owns ----------------------- */
 
+const EMPTY_SUMMARY: z.infer<typeof AnalyticsSummary> = {
+  focusedMinutes: 0,
+  offTaskMinutes: 0,
+  interventions: 0,
+  longestFocusRunSeconds: 0,
+  tierHistogram: {},
+}
+
 export const api = {
-  goals: () => call('GET', '/goals', GoalListResponse, () => [demo().world.goal]),
-  createGoal: (goal: GoalCreateRequest) =>
-    call('POST', '/goals', GoalResponse, () => demoSave(goal), goal),
+  goals: () => call('GET', '/goals', GoalListResponse, () => []),
+  createGoal: (goal: GoalCreateRequest) => call('POST', '/goals', GoalResponse, () => null as never, goal),
   updateGoal: (id: string, patch: GoalUpdateRequest) =>
-    call(
-      'PUT',
-      `/goals/${id}`,
-      GoalResponse,
-      () => demoSave({ ...demo().world.goal, ...patch }),
-      patch,
-    ),
-  sessions: () => call('GET', '/sessions', SessionListResponse, () => demo().sessions()),
-  session: (id: string) =>
-    call('GET', `/sessions/${id}`, SessionDetailResponse.nullable(), () => demo().session(id)),
+    call('PUT', `/goals/${id}`, GoalResponse, () => null as never, patch),
+  sessions: () => call('GET', '/sessions', SessionListResponse, () => []),
+  session: (id: string) => call('GET', `/sessions/${id}`, SessionDetailResponse.nullable(), () => null),
   window: (sessionId: string) =>
     call('GET', `/sessions/${sessionId}/window`, SignalWindowResponse.nullable(), () => null),
   /** Unparsed on purpose: `lib/desk` checks it against the contract and tolerates older servers. */
   desk: () => call('GET', '/desk', z.unknown().nullable(), () => null),
   /** Sessions still attach to a `Device` row, not a desk (server-side, pending); the first one is the machine. */
   devices: () => call('GET', '/devices', DeviceListResponse, () => []),
-  /** A sentence in, a goal draft out. Null with no server: the caller drafts locally. */
+  /** A sentence in, a goal draft out. The model takes seconds; the screen says it is reading. */
   draftGoal: (sentence: string) =>
-    // The model takes seconds, not milliseconds; the screen shows "Reading your sentence…" meanwhile.
     call('POST', '/goals/draft', GoalDraft.nullable(), () => null, { sentence }, 20_000),
   closeSession: (id: string) =>
     call('POST', `/sessions/${encodeURIComponent(id)}/close`, z.unknown(), () => null, {}),
@@ -180,36 +174,13 @@ export const api = {
   renameDesk: (body: DeskRegistration) =>
     call('POST', '/desks', DeskRegisterResponse.nullable(), () => null, body),
   deskAction: (deskId: string, body: DeskActionRequest) =>
-    call(
-      'POST',
-      `/desks/${encodeURIComponent(deskId)}/actions`,
-      DeskActionRecord.nullable(),
-      () => null,
-      body,
-    ),
+    call('POST', `/desks/${encodeURIComponent(deskId)}/actions`, DeskActionRecord.nullable(), () => null, body),
   analytics: {
-    summary: () =>
-      call('GET', '/analytics/summary', AnalyticsSummary, () => demo().analytics.summary()),
-    tiers: () =>
-      call('GET', '/analytics/tiers', AnalyticsTiersResponse, () => demo().analytics.tiers()),
-    apps: () =>
-      call('GET', '/analytics/apps', AnalyticsAppsResponse, () => demo().analytics.apps()),
-    heatmap: () =>
-      call('GET', '/analytics/heatmap', AnalyticsHeatmapResponse, () => demo().analytics.heatmap()),
+    summary: () => call('GET', '/analytics/summary', AnalyticsSummary, () => EMPTY_SUMMARY),
+    tiers: () => call('GET', '/analytics/tiers', AnalyticsTiersResponse, () => []),
+    apps: () => call('GET', '/analytics/apps', AnalyticsAppsResponse, () => []),
+    heatmap: () => call('GET', '/analytics/heatmap', AnalyticsHeatmapResponse, () => []),
   },
-}
-
-/** In demo mode a saved goal lives in memory for the run, so edit → reload still round-trips. */
-function demoSave(goal: GoalCreateRequest | z.infer<typeof GoalResponse>) {
-  const current = demo().world.goal
-  const next = GoalResponse.parse({
-    ...current,
-    ...goal,
-    id: current.id,
-    createdAt: current.createdAt,
-  })
-  demo().world.goal = next
-  return next
 }
 
 /**

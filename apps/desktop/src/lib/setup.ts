@@ -17,9 +17,6 @@ const log = logger('setup')
 const DONE_KEY = 'lumi.setup.done'
 const REGION_KEY = 'lumi.setup.region'
 
-export const DEMO_SENTENCE =
-  'Finish the linear algebra problem set by 9 — 12 problems, working written up'
-
 export function setupDone(): boolean {
   try {
     return localStorage.getItem(DONE_KEY) === '1'

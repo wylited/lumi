@@ -16,7 +16,6 @@ import {
   requestPermission,
   sendNotification,
 } from '@tauri-apps/plugin-notification'
-import { audio } from './audio'
 import { postSignals } from './api'
 import { desktopSocket } from './socket'
 import { live } from './live'
@@ -93,31 +92,18 @@ function showNudge(
 }
 
 /**
- * An intervention from the live stream. With a server, the desktop socket is what nudges and speaks
- * (see `lib/socket`), so here it only remembers the words; in the demo it is the whole path.
+ * An intervention from the live stream. The desktop socket is what nudges and speaks (see
+ * `lib/socket`), so here it only remembers the words, for "what did it say?".
  */
-function handle(i: Intervention, focusMode: boolean, fromServer: boolean) {
+function handle(i: Intervention) {
   if (i.channel === 'speech' && i.message) lastLine = i.message
-  if (fromServer) return
-  if (i.channel === 'notification' && i.message) {
-    showNudge(i.message, null, i.reason, focusMode)
-  } else if (i.channel === 'speech' && i.message) {
-    if (state.snoozedUntil !== null && Date.now() < state.snoozedUntil) {
-      decide({ tier: 3, shown: 'tray', reason: 'downgraded: snoozed' })
-      return
-    }
-    // Escalation supersedes the nudge card: the spoken line is the current ask.
-    set({ nudge: null })
-    const played = audio.say(i.message)
-    decide({ tier: 3, shown: played ? 'speech' : 'tray', reason: played ? i.reason : 'muted' })
-  }
 }
 
 /** What the person did with a nudge, back to the server as a signal so the policy can judge it. */
 function respond(action: 'back_to_goal' | 'snooze_10m' | 'dismissed') {
   const nudge = state.nudge
   const snap = live.get()
-  if (!nudge || snap.source !== 'server' || !snap.session) return
+  if (!nudge || !snap.session) return
   void postSignals({
     deviceId: snap.session.deviceId,
     sessionId: snap.session.id,
@@ -142,9 +128,8 @@ export const notify = {
 
   /** Wire the surfaces to the live store. Returns the unhook. */
   attach(): () => void {
-    const stopLive = live.onEvent((e, snap) => {
-      if (e.event === 'intervention')
-        handle(e.data, snap.window?.focusMode ?? false, snap.source === 'server')
+    const stopLive = live.onEvent((e) => {
+      if (e.event === 'intervention') handle(e.data)
     })
     const stopNudges = desktopSocket.onNudge((n) => {
       set({ nudge: null })

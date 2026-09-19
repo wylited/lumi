@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button, cn } from '@heli/ui'
-import { resetDemo, runPreflight, type Check } from '../../lib/preflight'
+import { startOver, runPreflight, type Check } from '../../lib/preflight'
 
 const DOT = { ok: 'bg-accent', warn: 'bg-warn', fail: 'bg-danger' } as const
 
@@ -29,13 +29,13 @@ export function Preflight() {
               <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
                 Cancel
               </Button>
-              <Button size="sm" variant="secondary" onClick={() => void resetDemo()}>
+              <Button size="sm" variant="secondary" onClick={() => void startOver()}>
                 Reset
               </Button>
             </>
           ) : (
             <Button size="sm" variant="ghost" onClick={() => setConfirming(true)}>
-              Reset demo
+              Start over
             </Button>
           )}
           <Button size="sm" onClick={() => void run()} loading={running}>
@@ -70,12 +70,6 @@ export function Preflight() {
           <p className="px-4 py-3 text-small text-accent-link">All green. Ready for the room.</p>
         ) : null}
       </div>
-      <p className="px-1 text-caption text-text-faint">
-        The mock scenario is its own process:{' '}
-        <code className="font-mono">
-          pnpm --filter @heli/server dev:mock -- --scenario drifting
-        </code>
-      </p>
     </section>
   )
 }

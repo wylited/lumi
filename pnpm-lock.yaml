@@ -197,9 +197,6 @@ importers:
       '@heli/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@heli/fixtures':
-        specifier: workspace:*
-        version: link:../../packages/fixtures
       '@heli/tokens':
         specifier: workspace:*
         version: link:../../packages/tokens

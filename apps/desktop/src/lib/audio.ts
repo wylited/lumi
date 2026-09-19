@@ -1,7 +1,6 @@
 /**
  * Tier-3 audio. The server's speech bridge sends PCM (S16LE, base64); `PcmPlayer` plays it through
- * Web Audio, the same shape the web uses, resumed on the first user gesture. When a line arrives
- * as text only (the local adapter, or the demo), the system voice reads it.
+ * Web Audio, resumed on the first user gesture.
  *
  * Stop is barge-in: playback ends at once and the stop is reported. There is no desktop→server
  * message for it in the contract yet (`DesktopToApi` is missing), so the report goes to
@@ -82,10 +81,9 @@ export const audio = {
   resume: () => player.resume(),
 
   /**
-   * Speak a line. With `pcm`, play exactly those samples (the server's voice); without, the system
-   * voice reads the text (the demo, and the local adapter).
+   * Speak a line: play exactly the server's samples. `line` is the text it says, for the chrome.
    */
-  say(line: string, pcm?: { bytes: Uint8Array; sampleRate: number; channels: number }): boolean {
+  say(line: string, pcm: { bytes: Uint8Array; sampleRate: number; channels: number }): boolean {
     if (state.muted) {
       log.info('muted, line not played', line)
       return false
@@ -97,20 +95,7 @@ export const audio = {
       set({ speaking: null })
       playbackListeners.forEach((l) => l(false, line))
     }
-    if (pcm) {
-      player.play(pcm.bytes, pcm.sampleRate, pcm.channels, done)
-    } else if ('speechSynthesis' in window) {
-      const u = new SpeechSynthesisUtterance(line)
-      u.rate = 1.02
-      u.onend = done
-      u.onerror = done
-      window.speechSynthesis.cancel()
-      window.speechSynthesis.speak(u)
-    } else {
-      log.warn('no audio path available')
-      done()
-      return false
-    }
+    player.play(pcm.bytes, pcm.sampleRate, pcm.channels, done)
     return true
   },
 
@@ -118,7 +103,6 @@ export const audio = {
   stop(): void {
     const line = state.speaking
     player.stop()
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel()
     set({ speaking: null })
     if (line) {
       log.info('barge-in', line)

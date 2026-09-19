@@ -3,7 +3,7 @@ import type { Goal, GoalDraft, GoalKind, Permission } from '@heli/contracts'
 import { Button, cn } from '@heli/ui'
 import { Segmented, Stepper, Tokens } from '../goal/Controls'
 import { Group, Row } from '../kit'
-import { DEMO_SENTENCE, draftGoal, saveDraft } from '../../lib/setup'
+import { draftGoal, saveDraft } from '../../lib/setup'
 
 const KINDS: Array<{ value: GoalKind; label: string }> = [
   { value: 'study', label: 'Study' },
@@ -25,7 +25,7 @@ export function GoalStep({
   existing: Goal | null
   onDone: (goal: Goal) => void
 }) {
-  const [sentence, setSentence] = useState(DEMO_SENTENCE)
+  const [sentence, setSentence] = useState(existing?.objective ?? '')
   const [kind, setKind] = useState<GoalKind>('study')
   const [reading, setReading] = useState(false)
   const [draft, setDraft] = useState<GoalDraft | null>(null)
@@ -81,6 +81,7 @@ export function GoalStep({
           value={sentence}
           onChange={(e) => setSentence(e.target.value)}
           rows={2}
+          placeholder="Finish the problem set by 9, working written up"
           aria-label="Your goal, in a sentence"
           className="resize-none rounded-md border border-border-strong bg-bg px-4 py-3 text-title-3 text-text outline-none focus:border-text"
         />

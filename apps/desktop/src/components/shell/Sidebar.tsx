@@ -21,12 +21,12 @@ export function Sidebar({
   route,
   onNavigate,
   status,
-  demo,
+  offline,
 }: {
   route: Route
   onNavigate: (route: Route) => void
   status: SidebarStatus
-  demo: boolean
+  offline: boolean
 }) {
   return (
     <aside className="flex w-[208px] shrink-0 flex-col border-r border-border bg-surface">
@@ -61,7 +61,9 @@ export function Sidebar({
           <Dot tone={status.tone} />
           {status.label}
         </span>
-        {demo ? <span className="pl-4 text-caption text-text-faint">Demo data</span> : null}
+        {offline ? (
+          <span className="pl-4 text-caption text-text-faint">Server unreachable</span>
+        ) : null}
       </div>
     </aside>
   )

@@ -43,8 +43,7 @@ export function LiveRoute() {
   const [looking, setLooking] = useState(false)
   const [goal, setGoal] = useState<Goal | null>(null)
   const [frames, setFrames] = useState(0)
-  const demo = snap.source === 'demo'
-  const clock = useClock(demo ? null : (snap.session?.startedAt ?? null))
+  const clock = useClock(snap.session?.startedAt ?? null)
 
   useEffect(() => {
     void loadGoal().then(setGoal)
@@ -58,14 +57,14 @@ export function LiveRoute() {
 
   // Frames read, from the desk status the rest of the app already polls.
   useEffect(() => {
-    if (snap.status !== 'live' || demo) return
+    if (snap.status !== 'live') return
     const stop = desk.watch()
     const t = setInterval(() => setFrames(desk.get()?.frames ?? 0), 2000)
     return () => {
       stop()
       clearInterval(t)
     }
-  }, [snap.status, demo])
+  }, [snap.status])
 
   if (snap.status !== 'live') {
     return (
@@ -77,14 +76,9 @@ export function LiveRoute() {
             </h1>
             {goal ? <p className="text-body text-text-faint">{goal.objective}</p> : null}
           </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={() => live.startDemo('drifting')} disabled={looking}>
-              Run the demo
-            </Button>
-            <Button variant="ghost" onClick={() => void live.attach()} disabled={looking}>
-              Check again
-            </Button>
-          </div>
+          <Button variant="secondary" onClick={() => void live.attach()} disabled={looking}>
+            Check again
+          </Button>
         </div>
       </div>
     )
@@ -110,13 +104,13 @@ export function LiveRoute() {
         </div>
       </header>
 
-      <Viewport sessionId={snap.session?.id ?? null} demo={demo} />
+      <Viewport sessionId={snap.session?.id ?? null} />
 
       <div className="grid gap-4 lg:grid-cols-[1.15fr_1fr]">
         <Thinking
           latest={d.latest}
           since={snap.session?.startedAt ?? null}
-          frames={demo ? d.minutes : frames}
+          frames={frames}
           interruptions={interruptions}
         />
         <Attention observations={snap.observations} goal={sessionGoal ?? goal} />
@@ -143,16 +137,6 @@ export function LiveRoute() {
       </section>
 
       <Signals />
-
-      {demo ? (
-        <button
-          type="button"
-          onClick={() => live.end()}
-          className="self-start text-small text-text-faint underline-offset-4 hover:text-text hover:underline"
-        >
-          End demo
-        </button>
-      ) : null}
     </div>
   )
 }

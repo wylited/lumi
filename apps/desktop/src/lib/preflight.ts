@@ -47,7 +47,7 @@ export async function runPreflight(onCheck: (c: Check) => void): Promise<Check[]
     id: 'server',
     label: 'The server answers',
     state: serverUp ? 'ok' : 'fail',
-    detail: base ? base : 'VITE_HELI_API is not set — the app is in demo mode',
+    detail: base,
     fix: serverUp ? null : 'pnpm --filter @heli/server dev',
   })
   if (!serverUp) return out
@@ -116,7 +116,7 @@ export async function runPreflight(onCheck: (c: Check) => void): Promise<Check[]
     fix:
       model === 'model'
         ? null
-        : 'set DEEPSEEK_API_KEY in apps/server/.env, or VISION_PROVIDER=local',
+        : 'set DEEPSEEK_API_KEY in apps/server/.env',
   })
 
   // 7. The grants.
@@ -138,9 +138,8 @@ export async function runPreflight(onCheck: (c: Check) => void): Promise<Check[]
 
 /**
  * Back to a startable state: close the open session, forget the local setup, and show setup again.
- * The mock scenario is a separate process; the Settings screen shows the command that re-arms it.
  */
-export async function resetDemo() {
+export async function startOver() {
   live.end()
   try {
     const open = (await api.sessions()).filter((s) => s.endedAt === null)

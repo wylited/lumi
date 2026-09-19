@@ -5,7 +5,7 @@ import { DeskStep } from '../components/setup/DeskStep'
 import { GoalStep } from '../components/setup/GoalStep'
 import { Steps } from '../components/setup/Steps'
 import { WatchStep } from '../components/setup/WatchStep'
-import { api, useDataSource } from '../lib/api'
+import { api } from '../lib/api'
 import { loadGoal } from '../lib/goals'
 import { live } from '../lib/live'
 import { logger } from '../lib/log'
@@ -20,7 +20,6 @@ export function SetupRoute({ onFinish }: { onFinish: () => void }) {
   const [desk, setDesk] = useState<DeskStatus | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
-  const source = useDataSource()
 
   const refreshDesk = useCallback(async () => {
     const parsed = DeskStatus.safeParse(await api.desk())
@@ -39,21 +38,18 @@ export function SetupRoute({ onFinish }: { onFinish: () => void }) {
     setStep(1)
     // The watch step proves the camera live, and frames only attach to an open session.
     // Sessions still reference a Device row (not a desk) on the server, so the machine's device is used.
-    if (source === 'live') {
-      try {
-        const deviceId = (await api.devices())[0]?.id
-        if (deviceId) setSessionId(await openSession(deviceId, goal.id))
-      } catch (e) {
-        log.warn('could not open a session for the preview', String(e))
-      }
+    try {
+      const deviceId = (await api.devices())[0]?.id
+      if (deviceId) setSessionId(await openSession(deviceId, goal.id))
+    } catch (e) {
+      log.warn('could not open a session for the preview', String(e))
     }
   }
 
   async function start() {
     setStarting(true)
     markSetupDone()
-    const attached = source === 'live' ? await live.attach() : false
-    if (!attached) live.startDemo('drifting')
+    await live.attach()
     setStarting(false)
     onFinish()
   }

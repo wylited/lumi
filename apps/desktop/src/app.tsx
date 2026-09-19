@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { NotificationLayer } from './components/notification/Layer'
 import { Sidebar, ROUTES, type Route, type SidebarStatus } from './components/shell/Sidebar'
 import { TitleBar } from './components/shell/TitleBar'
-import { useDataSource } from './lib/api'
+import { useConnection } from './lib/api'
 import { audio } from './lib/audio'
 import { derive, live, useLive } from './lib/live'
 import { native } from './lib/native'
@@ -38,21 +38,20 @@ export function App() {
     window.addEventListener('lumi:setup', again)
     return () => window.removeEventListener('lumi:setup', again)
   }, [])
-  const source = useDataSource()
+  const connection = useConnection()
 
-  // heli://demo?scenario=drifting (or lumi://) starts that scenario, for a shortcut on the demo Mac.
+  // heli://start (or lumi://start) skips setup and attaches to the open session, for a shortcut.
   useEffect(() => {
     if (!isTauri()) return
     const unlisten = onOpenUrl((urls) => {
       for (const raw of urls) {
         const url = new URL(raw)
-        if (url.hostname !== 'demo') continue
-        const scenario = url.searchParams.get('scenario') === 'focused' ? 'focused' : 'drifting'
+        if (url.hostname !== 'start') continue
         markSetupDone()
         setSetup(false)
         setRoute('live')
         live.end()
-        live.startDemo(scenario)
+        void live.attach()
       }
     })
     return () => void unlisten.then((u) => u())
@@ -130,7 +129,7 @@ export function App() {
 
   return (
     <div className="flex h-full bg-bg text-text">
-      <Sidebar route={route} onNavigate={navigate} status={status} demo={source === 'demo'} />
+      <Sidebar route={route} onNavigate={navigate} status={status} offline={connection === 'offline'} />
       <main className="flex min-w-0 flex-1 flex-col">
         <TitleBar />
         <div className="min-h-0 flex-1 overflow-y-auto">

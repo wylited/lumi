@@ -1,8 +1,4 @@
-/**
- * The live session, as one store. Fed by the server's SSE channel when there is one and by the
- * fixture feed when there is not — the events are the same `LiveEvent`s either way, so nothing
- * downstream can tell.
- */
+/** The live session, as one store, fed by the server's SSE channel. */
 import { useSyncExternalStore } from 'react'
 import type {
   DeviceState,
@@ -13,8 +9,7 @@ import type {
   Session,
   SignalWindow,
 } from '@heli/contracts'
-import { createLiveFeed, type LiveScenario } from '@heli/fixtures'
-import { api, demo, subscribe } from './api'
+import { api, subscribe } from './api'
 import { logger } from './log'
 import { desktopSocket } from './socket'
 import type { TrayState } from './tray'
@@ -23,25 +18,20 @@ const log = logger('live')
 
 export interface LiveSnapshot {
   status: 'idle' | 'connecting' | 'live'
-  source: 'server' | 'demo' | null
   session: Session | null
   goal: Goal | null
   observations: Observation[]
   window: SignalWindow | null
   deviceState: DeviceState | null
-  /** Wall-clock ms one window stands for. Real time is 60 000; the demo runs faster. */
-  msPerWindow: number
 }
 
 const EMPTY: LiveSnapshot = {
   status: 'idle',
-  source: null,
   session: null,
   goal: null,
   observations: [],
   window: null,
   deviceState: null,
-  msPerWindow: 60_000,
 }
 
 let snap: LiveSnapshot = EMPTY
@@ -104,19 +94,9 @@ export const live = {
       desktopSocket.close()
     }
     const goal = goals.find((g) => g.id === open.goalId) ?? null
-    set({ ...EMPTY, status: 'live', source: 'server', session: open, goal })
+    set({ ...EMPTY, status: 'live', session: open, goal })
     log.info(`attached to ${open.id}`)
     return true
-  },
-
-  /** A local run on fixture data, at `tickMs` per window, for demos and development. */
-  startDemo(scenario: LiveScenario = 'drifting', tickMs = 4000) {
-    stop?.()
-    const goal = demo().world.goal
-    set({ ...EMPTY, status: 'live', source: 'demo', goal, msPerWindow: tickMs })
-    const feed = createLiveFeed({ goal, scenario, tickMs, onEvent: ingest })
-    set({ session: feed.session })
-    stop = feed.stop
   },
 
   end() {

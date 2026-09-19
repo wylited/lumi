@@ -39,7 +39,7 @@ function push(s: Signal) {
 
 async function flush() {
   const snap = live.get()
-  if (snap.source !== 'server' || !snap.session || pending.length === 0) {
+  if (!snap.session || pending.length === 0) {
     // No session to attach them to: keep only the last minute's worth.
     pending = pending.slice(-120)
     return
