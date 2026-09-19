@@ -275,12 +275,9 @@ async def test_a_binary_frame_with_no_header_is_dropped_and_the_desk_keeps_worki
         await desk.wait_for_connection()
         await desk.send_bytes(bytes([0x02]) + bytes(64))
 
-        # Nothing plays it, so this is a negative wait — and then a real action,
-        # which proves the connection survived the frame nobody announced.
-        await asyncio.sleep(0.2)
-        assert rig.speaker.lines == []
-        assert desk.acks == []
-
+        # A real action first, then the negative checks: the receive loop is
+        # sequential, so once this ack is on the wire the stray frame has been
+        # handled — a `sleep` would pass whatever the rig did with it.
         await desk.send(
             {
                 "t": "action",
@@ -293,6 +290,8 @@ async def test_a_binary_frame_with_no_header_is_dropped_and_the_desk_keeps_worki
         assert await desk.wait_for(lambda m: m.get("actionId") == "a-1", what="the capture's ack") == ack(
             "a-1", "done", seq=7
         )
+        assert rig.speaker.lines == []
+        assert [m for m in desk.acks if m.get("actionId") != "a-1"] == []
     finally:
         await rig.stop()
         await desk.close()
@@ -324,17 +323,19 @@ async def test_the_rig_comes_back_after_the_server_goes_away(tmp_path, monkeypat
 @pytest.mark.asyncio
 async def test_a_refused_token_is_refreshed_once_and_the_desk_comes_back(tmp_path, monkeypatch):
     monkeypatch.setattr(socket_module, "BACKOFF_INITIAL_S", 0.01)
-    desk = FakeDesk(deny_tokens={"stale"})
+    # Both tokens are refused, so a rig that re-registered on every 401 would keep
+    # minting and keep trying: the guard is the only thing that ends this, and the
+    # test fails on the count rather than passing because only one refusal happened.
+    desk = FakeDesk(deny_tokens={"stale", "fresh"})
     await desk.start()
     rig = socket_rig(desk, tmp_path, tokens=StubTokens("stale", refresh_token="fresh"))
     try:
         await wait_until(
-            lambda: any(handshake["token"] == "fresh" for handshake in desk.handshakes),
+            lambda: len(desk.handshakes) >= 3,
             timeout=3.0,
-            what="a handshake with the freshened token",
+            what="a handshake with the freshened token, refused, and another attempt",
         )
         assert rig.tokens.refreshes == 1
-        await wait_until(lambda: len(desk.of_type("hello")) >= 1, what="the desk coming back")
     finally:
         await rig.stop()
         await desk.close()

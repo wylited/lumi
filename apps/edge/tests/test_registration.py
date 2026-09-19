@@ -88,7 +88,6 @@ def test_a_later_run_presents_the_stored_token_without_registering(tmp_path, api
     api.requests.clear()
 
     tokens = store(cfg)
-    assert tokens.token() == api.desk_token
     assert tokens.token() == api.desk_token  # and it is not re-read from the API
     assert api.requests == []
 
@@ -162,7 +161,7 @@ def test_a_dev_login_failure_names_the_bootstrap_token_and_the_seeded_user(tmp_p
         tokens.register()
 
     message = str(raised.value)
-    assert "HELI_EMAIL" in message
+    assert "takes no body and no address" in message
     assert "me@heli.local" in message
     assert "503" in message
     assert api.of_path("/v1/desks") == []  # no desk token was minted

@@ -25,7 +25,7 @@ from typing import Callable, Sequence
 import httpx
 
 from . import AGENT_VERSION
-from .camera import CameraUnavailable, ConsoleSource, FrameSource, OpenCvSource, open_source
+from .camera import CameraUnavailable, DeferredSource, FrameSource, open_source
 from .capture import CAMERA_RETRY_S, CaptureLoop
 from .config import Config, load
 from .upload import UploadOutcome, Uploader
@@ -305,8 +305,14 @@ def _exit_code(outcome: UploadOutcome) -> int:
 
 
 def _unopened_source(cfg: Config, log: logging.Logger) -> FrameSource:
-    """The source the config asked for, not opened yet: the loop opens it on its next tick."""
-    return OpenCvSource(cfg, log) if cfg.camera_source == "opencv" else ConsoleSource(cfg, log)
+    """A camera that will be chosen when it opens, not one that was chosen at boot.
+
+    `open_source` picks once. After a boot with no camera at all, pinning what the
+    config asked for would re-try that one source every 5 s forever — the console
+    for `auto`, the device for `opencv` — and never reach the camera that gets
+    plugged in, which is the opposite of what `auto` documents.
+    """
+    return DeferredSource(cfg, log)
 
 
 def _caps(cfg: Config, source: FrameSource, arm: object | None = None) -> dict:

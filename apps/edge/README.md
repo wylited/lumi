@@ -137,7 +137,7 @@ re-plugged device is picked up without restarting the rig.
 | `HELI_CONSOLE_URL` | `http://127.0.0.1:8643` | the tracking console's HTTP API |
 | `HELI_CAMERA_SOURCE` | `auto` | `auto` \| `console` \| `opencv` |
 | `HELI_CAMERA_INDEX` | `0` | AVFoundation index, for `opencv` |
-| `HELI_FPS` | `2` | frames per second while a session is live |
+| `HELI_FPS` | `2` | frames per second while a session is live; `stream.stop` sets it to zero |
 | `HELI_MAX_EDGE_PX` | `1600` | the long edge the rig downscales to before encoding |
 | `HELI_JPEG_QUALITY` | `80` | the encoder's quality |
 | `HELI_DESK_NAME` | `Desk 1` | the name the desk registers under |
@@ -149,7 +149,6 @@ re-plugged device is picked up without restarting the rig.
 | `HELI_DIR` | `~/.heli` | where the desk id, token and arm calibration are kept |
 | `HELI_DESK_RECT` | — | the desk rectangle in millimetres (`x,y,w,h`) that `--calibrate` records |
 | `HELI_DESK_TOKEN` | — | a desk token handed to this rig; otherwise it registers one |
-| `HELI_EMAIL` | — | the seeded user's address, for the dev-login bootstrap |
 
 Flags: `--doctor`, `--once`, `--calibrate`, `--rect`, `--camera-index`, `--console`, `--fps`,
 `--log-level`, `--api-url`, `--bridge-dir`, `--bridge-python`. A flag beats the environment.

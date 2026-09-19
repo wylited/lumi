@@ -194,7 +194,21 @@ class Speaker:
         failed: str | None = None
         stderr = b""
         try:
-            _, stderr = proc.communicate()
+            # Bounded by the line's own length plus the grace `stop()` allows. A
+            # player that never exits — a wedged output device, another process
+            # holding it — must not stall the socket: `play` is awaited by the
+            # receive loop, so every action behind it would go unanswered.
+            _, stderr = proc.communicate(timeout=duration / 1000.0 + _STOP_TIMEOUT_S)
+        except subprocess.TimeoutExpired:
+            failed = (
+                f"player_timeout: {self._player} did not finish "
+                f"{duration / 1000.0 + _STOP_TIMEOUT_S:.1f}s after a {duration:.0f} ms line"
+            )
+            proc.kill()
+            try:
+                _, stderr = proc.communicate(timeout=_STOP_TIMEOUT_S)
+            except Exception:
+                stderr = b""
         except Exception as exc:
             # A broken pipe on our side must not cost the caller its answer.
             failed = f"player_wait_failed: {exc}"

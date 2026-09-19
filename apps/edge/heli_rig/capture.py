@@ -44,6 +44,11 @@ class CaptureLoop:
         self._rejected = 0
         self._last_frame_at: str | None = None
         self._pending: asyncio.Task[UploadOutcome] | None = None
+        #: True while `capture_now` holds the camera and the uploader. The cadence
+        #: consults it for the same reason it consults `_settle()`: one frame at a
+        #: time, so a `capture` action and a tick cannot post two frames for one.
+        self._capturing = False
+        self._last_outcome: UploadOutcome | None = None
         self._camera_down = False
         self._no_session = False
         self._streak: str | None = None
@@ -61,6 +66,11 @@ class CaptureLoop:
         that refused the last frame. None of those is an exception — the loop is
         expected to keep going.
         """
+        if self._capturing:
+            # A `capture` action is taking its frame right now. Let it own the
+            # camera and the uploader; this tick is one the cadence does not need.
+            self._log.debug("skipped_for_capture")
+            return None
         if self._settle():
             # The previous upload has not returned. Skip this tick rather than
             # queue a second frame behind it: the newest frame is the only one
@@ -81,18 +91,34 @@ class CaptureLoop:
     async def capture_now(self) -> Frame | None:
         """The `capture` action: one frame now, off the cadence, uploaded before it returns.
 
-        Waits for an upload already in flight rather than racing it — the server
-        attributes one frame at a time, and two POSTs would land two frames for
-        one request. When this returns, `state()['lastSeq']` is the seq of the
-        frame just taken, which is what the ack names.
+        Waits for an upload already in flight, and claims the slot while it takes
+        its own — the server attributes one frame at a time, and two POSTs would
+        land two frames for one request. The claim covers the *take* as well as the
+        POST, because every `await` in `_take()` is a yield the cadence could wake
+        up on. When this returns, `state()['lastSeq']` is the seq of the frame just
+        taken and `last_outcome` is what the server said about it.
         """
-        await self._drain()
-        frame = await self._take()
-        if frame is None:
-            return None
-        self._seq += 1
-        await self._upload(frame, self._seq)
-        return frame
+        self._capturing = True
+        try:
+            await self._drain()
+            frame = await self._take()
+            if frame is None:
+                return None
+            self._seq += 1
+            await self._upload(frame, self._seq)
+            return frame
+        finally:
+            self._capturing = False
+
+    @property
+    def last_outcome(self) -> UploadOutcome | None:
+        """What the server said about the last frame this loop sent.
+
+        The `capture` action reads this to ack the truth: a frame the server
+        refused (409 with no session, 422, a transport error) must not be acked
+        `done` with a seq the server never stored.
+        """
+        return self._last_outcome
 
     async def run(self) -> None:
         """Capture at the cadence until the rig is stopped.
@@ -100,6 +126,12 @@ class CaptureLoop:
         A camera that is not there, or a server that refuses, changes the pace —
         never the exit.
         """
+        loop = asyncio.get_running_loop()
+        # Measured from a deadline rather than from the end of the tick: sleeping a
+        # full interval *after* the grab, the encode and the POST makes `HELI_FPS` a
+        # ceiling (a 1080p device does real work per tick) and makes the fps the
+        # health frame reports a number the loop never reached.
+        due = loop.time()
         while True:
             fps = self._effective_fps()
             if fps <= 0:
@@ -107,9 +139,18 @@ class CaptureLoop:
                 # and a frame already taken still has an upload to account for.
                 self._settle()
                 await asyncio.sleep(PAUSED_POLL_S)
+                due = loop.time()
                 continue
             await self.tick()
-            await asyncio.sleep(CAMERA_RETRY_S if self._camera_down else 1.0 / fps)
+            interval = CAMERA_RETRY_S if self._camera_down else 1.0 / fps
+            now = loop.time()
+            due += interval
+            if due < now - interval:
+                # A tick that took several intervals (a stalled camera, a slow
+                # upload) must not be paid back as a burst of ticks: skip the
+                # missed slots instead.
+                due = now
+            await asyncio.sleep(max(0.0, due - now))
 
     def set_fps(self, fps: float) -> None:
         """`stream.start` / `stream.stop`: the cadence is the server's to set.
@@ -199,6 +240,9 @@ class CaptureLoop:
             self._log.exception("the upload raised")
             outcome = UploadOutcome(ok=False, status=0, ref=None, seq=None, width=None, height=None, error="transport", rejected=False)
         self._record(outcome)
+        # Kept for the `capture` action, which acks what the server said about the
+        # frame it asked for: one field, written by whichever upload finished.
+        self._last_outcome = outcome
         return outcome
 
     def _settle(self) -> bool:

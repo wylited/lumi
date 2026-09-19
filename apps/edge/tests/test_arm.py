@@ -128,7 +128,13 @@ class FakeArmd:
             return
         if self.mode == 'pose' and self.moves:
             for joint, (rate, at) in list(self.jogs.items()):
-                if (now - at) * 1e3 > JOG_STALE_MS:
+                fresh_until = at + JOG_STALE_MS / 1e3
+                if now > fresh_until:
+                    # A jog stands for JOG_STALE_MS after it arrives. Dropping it
+                    # without integrating the part of this gap that was still fresh
+                    # makes a driver that abandoned a standing rate look identical to
+                    # one that stopped it - which is the bug these tests are for.
+                    self._drive(joint, rate, max(0.0, fresh_until - max(self._at, at)))
                     del self.jogs[joint]
                     continue
                 self._drive(joint, rate, dt)
@@ -317,9 +323,12 @@ def test_aim_moves_the_arm_and_reports_what_it_reached():
 def test_aim_holds_the_pose_it_reached():
     """The last jog must not be left standing: armd keeps applying it for another 250 ms, which
     walks an arm that had already arrived past the target."""
-    with console(FakeArmd({PAN: 10.0, TILT: -20.0})) as (url, _bridge):
+    with console(FakeArmd({PAN: 10.0, TILT: -20.0})) as (url, bridge):
         arm = ConsoleArm(url, timeout_s=3.0)
         achieved = arm.aim(16.0, -24.0)
+        # The last jog on each joint is a stop, so the fake applies nothing after the
+        # aim returns: a rate left standing here would walk the arm on for 250 ms.
+        assert bridge.jogs[PAN][0] == 0.0 and bridge.jogs[TILT][0] == 0.0
         time.sleep(0.4)
         held = arm.pose()
         assert abs(held.pan - achieved.pan) <= 1.5
@@ -452,7 +461,9 @@ def test_a_console_with_armd_down_is_unavailable_with_the_console_words():
         with pytest.raises(ArmUnavailable) as caught:
             arm.pose()
         assert 'armd is not running' in str(caught.value)
-        assert isinstance(caught.value, ArmError)
+        # `ArmUnavailable`'s sibling is the transport that said nothing at all; the
+        # console answered here, and that is the difference worth pinning.
+        assert not isinstance(caught.value, ArmUnreachable)
 
 
 def test_armd_not_answering_is_unavailable_with_the_console_words():

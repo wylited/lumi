@@ -9,6 +9,7 @@ or at `sys.argv` — ever again.
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import sys
 from dataclasses import dataclass, replace
@@ -82,7 +83,12 @@ def websocket_url(api_url: str) -> str:
     scheme = {"http": "ws", "https": "wss"}.get(parts.scheme.lower())
     if scheme is None or not parts.netloc:
         raise ConfigError(f"the API URL must be http(s), not {api_url!r}")
-    return urlunsplit((scheme, parts.netloc, DESK_SOCKET_PATH, "", ""))
+    # The HTTP callers append their path to the base, so a deployment behind a
+    # prefix (`https://host/lumi`) would post frames to `/lumi/v1/desk/frames`
+    # and open its socket at `/ws/desk` - a path that does not exist behind that
+    # proxy. Same prefix, same rule for both.
+    prefix = parts.path.rstrip("/")
+    return urlunsplit((scheme, parts.netloc, f"{prefix}{DESK_SOCKET_PATH}", "", ""))
 
 
 def load(env: Mapping[str, str] | None = None, argv: Sequence[str] | None = None) -> Config:
@@ -197,8 +203,11 @@ def _apply_argv(cfg: Config, argv: list[str]) -> Config:
 
 def _check(cfg: Config) -> None:
     """Refuse a setting that would only fail later, in a place that cannot explain it."""
-    if not cfg.fps > 0:
-        raise ConfigError(f"fps must be greater than zero, not {cfg.fps!r}")
+    # Finite as well as positive: `HELI_FPS=inf` (or `1e400`, which `float()` reads
+    # as inf) makes the loop's `1.0 / fps` a `sleep(0)`, and config is the only
+    # place that can refuse it with a sentence instead of a pinned core.
+    if not math.isfinite(cfg.fps) or cfg.fps <= 0:
+        raise ConfigError(f"fps must be a finite number greater than zero, not {cfg.fps!r}")
     if cfg.max_edge_px < 1:
         raise ConfigError(f"max_edge_px must be at least 1 px, not {cfg.max_edge_px!r}")
     if not 1 <= cfg.jpeg_quality <= 100:

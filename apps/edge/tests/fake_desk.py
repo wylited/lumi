@@ -31,6 +31,7 @@ from websockets.exceptions import ConnectionClosed
 from heli_rig.arm.driver import ArmPose
 from heli_rig.camera import Frame
 from heli_rig.config import Config, load
+from heli_rig.upload import UploadOutcome
 
 __all__ = [
     "FakeApi",
@@ -203,7 +204,8 @@ class FakeCapture:
 
     `state()['lastSeq']` counts from `last_seq`, so a test can tell the seq of
     the frame that was just taken (`capture_now` climbs by one) from the seq of
-    any other frame.
+    any other frame. `outcome` is what the server said about that frame, which is
+    what the `capture` action reads to decide between `done` and `failed`.
     """
 
     def __init__(
@@ -213,6 +215,7 @@ class FakeCapture:
         fps: float = 2.0,
         last_seq: int = 0,
         frames_sent: int = 0,
+        outcome: UploadOutcome | None = None,
     ):
         self._frames = list(frames or [])
         self._fps = float(fps)
@@ -225,6 +228,9 @@ class FakeCapture:
         self.last_frame_at: str | None = None
         self.capture_calls = 0
         self.fps_calls: list[float] = []
+        #: None means "the upload was taken"; a refused one is what the action has to
+        #: report instead of a `done` naming a frame the server never stored.
+        self.outcome = outcome
 
     async def capture_now(self) -> Frame | None:
         self.capture_calls += 1
@@ -235,6 +241,10 @@ class FakeCapture:
         self.frames_sent += 1
         self.last_frame_at = frame.captured_at
         return frame
+
+    @property
+    def last_outcome(self) -> UploadOutcome | None:
+        return self.outcome
 
     def set_fps(self, fps: float) -> None:
         self._fps = float(fps)
@@ -263,11 +273,14 @@ class FakeArm:
         achieved: ArmPose | None = None,
         caps: dict | None = None,
         fails: BaseException | None = None,
+        nod_seconds: float = 0.0,
     ) -> None:
         self.achieved = achieved if achieved is not None else ArmPose(pan=12.0, tilt=-4.0)
         self.caps = caps
         self.calls: list[tuple] = []
         self._fails = fails
+        #: A nod takes time on a real arm, and the ack is supposed to say how much.
+        self.nod_seconds = nod_seconds
 
     def _record(self, *call: Any) -> None:
         self.calls.append(call)
@@ -293,6 +306,8 @@ class FakeArm:
         return self.achieved
 
     def nod(self, times: int = 1) -> None:
+        if self.nod_seconds:
+            time.sleep(self.nod_seconds)
         self._record("nod", times)
 
     def home(self) -> ArmPose:

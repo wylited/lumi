@@ -15,7 +15,11 @@ import pytest
 from heli_rig.actions import Dispatcher
 from heli_rig.arm.driver import ArmPose, ArmUnavailable
 from heli_rig.camera import Frame
+from heli_rig.upload import UploadOutcome
 from tests.fake_desk import FakeArm, FakeCapture, FakeSource, rig_config
+
+#: What `FakeArm` is told a nod costs, so `durationMs` has a floor to be measured against.
+NOD_S = 0.05
 
 log = logging.getLogger("tests.actions")
 
@@ -41,9 +45,9 @@ def action(action_id: str, kind: str, **payload) -> dict:
     return {"t": "action", "id": action_id, "issuedAt": "2026-09-19T14:02:11.482Z", "type": kind, "payload": payload}
 
 
-def desk(cfg, *, frames=(), arm=None, caps: dict | None = None):
+def desk(cfg, *, frames=(), arm=None, caps: dict | None = None, outcome=None):
     """A dispatcher with a camera, an arm and an idle cadence of their own."""
-    capture = FakeCapture(frames, last_seq=6)
+    capture = FakeCapture(frames, last_seq=6, outcome=outcome)
     capture.source = FakeSource(dict(CAMERA) if caps is None else caps)
     return Dispatcher(capture, arm, None, cfg, log), capture
 
@@ -61,6 +65,29 @@ async def test_capture_acks_the_seq_of_the_frame_it_took(tmp_path):
     # lastSeq counted 6 frames before this one, so the frame just taken is 7.
     assert answer == ack("a-1", "done", seq=7)
     assert capture.capture_calls == 1  # exactly one frame, never a second
+
+
+@pytest.mark.asyncio
+async def test_a_capture_the_server_refused_is_acked_failed_not_done(tmp_path):
+    """The frame was taken and the server did not keep it — no session open, a 422,
+    a transport error. A `done` with this frame's seq would name a stored frame that
+    does not exist, which is the one thing the dispatcher promises not to do."""
+    refused = UploadOutcome(
+        ok=False,
+        status=409,
+        ref=None,
+        seq=None,
+        width=None,
+        height=None,
+        error="no_open_session",
+        rejected=False,
+    )
+    dispatcher, capture = desk(config(tmp_path), frames=[frame()], outcome=refused)
+
+    answer = await dispatcher.handle(action("a-1", "capture", reason="assess"))
+
+    assert answer == ack("a-1", "failed", error="no_open_session")
+    assert capture.capture_calls == 1
 
 
 @pytest.mark.asyncio
@@ -122,9 +149,10 @@ async def test_the_retired_exposure_action_is_refused_rather_than_crashing(tmp_p
 
 
 @pytest.mark.asyncio
-async def test_stream_start_sets_the_asked_rate_and_stop_returns_to_the_idle_cadence(tmp_path):
+async def test_stream_start_sets_the_asked_rate_and_stop_stops_the_cadence(tmp_path):
+    """`stream.stop` means no frames until something starts them again — not the
+    configured idle rate, which would ack a stop the rig never performed."""
     cfg = config(tmp_path)
-    assert cfg.fps == 3.0  # the cadence `stream.stop` has to come back to
     dispatcher, capture = desk(cfg)
 
     started = await dispatcher.handle(action("a-1", "stream.start", fps=7))
@@ -132,8 +160,8 @@ async def test_stream_start_sets_the_asked_rate_and_stop_returns_to_the_idle_cad
 
     assert started == ack("a-1", "done")
     assert stopped == ack("a-2", "done")
-    assert capture.fps_calls == [7.0, 3.0]
-    assert capture.state()["fps"] == 3.0
+    assert capture.fps_calls == [7.0, 0.0]
+    assert capture.state()["fps"] == 0.0
 
 
 @pytest.mark.asyncio
@@ -155,14 +183,16 @@ async def test_aim_point_and_home_ack_the_pose_the_arm_achieved(tmp_path):
 
 @pytest.mark.asyncio
 async def test_a_nod_acks_how_long_it_took_and_where_it_ended_up(tmp_path):
-    arm = FakeArm(achieved=ArmPose(pan=4.0, tilt=1.0))
+    arm = FakeArm(achieved=ArmPose(pan=4.0, tilt=1.0), nod_seconds=NOD_S)
     dispatcher, _ = desk(config(tmp_path), arm=arm)
 
     answer = await dispatcher.handle(action("a-1", "arm.nod", times=2))
 
     assert answer["status"] == "done" and answer["error"] is None
     assert answer["result"]["pose"] == {"pan": 4.0, "tilt": 1.0}
-    assert answer["result"]["durationMs"] >= 0
+    # A floor, not `>= 0`: the field exists to say how long the nod took, and a
+    # constant would satisfy any weaker assertion.
+    assert answer["result"]["durationMs"] >= NOD_S * 1000 - 5
     assert arm.calls == [("nod", 2), ("pose",)]
 
 

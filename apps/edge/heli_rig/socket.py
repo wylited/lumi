@@ -75,7 +75,8 @@ STABLE_AFTER_S = 30.0
 MAX_FRAME_BYTES = 8 * 1024 * 1024
 
 _NO_TOKEN = (
-    "no desk token to connect with: set HELI_DESK_TOKEN, or HELI_EMAIL so the rig can register one"
+    "no desk token to connect with: set HELI_DESK_TOKEN for a desk that already has one, or make "
+    "the server reachable so the rig can register its own"
 )
 
 

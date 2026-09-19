@@ -100,7 +100,7 @@ def test_a_setting_that_could_not_work_is_refused_by_name():
 def test_a_setting_out_of_range_is_refused_rather_than_clamped():
     # Each of these would otherwise fail deep inside a camera or an encoder,
     # where the message could not name the variable that caused it.
-    with pytest.raises(ConfigError, match="fps must be greater than zero"):
+    with pytest.raises(ConfigError, match="fps must be a finite number greater than zero"):
         load(env={"HELI_FPS": "0"}, argv=[])
     with pytest.raises(ConfigError, match="max_edge_px"):
         load(env={"HELI_MAX_EDGE_PX": "0"}, argv=[])
@@ -108,5 +108,8 @@ def test_a_setting_out_of_range_is_refused_rather_than_clamped():
         load(env={"HELI_JPEG_QUALITY": "101"}, argv=[])
     with pytest.raises(ConfigError, match="camera_index"):
         load(env={"HELI_CAMERA_INDEX": "-1"}, argv=[])
-    with pytest.raises(ConfigError, match="fps must be greater than zero"):
+    with pytest.raises(ConfigError, match="fps must be a finite number greater than zero"):
         load(env={}, argv=["--fps", "0"])
+    # `1e400` reads back as inf, and an infinite cadence is a `sleep(0)` hot loop.
+    with pytest.raises(ConfigError, match="finite"):
+        load(env={"HELI_FPS": "inf"}, argv=[])

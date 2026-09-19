@@ -420,3 +420,48 @@ async def open_source(cfg: Config, log: logging.Logger) -> FrameSource:
     await device.open()
     log.info("camera: AVFoundation index %d, %s", cfg.camera_index, _describe_source(device))
     return device
+
+
+class DeferredSource:
+    """A camera that has not opened yet: each `open()` re-runs the whole `auto` chain.
+
+    `open_source` picks one source and pins it. A rig that booted with the console
+    down *and* nothing plugged in would then re-probe the console forever, never
+    reaching the device that appears five minutes later — while a rig that opened
+    the device because the console was stale at boot would keep holding the UVC
+    device after the console came back, which is the case `auto` exists to avoid.
+    Deferring the choice to each `open()` keeps one rule true for the whole run:
+    the console when it has a fresh frame, the device otherwise.
+    """
+
+    def __init__(self, cfg: Config, log: logging.Logger) -> None:
+        self._cfg = cfg
+        self._log = log
+        self._inner: FrameSource | None = None
+
+    async def open(self) -> None:
+        # The chain owns its own failures: `open_source` closes the console before
+        # falling through to the device, and each source releases itself when its
+        # own open fails, so nothing is left holding the bus.
+        await self.close()
+        self._inner = await open_source(self._cfg, self._log)
+
+    async def is_open(self) -> bool:
+        inner = self._inner
+        return inner is not None and await inner.is_open()
+
+    async def grab(self) -> Frame:
+        inner = self._inner
+        if inner is None:
+            raise CameraUnavailable("the camera has not opened yet")
+        return await inner.grab()
+
+    async def close(self) -> None:
+        inner, self._inner = self._inner, None
+        if inner is not None:
+            await inner.close()
+
+    def describe(self) -> dict | None:
+        """Nothing until a source is open: the caps the rig registers are the real device's."""
+        inner = self._inner
+        return inner.describe() if inner is not None else None

@@ -56,7 +56,13 @@ AIM_FLOOR_DEG_S = 12.0        # the slowest a joint travels under a full-rate co
 #                               out a slew: this rig's wrist is commanded at the 40 deg/s ceiling and
 #                               travels at ~15 (measured: 57.75 deg of tilt in ~4 s), so the budget
 #                               is drawn at 12 - honest about the floor, not generous about it
-AIM_BUDGET_MAX_S = 30.0       # and however far the target is, the caller waits no longer than this
+# However far the target is, the whole move has to be acked inside the server's ack window:
+# `ACK_TIMEOUT_MS = 10_000` in `apps/server/src/services/desk.ts`, whose retry on expiry re-sends
+# the same action id - and this rig handles actions one at a time, so a slow move would be performed
+# a second time after the server had already recorded it done. Eight seconds leaves the post, the
+# parse and the ack room to land, and a move that cannot make it answers `failed` with the pose it
+# did reach instead of going quiet past the window.
+AIM_BUDGET_MAX_S = 8.0        # < the server's 10 s ack window, and the caller waits no longer
 PARK_POLL_HZ = 10.0
 PARK_SLEW_DEG_S = 10.0        # armd slews to park at 20 deg/s; budget half, so a loaded joint
 NOD_AMPLITUDE_DEG = 3.0       # cannot be waited out of its own park
@@ -467,7 +473,9 @@ class BridgeArm:
                 (abs(float(park[joint]) - float(measured[joint])) for joint in park if joint in measured),
                 default=0.0,
             )
-            budget = self.timeout_s + travel / PARK_SLEW_DEG_S
+            # Capped like `aim`: armd's park slew is 20 deg/s against a 10 deg/s budget here, so a
+            # full-window park would run to 17 s and be re-sent by a server that gave up at 10.
+            budget = min(self.timeout_s + travel / PARK_SLEW_DEG_S, AIM_BUDGET_MAX_S)
             deadline = time.monotonic() + budget
             rest = self._pose_from(state)
             rest_at = time.monotonic()

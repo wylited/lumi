@@ -14,7 +14,7 @@ write is a replace, so a reader never sees half a file.
 
 Nothing here is silent. A rig that could not get a token raises with the reason,
 naming what to check, instead of continuing unauthenticated: a desk that uploads
-nothing because `HELI_EMAIL` is wrong must not look like a desk with nothing to
+nothing because the deployment is not seeded must not look like a desk with nothing to
 upload.
 """
 
@@ -55,8 +55,8 @@ _DEV_LOGIN_HINT = (
     "dev-login is the bootstrap of the seeded, single-user deployment: it returns a token for "
     f"whichever user exists, which `prisma/seed.ts` creates as {SEEDED_USER}. The desk token "
     "cannot be minted without it, so check that the API is reachable and seeded "
-    "(`pnpm --filter @heli/server db:seed`), and that HELI_EMAIL — the bootstrap-only address — "
-    "names the account this desk belongs to."
+    "(`pnpm --filter @heli/server db:seed`). The route takes no body and no address: it hands "
+    "back whichever user exists, so there is nothing to configure on this side."
 )
 
 

@@ -94,10 +94,11 @@ class Dispatcher:
             return _ack(action_id, "done")
 
         if kind == "stream.stop":
-            # Back to the configured idle cadence. `stream.stop` ends the stream
-            # the server asked for, not the capture loop: the frame the server
-            # assesses is the one this loop keeps taking.
-            self._capture.set_fps(float(self._cfg.fps))
+            # Zero stops the cadence without stopping the rig: no frames until
+            # something starts it again, and a `capture` action still works. That
+            # is what `stream.stop` means - handing back the configured idle rate
+            # would ack a stop the rig never performed.
+            self._capture.set_fps(0.0)
             return _ack(action_id, "done")
 
         if kind == "camera.zoom":
@@ -122,6 +123,14 @@ class Dispatcher:
         frame = await self._capture.capture_now()
         if frame is None:
             return _ack(action_id, "failed", error="no_frame")
+
+        outcome = self._capture.last_outcome
+        if outcome is not None and not outcome.ok:
+            # The frame exists and the server refused it: no session open (409), a
+            # frame it would not take (422), a transport error. Acking `done` with
+            # this frame's seq would name a stored frame that does not exist, which
+            # is the one thing this module promises not to do.
+            return _ack(action_id, "failed", error=outcome.error or f"http_{outcome.status}")
 
         try:
             state = self._capture.state() or {}
