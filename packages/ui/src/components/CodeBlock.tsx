@@ -46,7 +46,7 @@ export function CodeBlock({ code, result, resultTone = 'neutral', className }: C
         }}
         className={cn(
           'absolute right-3 top-3 rounded-pill border border-border bg-surface-raised px-2.5 py-1',
-          'font-mono text-[11px] text-text-faint opacity-0 transition-opacity duration-base ease-sifu',
+          'font-mono text-[11px] text-text-faint opacity-0 transition-opacity duration-base ease-heli',
           'hover:text-text focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
           'group-hover:opacity-100',
           copied && 'opacity-100 text-accent-link',

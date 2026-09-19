@@ -45,15 +45,15 @@ of that chain.
 
 | ✓ | id | commit | depends | ∥ | owner |
 |---|----|--------|---------|---|-------|
-| ☐ | HELI-001 | `chore(repo): workspace skeleton` | — | **no** | — |
-| ☐ | HELI-002 | `chore(repo): lint and format` | 001 | yes | — |
-| ☐ | HELI-003 | `feat(tokens): design system package` | 001 | yes | — |
-| ☐ | HELI-004 | `feat(contracts): zod schemas` | 001 | yes | — |
-| ☐ | HELI-005 | `feat(server): prisma schema and seed` | 001 | yes | — |
-| ☐ | HELI-006 | `chore(repo): env and secrets` | 001 | yes | — |
-| ☐ | HELI-007 | `feat(ui): component kit` | 001, 003 | yes | — |
-| ☐ | HELI-008 | `docs(repo): readme and runbook` | 001 | yes | — |
-| ☐ | HELI-009 | `docs(edge): the device contract` | — | yes | hardware |
+| ☑ | HELI-001 | `chore(repo): workspace skeleton` | — | **no** | — |
+| ☑ | HELI-002 | `chore(repo): lint and format` | 001 | yes | — |
+| ☑ | HELI-003 | `feat(tokens): design system package` | 001 | yes | — |
+| ☑ | HELI-004 | `feat(contracts): zod schemas` | 001 | yes | — |
+| ☑ | HELI-005 | `feat(server): prisma schema and seed` | 001 | yes | — |
+| ☑ | HELI-006 | `chore(repo): env and secrets` | 001 | yes | — |
+| ☑ | HELI-007 | `feat(ui): component kit` | 001, 003 | yes | — |
+| ☑ | HELI-008 | `docs(repo): readme and runbook` | 001 | yes | — |
+| ☑ | HELI-009 | `docs(edge): the device contract` | — | yes | hardware |
 
 ## P1 · Server core — no model calls yet
 

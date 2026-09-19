@@ -1,0 +1,41 @@
+name: heli
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: heli
+      POSTGRES_PASSWORD: heli
+      POSTGRES_DB: heli
+    ports:
+      - '5432:5432'
+    volumes:
+      - heli-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U heli -d heli']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: heli
+      MINIO_ROOT_PASSWORD: heli
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - heli-minio:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  heli-postgres:
+  heli-minio:

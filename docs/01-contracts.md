@@ -1,0 +1,220 @@
+# Contracts
+
+Everything that crosses a process boundary is defined once, in `packages/contracts`, as a zod
+schema. TypeScript types are inferred from it, and JSON Schema is emitted from it for the Python
+edge agent. Nothing hand-written on either side.
+
+If you need a field that is not here, that is a commit against this package, merged first.
+
+---
+
+## 1. The one row that matters
+
+Every screen is a query over `observation`.
+
+```prisma
+model Observation {
+  id          String   @id @default(cuid())
+  sessionId   String
+  session     Session  @relation(fields: [sessionId], references: [id])
+  ts          DateTime @default(now())
+
+  signals     Json              // the folded window this was assessed from, see SignalWindow
+  assessment  Json?             // see Assessment. null when the model was unreachable
+  tier        Int               // 0..5, the intervention that fired
+  action      Json?             // see Intervention. null for tier 0
+  outcome     String?           // resolved | ignored | reverted | unknown
+  confidence  Float?
+  reason      String?           // machine readable, why this tier
+
+  latencyMs   Int?
+  @@index([sessionId, ts])
+}
+```
+
+`tier == 0` is the common case and is not a failure. Most windows are silent.
+
+---
+
+## 2. Signals
+
+```ts
+export const SignalSource = z.enum(['desk', 'screen', 'app', 'window', 'input', 'idle', 'system'])
+export const SignalKind = z.string() // open vocabulary: app.focus, window.title, input.rate, idle.start, ...
+
+export const Signal = z.object({
+  source: SignalSource,
+  kind: SignalKind,
+  ts: z.string(),                       // ISO
+  confidence: z.number().min(0).max(1).default(1),
+  payload: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+})
+export const SignalBatch = z.object({
+  deviceId: z.string(),
+  sessionId: z.string().nullable(),
+  signals: z.array(Signal).max(500),
+})
+```
+
+### The derived window
+
+`SignalWindow` is what the model actually sees. Computed on the server, never sent by a client.
+
+```ts
+export const SignalWindow = z.object({
+  from: z.string(), to: z.string(), windowMs: z.number().int(),
+  focusedSeconds: z.number().nonnegative(),
+  offTaskSeconds: z.number().nonnegative(),
+  idleSeconds: z.number().nonnegative(),
+  contextSwitches: z.number().int().nonnegative(),
+  longestFocusRunSeconds: z.number().nonnegative(),
+  inputRate: z.number().nonnegative(),        // events per 30 s, no content ever
+  onTaskRatio: z.number().min(0).max(1),
+  topApps: z.array(z.object({ app: z.string(), seconds: z.number().nonnegative(), onTask: z.boolean() })).max(8),
+  topSites: z.array(z.object({ title: z.string(), seconds: z.number().nonnegative(), onTask: z.boolean() })).max(8),
+  focusMode: z.boolean(),
+  lastFrameRef: z.string().nullable(),
+  lastScreenRef: z.string().nullable(),
+})
+```
+
+---
+
+## 3. Goal
+
+```ts
+export const GoalKind = z.enum(['study', 'work', 'life'])
+export const Permission = z.enum(['nudge', 'speak', 'automate'])
+export const Automation = z.enum([
+  'pause_notifications', 'open_app', 'navigate_tab', 'mute_site', 'start_break', 'start_timer',
+])
+
+export const Goal = z.object({
+  id: z.string(),
+  kind: GoalKind,
+  objective: z.string().min(1).max(280),      // in the user's own words
+  successCriteria: z.string().max(280).nullable(),
+  timeBudgetMinutes: z.number().int().positive().nullable(),
+  breakPolicy: z.enum(['none', 'pomodoro_25_5', 'pomodoro_50_10', 'custom']).default('none'),
+  allowedApps: z.array(z.string()).default([]),
+  blockedApps: z.array(z.string()).default([]),
+  allowedSites: z.array(z.string()).default([]),
+  blockedSites: z.array(z.string()).default([]),
+  permissions: z.array(Permission).default(['nudge', 'speak']),
+  automations: z.array(Automation).default([]),
+  policy: Policy,
+  active: z.boolean().default(true),
+  createdAt: z.string(),
+})
+```
+
+---
+
+## 4. Assessment (the model's only output)
+
+```ts
+export const ActivityKind = z.string() // open vocabulary: working, reading, phone, away, talking, ...
+
+export const Assessment = z.object({
+  onTask: z.boolean(),
+  activity: ActivityKind,
+  kind: z.string().nullable(),                // the distraction kind, e.g. social, video, game
+  driftSeconds: z.number().int().nonnegative(),
+  evidence: z.array(z.string().max(140)).max(5), // the signal facts it used, for the console
+  confidence: z.number().min(0).max(1),
+  because: z.string().max(200),               // one tutor-facing line, NEVER spoken
+})
+```
+
+`because` is for the console. It is never spoken and never shown as an action. The policy writes
+what is shown.
+
+---
+
+## 5. Policy and intervention
+
+```ts
+export const DEFAULT_POLICY = z.object({
+  windowMs: z.number().int().default(60_000),
+  assessEveryMs: z.number().int().default(10_000),
+  minConfidence: z.number().min(0).max(1).default(0.7),
+  driftSeconds: z.number().int().default(30),
+  consecutiveOffGoal: z.number().int().default(2),
+  nudgeGapMs: z.number().int().default(180_000),
+  minGapMs: z.number().int().default(90_000),
+  maxTier: z.number().int().min(0).max(5).default(2),
+  resolveWindowMs: z.number().int().default(120_000),
+  revertWindowMs: z.number().int().default(60_000),
+  maxAutomationsPerSession: z.number().int().default(6),
+})
+
+export const Tier = z.number().int().min(0).max(5)
+export const Outcome = z.enum(['resolved', 'ignored', 'reverted', 'unknown'])
+
+export const Intervention = z.object({
+  tier: Tier,
+  channel: z.enum(['log', 'ambient', 'notification', 'speech', 'automation', 'summary']),
+  message: z.string().max(220).nullable(),      // what is shown or spoken, from the policy
+  action: Automation.nullable(),
+  reversible: z.boolean(),
+  reason: z.string(),                           // machine readable, mirrors Observation.reason
+})
+```
+
+---
+
+## 6. Device socket — `wss://api/ws/device`, protocol `heli.v1`
+
+Binary frames are **tagged** (`0x01` video JPEG, `0x02` audio PCM S16LE, `0x03` reserved).
+Everything else is JSON. The device authenticates with a pairing code in
+`Sec-WebSocket-Protocol: heli.v1, <code>`.
+
+### device → api
+`hello` `{ deviceId, agentVersion, caps }` · `session.open` `{ goalId? }` ·
+`frame` `{ seq, ts, trigger }` then the raw JPEG · `media.start` `{ video, audio }` ·
+`media.stop` `{ reason }` · `media.state` `{ state }` · `state` `{ state }` ·
+`telemetry` `{ cpu, tempC, rssi, uptimeS, fps, bytesSent }` ·
+`command.ack` `{ commandId, status, result? }` · `bargein` `{ ts }` · `session.close` `{ reason }`
+
+### api → device
+`session.start` `{ sessionId, goal, policy }` · `audio.out` `{ format, sampleRate, channels,
+durationMs, momentId }` then tagged audio · `command` `{ id, type, issuedAt, payload }` ·
+`policy.update` `Policy` · `error` `{ code, message, ref? }` · `session.stop` `{ reason }`
+
+Command types: `capture`, `stream.start`, `stream.stop`, `camera.set`, `camera.ptz`, `led.set`,
+`shutter.set`, `speak`, `identify`. See `docs/03-device-contract.md`.
+
+---
+
+## 7. REST + SSE
+
+Base `/v1`, bearer JWT.
+
+| method | path | returns |
+|---|---|---|
+| `POST` | `/auth/dev-login` | `{ token, user }` — seeded user only |
+| `POST` | `/devices/pair` | `{ device, deviceToken }` — idempotent |
+| `GET` | `/devices` | `Device[]` with `lastSeenAt`, `caps` |
+| `POST` | `/devices/:id/rotate-code` | a fresh pairing code |
+| `POST` | `/signals` | `SignalBatch` accepted |
+| `GET` | `/sessions/:id/window` | the latest `SignalWindow` |
+| `POST` | `/goals` · `GET` · `PUT` · `DELETE` | `Goal` |
+| `GET` | `/sessions` · `/sessions/:id` | summary · session with observations and interventions |
+| `POST` | `/sessions/:id/session`? | — |
+| `GET` | `/analytics/summary` · `/tiers` · `/apps` · `/heatmap` | see below |
+| `GET` | `/live/:sessionId` | **SSE**: `observation`, `intervention`, `signal.window`, `state` |
+| `POST` | `/sessions/:id/speak` | a manual line, still passing the policy |
+| `GET` | `/sessions/:id/media-token` · `/video.mjpg` · `/media-state` | the media path |
+| `POST` | `/sessions/:id/sample` | force one sample through the loop |
+
+Analytics shapes: `summary { focusedMinutes, offTaskMinutes, interventions, longestFocusRunSeconds,
+tierHistogram }` · `tiers { tier, outcome, count }[]` · `apps { app, seconds, onTask }[]` ·
+`heatmap { hour, onTaskRatio }[]`.
+
+---
+
+## 8. What a desktop client may write
+
+Signals, and its own playback state. It never writes an assessment or an intervention; those are
+the server's. A mutating endpoint that changes the goal or the policy is the user's, from the
+desktop, and is the only other write.

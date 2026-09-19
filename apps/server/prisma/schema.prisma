@@ -1,0 +1,170 @@
+// Helicopter data model.
+//
+// Every screen is a query over `Observation` (docs/01-contracts.md §1). The
+// other models exist so that row has a session, a goal, a device and an edge
+// to hang its telemetry and commands from.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+
+  devices Device[]
+
+  @@map("User")
+}
+
+model Device {
+  id         String    @id @default(cuid())
+  code       String    @unique
+  name       String
+  caps       Json      @default("{}")
+  state      String    @default("idle")
+  lastSeenAt DateTime?
+  pairedAt   DateTime?
+  goalId     String?
+  userId     String?
+  createdAt  DateTime  @default(now())
+
+  goal      Goal?             @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  user      User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  sessions  Session[]
+  commands  DeviceCommand[]
+  telemetry DeviceTelemetry[]
+
+  @@index([userId])
+  @@index([goalId])
+  @@index([state])
+  @@map("Device")
+}
+
+model Goal {
+  id                String   @id @default(cuid())
+  kind              String
+  objective         String
+  successCriteria   String?
+  timeBudgetMinutes Int?
+  breakPolicy       String   @default("none")
+  allowedApps       Json     @default("[]")
+  blockedApps       Json     @default("[]")
+  allowedSites      Json     @default("[]")
+  blockedSites      Json     @default("[]")
+  permissions       Json     @default("[\"nudge\", \"speak\"]")
+  automations       Json     @default("[]")
+  policy            Json     @default("{}")
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+
+  devices  Device[]
+  sessions Session[]
+
+  @@index([active])
+  @@map("Goal")
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  goalId    String
+  deviceId  String
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  summary   Json?
+  createdAt DateTime  @default(now())
+
+  goal          Goal           @relation(fields: [goalId], references: [id])
+  device        Device         @relation(fields: [deviceId], references: [id])
+  observations  Observation[]
+  interventions Intervention[]
+
+  @@index([goalId])
+  @@index([deviceId])
+  @@index([startedAt])
+  @@map("Session")
+}
+
+// The contract model, verbatim from docs/01-contracts.md §1.
+model Observation {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  ts        DateTime @default(now())
+
+  signals    Json
+  assessment Json?
+  tier       Int
+  action     Json?
+  outcome    String?
+  confidence Float?
+  reason     String?
+
+  latencyMs Int?
+
+  intervention Intervention?
+
+  @@index([sessionId, ts])
+  @@index([tier, outcome])
+  @@map("Observation")
+}
+
+model Intervention {
+  id            String    @id @default(cuid())
+  sessionId     String
+  session       Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  observationId String?   @unique
+  observation   Observation? @relation(fields: [observationId], references: [id], onDelete: SetNull)
+  tier          Int
+  channel       String
+  message       String?
+  action        Json?
+  reversible    Boolean   @default(false)
+  outcome       String?
+  reason        String?
+  firedAt       DateTime  @default(now())
+  resolvedAt    DateTime?
+
+  @@index([sessionId, firedAt])
+  @@index([tier, outcome])
+  @@map("Intervention")
+}
+
+model DeviceCommand {
+  id       String    @id @default(cuid())
+  deviceId String
+  device   Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  type     String
+  payload  Json?
+  status   String    @default("pending")
+  issuedAt DateTime  @default(now())
+  ackedAt  DateTime?
+  result   Json?
+
+  @@index([deviceId, issuedAt])
+  @@index([status])
+  @@map("DeviceCommand")
+}
+
+model DeviceTelemetry {
+  id        String   @id @default(cuid())
+  deviceId  String
+  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  ts        DateTime @default(now())
+  cpu       Float?
+  tempC     Float?
+  rssi      Int?
+  uptimeS   Int?
+  fps       Float?
+  bytesSent BigInt?
+
+  @@index([deviceId, ts])
+  @@map("DeviceTelemetry")
+}

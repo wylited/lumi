@@ -1,0 +1,41 @@
+import { writeFile, mkdir } from 'node:fs/promises'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { zodToJsonSchema } from 'zod-to-json-schema'
+import type { ZodTypeAny } from 'zod'
+import * as contracts from '../dist/index.js'
+
+const topLevel: Record<string, ZodTypeAny> = {
+  Signal: contracts.Signal,
+  SignalBatch: contracts.SignalBatch,
+  SignalWindow: contracts.SignalWindow,
+  Goal: contracts.Goal,
+  Policy: contracts.Policy,
+  Assessment: contracts.Assessment,
+  Intervention: contracts.Intervention,
+  Observation: contracts.Observation,
+  Session: contracts.Session,
+  SessionSummary: contracts.SessionSummary,
+  SessionDetail: contracts.SessionDetail,
+  Device: contracts.Device,
+  DeviceCaps: contracts.DeviceCaps,
+  DeviceCommand: contracts.DeviceCommand,
+  DeviceTelemetry: contracts.DeviceTelemetry,
+  CommandAck: contracts.CommandAck,
+  MediaStart: contracts.MediaStart,
+  MediaStop: contracts.MediaStop,
+  AudioOut: contracts.AudioOut,
+  MediaStreamState: contracts.MediaStreamState,
+  DeviceToApi: contracts.DeviceToApi,
+  ApiToDevice: contracts.ApiToDevice,
+  LiveEvent: contracts.LiveEvent,
+}
+
+const out: Record<string, unknown> = {}
+for (const [name, schema] of Object.entries(topLevel)) {
+  out[name] = zodToJsonSchema(schema, { target: 'jsonSchema7', $refStrategy: 'none' })
+}
+
+const outDir = resolve(dirname(fileURLToPath(import.meta.url)), '../dist')
+await mkdir(outDir, { recursive: true })
+await writeFile(resolve(outDir, 'json-schema.json'), `${JSON.stringify(out, null, 2)}\n`, 'utf8')

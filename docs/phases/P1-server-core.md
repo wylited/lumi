@@ -13,7 +13,7 @@ parallel. **Owner 2 · server** takes this phase end to end.
 
 ### HELI-010 · feat(server): fastify server and plugin layout
 **Depends:** P0 **Parallel-safe:** no, blocks P1 **Owner:** —
-**Touches:** `apps/server/src/index.ts`, `apps/server/src/server.ts`, `apps/server/src/logger.ts`, `apps/server/src/types/fastify.d.ts`, `apps/server/src/plugins/**`, `apps/server/package.json`, `apps/server/tsconfig.json`
+**Touches:** `apps/server/src/index.ts`, `apps/server/src/server.ts` (the server package, prisma and env landed in P0), `apps/server/src/logger.ts`, `apps/server/src/types/fastify.d.ts`, `apps/server/src/plugins/**`, `apps/server/package.json`, `apps/server/tsconfig.json`
 **Do:** Fastify 5 with `@fastify/websocket`, `@fastify/cors`, `@fastify/sensible` and pino. A zod
 type provider so route schemas come from `@heli/contracts` and a request id is attached to every
 log and error. Errors are JSON `{ error, issues? }` — never a stack trace in the response. Health

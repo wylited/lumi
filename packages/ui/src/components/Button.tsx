@@ -62,7 +62,7 @@ export function Button({
       aria-busy={loading || undefined}
       className={cn(
         'inline-flex select-none items-center justify-center rounded-pill font-ui font-medium whitespace-nowrap',
-        'transition-colors duration-base ease-sifu outline-none',
+        'transition-colors duration-base ease-heli outline-none',
         'focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg',
         'disabled:pointer-events-none disabled:opacity-45',
         variants[variant],

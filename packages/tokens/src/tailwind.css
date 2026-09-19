@@ -110,7 +110,7 @@
   --shadow-lg: 0 24px 48px -16px rgba(11, 21, 18, 0.24);
 
   /* ---- motion -------------------------------------------------------- */
-  --ease-sifu: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --ease-heli: cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 
 @utility duration-fast {
@@ -136,7 +136,7 @@
 }
 
 /* The only two animations in the product. Both belong to LiveDot. */
-@keyframes sifu-pulse {
+@keyframes heli-pulse {
   0%,
   100% {
     opacity: 1;
@@ -148,7 +148,7 @@
   }
 }
 
-@keyframes sifu-ring {
+@keyframes heli-ring {
   0% {
     opacity: 0.5;
     transform: scale(0.7);
@@ -160,10 +160,10 @@
 }
 
 @utility pulse-live {
-  animation: sifu-pulse 2s cubic-bezier(0.2, 0.7, 0.3, 1) infinite;
+  animation: heli-pulse 2s cubic-bezier(0.2, 0.7, 0.3, 1) infinite;
 }
 
 @utility ring-speak {
-  animation: sifu-ring 2s cubic-bezier(0.2, 0.7, 0.3, 1) infinite;
+  animation: heli-ring 2s cubic-bezier(0.2, 0.7, 0.3, 1) infinite;
 }
 

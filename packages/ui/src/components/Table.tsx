@@ -22,7 +22,7 @@ export function Tr({ className, ...props }: HTMLAttributes<HTMLTableRowElement>)
     <tr
       {...props}
       className={cn(
-        'border-b border-border last:border-0 transition-colors duration-base ease-sifu',
+        'border-b border-border last:border-0 transition-colors duration-base ease-heli',
         'hover:bg-surface',
         className,
       )}

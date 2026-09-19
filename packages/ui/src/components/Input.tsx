@@ -34,7 +34,7 @@ export function Input({
       <div
         className={cn(
           'flex h-10 items-center gap-2 rounded-pill border bg-bg px-4',
-          'transition-colors duration-base ease-sifu',
+          'transition-colors duration-base ease-heli',
           'focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-bg',
           error
             ? 'border-danger focus-within:ring-danger'

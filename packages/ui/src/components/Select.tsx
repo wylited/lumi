@@ -23,7 +23,7 @@ export function Select({ label, hint, error, className, id, children, ...props }
       <div
         className={cn(
           'relative flex h-10 items-center rounded-pill border bg-bg pl-4 pr-9',
-          'transition-colors duration-base ease-sifu',
+          'transition-colors duration-base ease-heli',
           'focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-bg',
           error
             ? 'border-danger focus-within:ring-danger'
