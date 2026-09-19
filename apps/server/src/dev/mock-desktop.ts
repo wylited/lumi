@@ -844,10 +844,15 @@ export async function runDesktopMock(options: DesktopMockOptions): Promise<Deskt
       log.warn({ data: event.data.slice(0, 200) }, 'the server sent a frame the mock cannot read')
       return
     }
-    if (parsed.data.t === 'ack') acks.push(parsed.data.accepted)
-    else {
-      refused.push(parsed.data.code)
-      log.warn({ code: parsed.data.code, message: parsed.data.message }, 'the server refused a batch')
+    const frame = parsed.data
+    if (frame.t === 'ack') acks.push(frame.accepted)
+    else if (frame.t === 'error') {
+      refused.push(frame.code)
+      log.warn({ code: frame.code, message: frame.message }, 'the server refused a batch')
+    } else {
+      // `audio.out` and `nudge` are deliveries, not refusals. The mock has no
+      // speaker and no notification surface, so it notes them and moves on.
+      log.info({ t: frame.t }, 'the server sent a delivery')
     }
   })
 

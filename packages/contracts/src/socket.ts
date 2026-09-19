@@ -231,9 +231,27 @@ export const DesktopAck = z
 export type DesktopAck = z.infer<typeof DesktopAck>
 
 /**
+ * A tier-2 intervention, where the person actually is.
+ *
+ * The desktop decides how it appears — a native notification with one action,
+ * never a bare toast — and whether the person acted on it, which it reports back
+ * on the ordinary signal transport so the policy can judge the outcome.
+ */
+export const ApiNudge = z
+  .object({
+    t: z.literal('nudge'),
+    /** The observation this nudges about, so the outcome can be attributed. */
+    observationId: z.string().nullable().default(null),
+    message: z.string().min(1).max(220),
+    action: z.enum(['back_to_goal', 'snooze_10m']).nullable().default(null),
+  })
+  .strict()
+export type ApiNudge = z.infer<typeof ApiNudge>
+
+/**
  * A union rather than a discriminated union on purpose: `ApiError` is the one
  * shape both sockets share with the device, and wrapping it would mean two
  * error types to keep in step.
  */
-export const ApiToDesktop = z.union([DesktopAck, ApiError])
+export const ApiToDesktop = z.union([DesktopAck, ApiAudioOut, ApiNudge, ApiError])
 export type ApiToDesktop = z.infer<typeof ApiToDesktop>

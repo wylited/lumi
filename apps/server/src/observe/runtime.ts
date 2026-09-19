@@ -5,6 +5,7 @@ import { createVisionProvider } from '../models/provider.js'
 import { createSpeechProvider } from '../voice/speech.js'
 import { createTransport } from '../voice/transport.js'
 import { createPrismaLoop, type PrismaLoopInput } from './persistence.js'
+import { createDeskSenders, type DeskSocketLookup, type LoopSenders } from './outbound.js'
 import { createScheduler, type Scheduler } from './scheduler.js'
 import type { Loop } from './index.js'
 
@@ -17,19 +18,15 @@ import type { Loop } from './index.js'
  * or fastify. The server owner's whole integration is one call.
  */
 
-/** Where a line goes. The desktop is tried first; the desk is the fallback. */
-export interface LoopSenders {
-  /** JSON to a session, for example the `audio.out` header. */
-  sendToSession(sessionId: string, payload: unknown): boolean
-  /** Tagged binary to a session. Absent means audio cannot reach the desk yet. */
-  sendBinaryToSession?(sessionId: string, bytes: Buffer): boolean
-  /** A tier-2 notification, with an action, where the person actually is. */
-  sendNotification(sessionId: string, message: string): boolean
-}
-
 export interface LoopRuntimeInput {
   env: Env
-  senders: LoopSenders
+  /**
+   * How the loop reaches a person. Give it a `desk` lookup and this file builds
+   * the senders; give it `senders` and it uses them as-is, which is how a test
+   * drives the whole runtime without a socket.
+   */
+  desk?: DeskSocketLookup
+  senders?: LoopSenders
   /** Every session the scheduler should assess. */
   activeSessions: () => Promise<string[]>
   /** The SSE fan-out. */
@@ -52,13 +49,18 @@ export const DEFAULT_ASSESS_INTERVAL_MS = 10_000
 export function createLoopRuntime(input: LoopRuntimeInput): LoopRuntime {
   const vision = createVisionProvider(input.env, input.logger)
   const speech = createSpeechProvider(input.env)
+  const senders =
+    input.senders ??
+    createDeskSenders({
+      desk: input.desk ?? (() => null),
+      logger: input.logger,
+    })
 
   const transport = createTransport({
-    sendToSession: (sessionId, payload) => input.senders.sendToSession(sessionId, payload),
+    sendToSession: (sessionId, payload) => senders.sendToSession(sessionId, payload),
     sendBinaryToSession: (sessionId, bytes) =>
-      input.senders.sendBinaryToSession ? input.senders.sendBinaryToSession(sessionId, bytes) : false,
-    sendNotification: (sessionId, message) =>
-      input.senders.sendNotification(sessionId, message),
+      senders.sendBinaryToSession ? senders.sendBinaryToSession(sessionId, bytes) : false,
+    sendNotification: (sessionId, message) => senders.sendNotification(sessionId, message),
   })
 
   const loop = createPrismaLoop({
