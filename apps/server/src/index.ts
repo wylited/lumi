@@ -10,6 +10,7 @@ import {
   type LoopRuntime,
 } from './observe/runtime.js'
 import { buildServer } from './server.js'
+import { desktopSocketFor } from './ws/live-desktop.js'
 
 const app = await buildServer()
 
@@ -19,14 +20,13 @@ const loopLog = childLogger({ module: 'observe.runtime' })
  * Where a line goes.
  *
  * `observe/outbound.ts` builds the senders from one lookup — session id in, the
- * live desk socket out — and **nothing in the tree can answer it yet**: the desk
- * socket is HELI-044's, and the desktop socket keeps its connections private
- * behind no session index. Until one of them exposes the lookup, every sender
- * answers `false` and `createDeskSenders` logs each dropped line, which is the
- * honest report: a spoken line nobody heard is not a delivery. This constant is
- * the one line 044 replaces.
+ * live desktop socket out — and the index in `ws/live-desktop.ts` answers it:
+ * a desktop that has sent `hello` with a session id is attached to that session.
+ * With nobody attached the lookup is `null`, the sender answers `false`, and
+ * `createDeskSenders` logs the line as undelivered, which is the honest report:
+ * a spoken line nobody heard is not a delivery.
  */
-const desk: DeskSocketLookup = () => null
+const desk: DeskSocketLookup = (sessionId) => desktopSocketFor(sessionId)
 
 /** Every session being watched right now. The loop assesses only these. */
 const activeSessions = async (): Promise<string[]> => {

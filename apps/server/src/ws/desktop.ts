@@ -7,17 +7,29 @@ import type { ApiToDesktop as ApiToDesktopMessage } from '@heli/contracts'
 import { verifyUserToken } from '../lib/jwt.js'
 import { childLogger } from '../logger.js'
 import { bindSession, ingestSignals } from '../services/signals.js'
+import {
+  attachDesktopSocket,
+  detachDesktopSocket,
+  type LiveDesktopSocket,
+} from './live-desktop.js'
 
 const log = childLogger({ module: 'ws.desktop' })
 
 /**
  * `ws://api/ws/desktop` — the desktop's live transport (§8).
  *
- * This socket is a way **in**, not a way out. Observations, interventions and
- * windows reach the desktop over the SSE channel (`GET /v1/live/:sessionId`);
- * the only thing the server ever sends here is an ack or an error, which is what
- * `ApiToDesktop` says and nothing more. A second outbound channel would be a
- * second place for the live view to be half-right.
+ * This socket is how the loop reaches the person. The timeline — observations,
+ * windows, interventions — goes to the desktop over the SSE channel
+ * (`GET /v1/live/:sessionId`); what arrives *here* is what has to be done: a
+ * tier-2 `nudge` the desktop turns into a card and a notification, and a spoken
+ * line as an `audio.out` header followed by one tagged PCM frame. `ApiToDesktop`
+ * is the union of ack, error, nudge and audio, and every outbound frame is
+ * validated against it before it touches the socket.
+ *
+ * The connection's `hello` names the session it is watching, and that is what
+ * makes the socket findable: `live-desktop.ts` indexes it, and the loop's
+ * outbound half asks the index for a session id to get the live socket back.
+ * Without that, every decided line is recorded as undelivered.
  *
  * Every text frame is validated through `DesktopToApi`. The `signals` message is
  * `SignalBatch` verbatim, and it goes to the same `ingestSignals` call as
@@ -132,18 +144,52 @@ const desktop: FastifyPluginAsync = async (app) => {
       /** The desktop's own playback state: recorded, and nothing consumes it yet. */
       let playback: { playing: boolean; momentId: string | null } | null = null
       let closing = false
+      /** The registry entry for this connection, while it is attached. */
+      let attachedSession: string | null = null
 
-      const send = (message: ApiToDesktopMessage): void => {
-        if (closing || socket.readyState !== SOCKET_OPEN) return
+      const sendFrame = (message: ApiToDesktopMessage): boolean => {
+        if (closing || socket.readyState !== SOCKET_OPEN) return false
         // Nothing else on this socket is serialized (the SSE route is the
-        // outbound channel), so the contract is checked here rather than left to
-        // the client's parser to notice.
+        // timeline), so the contract is checked here rather than left to the
+        // client's parser to notice.
         const validated = ApiToDesktop.safeParse(message)
         if (!validated.success) {
           log.error({ issues: validated.error.issues }, 'refused to send an invalid desktop frame')
-          return
+          return false
         }
         socket.send(JSON.stringify(validated.data))
+        return true
+      }
+
+      const send = (message: ApiToDesktopMessage): void => {
+        sendFrame(message)
+      }
+
+      /**
+       * The loop's view of this connection. `send` runs the same contract check
+       * every other outbound frame does; `sendBinary` writes the tagged PCM that
+       * follows an `audio.out` header, and the two must stay in that order.
+       */
+      const outbound: LiveDesktopSocket = {
+        send: sendFrame,
+        sendBinary: (bytes) => {
+          if (closing || socket.readyState !== SOCKET_OPEN) return false
+          socket.send(bytes)
+          return true
+        },
+      }
+
+      /**
+       * Keep the index in step with the session this connection names. Called on
+       * `hello` and on every `signals` batch, because a later batch may name a
+       * different session (an app restart mid-session) and the loop must not
+       * keep writing into the old one.
+       */
+      const watch = (next: string | null): void => {
+        if (next === attachedSession) return
+        if (attachedSession !== null) detachDesktopSocket(attachedSession, outbound)
+        attachedSession = next
+        if (next !== null) attachDesktopSocket(next, outbound)
       }
 
       const sendError = (code: string, message: string): void => {
@@ -206,6 +252,7 @@ const desktop: FastifyPluginAsync = async (app) => {
           case 'hello': {
             deviceId = parsed.data.deviceId
             sessionId = parsed.data.sessionId
+            watch(sessionId)
             if (deviceId !== null && sessionId !== null) bindSession(deviceId, sessionId)
 
             log.info(
@@ -225,7 +272,10 @@ const desktop: FastifyPluginAsync = async (app) => {
           case 'signals': {
             const batch = parsed.data
             deviceId = batch.deviceId
-            if (batch.sessionId !== null) sessionId = batch.sessionId
+            if (batch.sessionId !== null) {
+              sessionId = batch.sessionId
+              watch(sessionId)
+            }
 
             // The same call `POST /v1/signals` makes. This is the promise the
             // shared `SignalBatch` shape exists to keep.
@@ -266,6 +316,8 @@ const desktop: FastifyPluginAsync = async (app) => {
 
       socket.on('close', (code: number, reason: Buffer) => {
         closing = true
+        if (attachedSession !== null) detachDesktopSocket(attachedSession, outbound)
+        attachedSession = null
         clearInterval(heartbeat)
         connections -= 1
         // Everything this connection owned — the binding it set, its playback
