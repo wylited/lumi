@@ -299,10 +299,11 @@ const deskRoutes: FastifyPluginAsync = async (app) => {
 
       return reply
         .header('content-type', 'image/jpeg')
-        // A stable key per source, so the still is short-lived by design: 5 s
-        // keeps a 2 fps preview from re-fetching on every paint, and is short
-        // enough that a new frame shows up.
-        .header('cache-control', 'private, max-age=5')
+        // A live still, fetched in a loop: `no-store` because any cache is a
+        // preview that cannot keep up. `max-age=5` here made a 10 fps pane show
+        // one picture every five seconds, since the browser reused the body
+        // between polls and the rig's new frames never reached the screen.
+        .header('cache-control', 'private, no-store')
         .send(Buffer.from(bytes))
     },
   )

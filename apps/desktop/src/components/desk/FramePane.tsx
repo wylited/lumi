@@ -5,13 +5,17 @@ import { frameUrl } from '../../lib/api'
 /**
  * The newest frame of one source, polled. Labelled with its source and how old it is; with no frame
  * it is a labelled empty pane, never a stale image.
+ *
+ * `everyMs` defaults to a 10 Hz pane, because the rig publishes 12: a slower default makes the desk
+ * view look frozen next to a live one, and any pane that wants less says so (the screen pane asks
+ * for 3 s).
  */
 export function FramePane({
   sessionId,
   source,
   label,
   empty,
-  everyMs = 1000,
+  everyMs = 100,
   className,
   children,
 }: {
