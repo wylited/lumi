@@ -32,12 +32,14 @@ without a calibration step — and inside a four-percent deadband it does not mo
 person sitting still should not be chased by a twitching camera.
 
 **On the machine** — `apps/desktop`, Tauri 2. The frontmost app, window titles, how often you type,
-whether you are idle. Counts and titles, never keystrokes or page contents. The goal lives here, and
-the live monitor fills in one minute at a time.
+whether you are idle. Counts and titles, never keystrokes or page contents. The goal lives here, the
+live monitor fills in one minute at a time, and it can block what the goal lists — visibly, and only
+when the goal says so.
 
 **In your pocket** — `apps/mobile`, Expo. What the desktop cannot see once you leave the room: app
-time and unlocks on Android, motion on both. It takes the same nudge and the same spoken line. On
-iOS it says what it cannot see instead of pretending.
+time and unlocks on Android, motion on both. It takes the same nudge and the same spoken line, and
+it acts too — an app the goal blocks gets sent Home, with an Undo on the notification. On iOS it
+says what it cannot see instead of pretending.
 
 ## The parts worth reading
 
