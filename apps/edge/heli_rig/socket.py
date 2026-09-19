@@ -117,13 +117,14 @@ class DeskClient:
         # The store, not merely a `TokenSource`: `hello` needs `desk_id()` too.
         self._tokens = tokens
         self._log = log
-
         self._ws: Any | None = None
         self._pending_audio: dict | None = None
         self._refreshed = False
         # The last arm pose failure, so a broken arm is one log line and not one
         # every five seconds.
         self._pose_error: str | None = None
+        # The same, for a tracker that will not report its state.
+        self._follow_error: str | None = None
 
     # ---- the loop ----------------------------------------------------------
 
@@ -313,7 +314,32 @@ class DeskClient:
             # refused; that counter is the loop's, not the socket's, because the
             # upload outcome never reaches this side.
             "framesSent": int(frames_sent) if isinstance(frames_sent, int) and frames_sent >= 0 else 0,
+            "following": self._following(),
         }
+
+    def _following(self) -> bool | None:
+        """Whether the rig is following someone, or None when it has no tracker at all.
+
+        `null` and `false` are different claims, which is why the contract's field is nullable: a
+        rig with no tracker (no arm, `HELI_TRACKING=off`, the pieces not built) is not "not
+        following" — it cannot follow, and the app's switch has nothing to turn on. The tracker is
+        read off the dispatcher, which is where it was handed at wiring time, so there is one owner
+        of it rather than two.
+        """
+        tracker = getattr(self._dispatcher, "tracker", None)
+        if tracker is None:
+            return None
+        try:
+            # `following`, not `state()['on']`: a rig that was asked to follow and whose arm
+            # never took the mode is not following, and the app must not show a switch that
+            # is on over an arm that is not moving.
+            return bool(tracker.following)
+        except Exception as exc:
+            # A tracker that cannot answer is one log line, not a heartbeat that stops.
+            if str(exc) != self._follow_error:
+                self._follow_error = str(exc)
+                self._log.warning("the tracker would not report its state: %s", exc)
+            return None
 
     async def _arm_pose(self) -> dict | None:
         """Where the arm is, or null when there is no arm — or none that answers.

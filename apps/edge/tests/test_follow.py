@@ -170,6 +170,35 @@ def test_a_rig_configured_off_refuses_to_be_turned_on():
     assert arm.modes == []          # nothing was engaged, so nothing was put in a mode
 
 
+def test_a_failed_engage_does_not_claim_the_rig_is_following():
+    """The one pair of claims that must never disagree: the ack and the heartbeat.
+
+    `arm.track { on: true }` on a rig whose armd is not answering acked `failed`, and the very next
+    `desk.health` said `following: true` — because `_on` was set before `_engage` talked to the arm.
+    A person reading the app would see a Follow me switch on, an error on the action, and an arm
+    that is not moving. The state is claimed only once the engage has actually happened.
+    """
+    arm = FakeArm()
+    tracker = Tracker(cfg(), arm, gimbal_for(arm), log)   # `auto`, so it starts following
+
+    # The sequence that found this: turn it off, then ask for it back with an arm that will not
+    # take a mode — the live case is a console that has gone away, leaving armd unreachable.
+    tracker.set_on(False)
+    assert tracker.on is False
+    arm.fails = "mode"
+    with pytest.raises(RuntimeError, match="refused mode"):
+        tracker.set_on(True)
+    assert tracker.on is False, "the tracker claims to be following after a failed engage"
+    assert tracker.state()["on"] is False
+
+    # And it can still be turned on once the arm answers, so the failure is a state that was not
+    # entered rather than a tracker that is now stuck.
+    arm.fails = None
+    tracker.set_on(True)
+    assert tracker.on is True
+    assert arm.modes == ["pose"]
+
+
 def test_tracking_with_no_control_law_refuses_by_name():
     """No arm means no law, and no law means no loop: the refusal names what is missing."""
     tracker = Tracker(cfg(), FakeArm(), None, log)

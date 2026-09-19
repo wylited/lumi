@@ -133,12 +133,17 @@ class Tracker:
             )
         if on == self._on:
             return
-        self._on = on
-        self._log.info("tracking %s", "on" if on else "off")
+        # Engage before claiming: `_engage` talks to the arm and the law, and it is the
+        # call that fails when there is no console behind armd. Setting `_on` first left a
+        # tracker that reported `following` while nothing was engaged — an `arm.track`
+        # acked `failed` beside a heartbeat claiming the rig was following, which is the
+        # one pair of claims that must never disagree.
         if on:
             self._engage()
             self._engaged = True
-        else:
+        self._on = on
+        self._log.info("tracking %s", "on" if on else "off")
+        if not on:
             self._engaged = False
             self._hold()
 
@@ -179,11 +184,29 @@ class Tracker:
         """What the doctor and a debugging session report about the loop."""
         return {
             "on": self._on,
+            # Whether the modes are actually set. `on` is what was asked for; this is what
+            # happened. A rig that booted with `HELI_TRACKING=auto` and an arm that never
+            # answered has `on` true and this false, and only the pair tells the truth —
+            # the loop retries the engage every tick, so this turns true on its own the
+            # moment the arm comes back.
+            "engaged": self._engaged,
             "frozen": self._frozen > 0,
             "fps": round(self._fps, 1),
             "targets": self._targets,
             "error": self._error,
         }
+
+    @property
+    def following(self) -> bool:
+        """Whether this rig is following a person *now*: engaged, not merely asked to.
+
+        This is what `desk.health.following` carries. Intent is not enough: an `arm.track`
+        that acked `failed` and a heartbeat that says `true` are two claims about one rig,
+        and a person reading the app sees a switch that is on over an arm that is not
+        moving. Frozen does not count against it — a `nod` pausing the loop for a second is
+        still a rig that is following.
+        """
+        return self._on and self._engaged
 
     # ---- the frame the capture loop hands over -----------------------------
 

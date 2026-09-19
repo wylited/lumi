@@ -129,6 +129,10 @@ async def test_a_connection_announces_the_desk_and_keeps_it_alive(tmp_path):
             # 11, not the 6 frames the loop has taken: the frame carries what
             # the server accepted, which is the counter it can act on.
             "framesSent": 11,
+            # Null, not false: this rig was handed no tracker at all, and the app's
+            # Follow me switch has nothing to turn on. `test_the_health_says_whether_...`
+            # covers the other two answers.
+            "following": None,
         }
 
         # The token rides in the query string and the protocol is negotiated, so
@@ -356,6 +360,87 @@ async def test_a_refusal_that_is_not_401_waits_longer_instead_of_refreshing(tmp_
         first, second, third = (handshake["at"] for handshake in desk.handshakes[:3])
         assert second - first >= 0.04
         assert third - second >= 0.08
+    finally:
+        await rig.stop()
+        await desk.close()
+
+
+@pytest.mark.asyncio
+async def test_the_health_says_whether_the_rig_is_following(tmp_path, monkeypatch):
+    """`following` is three answers, not two: null, false, true — and the app's switch needs them.
+
+    A rig with no tracker cannot follow at all, which is a different claim from a rig that has one
+    and is not following it: `null` is "this desk has no such thing", `false` is "it does, and it is
+    off". Collapsing them would light up a Follow me switch on a rig that can never follow.
+
+    The tracker is the real one, so this also pins that the socket reads its state rather than
+    inventing an answer: `set_on` is what turns it on, and the very next heartbeat has to say so.
+    """
+    from heli_rig.config import load
+    from heli_rig.follow import Tracker
+
+    from tests.test_follow import FakeArm, gimbal_for
+
+    # The heartbeat is every 5 s in the rig; a test that waited for the next one would wait longer
+    # than it takes to read this.
+    monkeypatch.setattr(socket_module, "HEALTH_INTERVAL_S", 0.05)
+
+    desk = FakeDesk()
+    await desk.start()
+
+    # No tracker at all: the wiring this rig runs with when it has no arm.
+    plain = socket_rig(desk, tmp_path)
+    try:
+        health = await desk.wait_for_type("desk.health")
+        assert health["following"] is None
+    finally:
+        await plain.stop()
+        await desk.close()
+
+    # A tracker that exists: `auto` starts following, and stopping is what makes the next
+    # heartbeat say so — a report about now, not a value cached when the socket opened.
+    desk = FakeDesk()
+    await desk.start()
+    arm = FakeArm()
+    tracker = Tracker(load(env={"HELI_TRACKING": "auto"}, argv=[]), arm, gimbal_for(arm), log)
+    rig = socket_rig(desk, tmp_path)
+    rig.dispatcher._tracker = tracker
+    try:
+        # `auto` with a working arm: following, and it says so. `set_on(False)` first because a
+        # freshly built `auto` tracker has the intent (`on`) without the modes yet — its loop
+        # engages on the first tick — and this test does not run that loop.
+        await asyncio.to_thread(tracker.set_on, False)
+        await asyncio.to_thread(tracker.set_on, True)
+        await wait_until(
+            lambda: any(h["following"] is True for h in desk.of_type("desk.health")),
+            timeout=3.0,
+            what="a heartbeat saying the rig is following",
+        )
+
+        await asyncio.to_thread(tracker.set_on, False)
+        await wait_until(
+            lambda: any(h["following"] is False for h in desk.of_type("desk.health")),
+            timeout=3.0,
+            what="a heartbeat saying the rig stopped following",
+        )
+
+        # And the case that made this field load-bearing: asked to follow, with an arm that will
+        # not take the mode. The heartbeat must not claim it is following — the app would show a
+        # switch that is on over an arm that is not moving.
+        arm.fails = "mode"
+        with pytest.raises(RuntimeError):
+            await asyncio.to_thread(tracker.set_on, True)
+        assert tracker.following is False
+        # The *latest* heartbeat, not every one ever sent: the earlier `true` ones are the
+        # record of the rig having followed, which is correct. What must not happen is a
+        # heartbeat after the failure that still claims it.
+        before = len(desk.of_type("desk.health"))
+        await wait_until(
+            lambda: len(desk.of_type("desk.health")) > before,
+            timeout=3.0,
+            what="a heartbeat after the failed engage",
+        )
+        assert desk.of_type("desk.health")[-1]["following"] is False
     finally:
         await rig.stop()
         await desk.close()

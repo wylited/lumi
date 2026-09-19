@@ -69,6 +69,16 @@ class Dispatcher:
         self._cfg = cfg
         self._log = log
 
+    @property
+    def tracker(self) -> Any | None:
+        """The follow loop, or None when this rig has none.
+
+        Read by the desk socket, whose `desk.health` reports whether the rig is following: the
+        dispatcher is where the tracker was handed at wiring time, so the socket reads it here
+        rather than being given the same object a second time and the two drifting apart.
+        """
+        return self._tracker
+
     async def handle(self, action: dict) -> dict:
         """Dispatch one action and return the ack the server will read."""
         action_id = action.get("id")
