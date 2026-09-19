@@ -47,12 +47,32 @@ export function Consent({ onMissing }: { onMissing?: (names: string[]) => void }
   const signals = useRecentSignals()
   const [perms, setPerms] = useState<PermissionState[]>([])
 
+  const refresh = () => void native.permissions().then(setPerms)
+
   useEffect(() => {
-    const check = () => void native.permissions().then(setPerms)
-    check()
-    window.addEventListener('focus', check)
-    return () => window.removeEventListener('focus', check)
+    refresh()
+    window.addEventListener('focus', refresh)
+    return () => window.removeEventListener('focus', refresh)
   }, [])
+
+  /**
+   * macOS only lists an app in Screen Recording or Input Monitoring **after the
+   * app has asked**. Opening the pane without asking shows an empty room — which
+   * is exactly what it showed before this called `request`. So: fire the system
+   * prompt first, and only fall back to the pane when the prompt does not come
+   * (it never comes twice, so a previously denied grant is resolved there).
+   */
+  async function allow(grant: Exclude<Grant, null>, pane: string): Promise<void> {
+    const granted = await native.request(grant).catch(() => false)
+    if (granted) {
+      refresh()
+      return
+    }
+    setTimeout(() => {
+      void native.openPane(pane)
+      refresh()
+    }, 1_200)
+  }
 
   const state = (g: Grant) =>
     g === null ? 'granted' : (perms.find((p) => p.id === g)?.state ?? 'missing')
@@ -98,7 +118,7 @@ export function Consent({ onMissing }: { onMissing?: (names: string[]) => void }
                 <Button
                   size="sm"
                   variant="secondary"
-                  onClick={() => void native.openPane(pane(r.grant)!)}
+                  onClick={() => void allow(r.grant!, pane(r.grant)!)}
                 >
                   Allow {label(r.grant)}
                 </Button>
