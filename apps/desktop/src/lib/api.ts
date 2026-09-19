@@ -186,14 +186,24 @@ export const api = {
   },
 }
 
+export interface Frame {
+  url: string
+  /** The rig's frame number, when the server knows it: the same number twice is the same frame. */
+  seq: number | null
+  /** When it was taken, ms; falls back to when it was fetched. */
+  at: number
+}
+
 /**
- * The newest frame of one source as an object URL, or null. `img` cannot send a bearer, so the
- * bytes are fetched and handed over as a blob; the caller revokes the previous URL.
+ * The newest frame of one source, or null. `img` cannot send a bearer, so the bytes are fetched
+ * and handed over as an object URL; the caller revokes the previous one. `after` skips the body
+ * when the server says it is still the frame the caller already has.
  */
 export async function frameUrl(
   sessionId: string,
   source: 'camera' | 'screen',
-): Promise<string | null> {
+  after: number | null = null,
+): Promise<Frame | 'same' | null> {
   const bearer = await auth()
   if (!bearer) return null
   try {
@@ -202,14 +212,25 @@ export async function frameUrl(
       {
         headers: { authorization: `Bearer ${bearer}` },
         signal: AbortSignal.timeout(TIMEOUT_MS),
-        // The route answers `max-age=5`; the pane polls faster than that and wants every frame.
         cache: 'no-store',
       },
     )
     // 204 is "no frame yet": an empty body is not an image.
     if (!res.ok || res.status === 204) return null
+    const seqHeader = res.headers.get('x-heli-frame-seq')
+    const seq = seqHeader === null ? null : Number(seqHeader)
+    if (seq !== null && seq === after) {
+      void res.body?.cancel()
+      return 'same'
+    }
+    const atHeader = res.headers.get('x-heli-frame-at')
     const blob = await res.blob()
-    return blob.size ? URL.createObjectURL(blob) : null
+    if (!blob.size) return null
+    return {
+      url: URL.createObjectURL(blob),
+      seq,
+      at: atHeader ? Date.parse(atHeader) : Date.now(),
+    }
   } catch {
     return null
   }

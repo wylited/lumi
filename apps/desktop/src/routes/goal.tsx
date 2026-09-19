@@ -273,13 +273,17 @@ export function GoalRoute() {
       >
         <Row
           label="Nudge"
-          detail={`A notification, at most every ${Math.round(p.nudgeGapMs / 60_000)} min`}
+          detail={
+            may('speak')
+              ? 'Only when speaking is off: it speaks first'
+              : `A notification, at most every ${Math.round(p.nudgeGapMs / 60_000)} min`
+          }
         >
           <Switch label="Nudge" checked={may('nudge')} onChange={(v) => allow('nudge', v)} />
         </Row>
         <Row
           label="Speak"
-          detail={`One sentence out loud, at most every ${Math.round(p.minGapMs / 1000)} s`}
+          detail={`First, when you drift: one sentence out loud, at most every ${Math.round(p.minGapMs / 1000)} s`}
         >
           <Switch label="Speak" checked={may('speak')} onChange={(v) => allow('speak', v)} />
         </Row>

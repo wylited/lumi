@@ -6,11 +6,11 @@
  * the watch step, because frames only attach to an open session and the watch step proves the
  * camera live; "Start watching" then just goes to Live.
  */
-import { GoalCreateRequest, type Goal, type GoalDraft } from '@heli/contracts'
+import { DEFAULT_POLICY, GoalCreateRequest, type Goal, type GoalDraft } from '@heli/contracts'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { api } from './api'
 import { draft as localDraft } from './goals'
-import { blankGoal } from './goals'
+import { blankGoal, maxTierFor } from './goals'
 import { logger } from './log'
 
 const log = logger('setup')
@@ -68,7 +68,11 @@ export async function draftGoal(
 
 /** Save the edited draft as the goal: update the active one if there is one, else create. */
 export async function saveDraft(draft: GoalDraft, existing: Goal | null): Promise<Goal> {
-  const body = GoalCreateRequest.parse(draft) // strips `source`, which the goals route does not take
+  const parsed = GoalCreateRequest.parse(draft) // strips `source`, which the goals route does not take
+  // The draft carries no policy, and the server's default stops at tier 2: without this a goal made
+  // here could never speak, whatever its permissions said.
+  const policy = { ...(existing?.policy ?? DEFAULT_POLICY), maxTier: maxTierFor(parsed.permissions) }
+  const body = { ...parsed, policy }
   return existing ? api.updateGoal(existing.id, body) : api.createGoal(body)
 }
 

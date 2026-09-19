@@ -40,16 +40,19 @@ export async function loadGoal(): Promise<Goal | null> {
   return goals.find((g) => g.active) ?? goals[0] ?? null
 }
 
-export async function saveGoal(id: string | null, form: GoalForm): Promise<Goal> {
-  // Speaking needs tier 3 and automating tier 4; the policy's ceiling follows the permissions.
-  const maxTier = form.permissions.includes('automate')
+/** Speaking needs tier 3 and automating tier 4: the policy's ceiling follows the permissions. */
+export function maxTierFor(permissions: readonly string[]): number {
+  return permissions.includes('automate')
     ? 4
-    : form.permissions.includes('speak')
+    : permissions.includes('speak')
       ? 3
-      : form.permissions.includes('nudge')
+      : permissions.includes('nudge')
         ? 2
         : 1
-  const body = { ...form, policy: { ...form.policy, maxTier } }
+}
+
+export async function saveGoal(id: string | null, form: GoalForm): Promise<Goal> {
+  const body = { ...form, policy: { ...form.policy, maxTier: maxTierFor(form.permissions) } }
   return id ? api.updateGoal(id, body) : api.createGoal(body)
 }
 

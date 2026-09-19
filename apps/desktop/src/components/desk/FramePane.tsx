@@ -3,7 +3,7 @@ import { cn } from '@heli/ui'
 import { frameUrl } from '../../lib/api'
 
 /**
- * The newest frame of one source, polled. Labelled with its source and how old it is; with no frame
+ * The newest frame of one source, fetched as fast as frames arrive (at most every `everyMs`). Labelled with its source and how old it is; with no frame
  * it is a labelled empty pane, never a stale image.
  */
 export function FramePane({
@@ -11,7 +11,7 @@ export function FramePane({
   source,
   label,
   empty,
-  everyMs = 1000,
+  everyMs = 80,
   idle = 'Frames appear once a session is open.',
   className,
   children,
@@ -35,25 +35,34 @@ export function FramePane({
   useEffect(() => {
     if (!sessionId) return
     let live = true
-    const poll = async () => {
-      const next = await frameUrl(sessionId, source)
-      if (!live) {
-        if (next) URL.revokeObjectURL(next)
-        return
-      }
-      if (next) {
-        if (current.current) URL.revokeObjectURL(current.current)
-        current.current = next
-        setUrl(next)
-        setAt(Date.now())
+    let seq: number | null = null
+    // As fast as frames arrive, never faster than `everyMs`: the next request goes out when the
+    // last one lands, so a slow link slows the pane down instead of piling requests up. A hidden
+    // window stops asking.
+    const loop = async () => {
+      while (live) {
+        const started = Date.now()
+        if (document.visibilityState === 'visible') {
+          const next = await frameUrl(sessionId, source, seq)
+          if (!live) {
+            if (next && next !== 'same') URL.revokeObjectURL(next.url)
+            return
+          }
+          if (next && next !== 'same') {
+            if (current.current) URL.revokeObjectURL(current.current)
+            current.current = next.url
+            seq = next.seq
+            setUrl(next.url)
+            setAt(next.at)
+          }
+        }
+        await new Promise((r) => setTimeout(r, Math.max(0, everyMs - (Date.now() - started))))
       }
     }
-    void poll()
-    const t = setInterval(() => void poll(), everyMs)
+    void loop()
     const age = setInterval(() => tick((n) => n + 1), 1000)
     return () => {
       live = false
-      clearInterval(t)
       clearInterval(age)
     }
   }, [sessionId, source, everyMs])
@@ -91,7 +100,7 @@ export function FramePane({
         <span className={cn('size-1.5 rounded-pill', url && !stale ? 'bg-accent' : 'bg-ink-300')} />
         {label}
         {seconds !== null && !stale ? (
-          <span className="tnum text-text-faint">{seconds <= 1 ? 'now' : `${seconds}s ago`}</span>
+          <span className="tnum text-text-faint">{seconds <= 1 ? 'live' : `${seconds}s ago`}</span>
         ) : null}
       </figcaption>
     </figure>
