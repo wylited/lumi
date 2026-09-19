@@ -140,18 +140,32 @@ detected — the mic level rises while playing — stop playback and report it. 
 **Done when:** an action from `POST /v1/desks/:id/actions` is executed and acked from the rig, a
 spoken line is audible on the Mac's speakers, and a second line never overlaps the first.
 
-### HELI-046 · chore(desktop): desk setup and the desk panel
-**Depends:** 044 **Parallel-safe:** yes **Owner:** 3
-**Touches:** `apps/desktop/src/routes/setup.tsx`, `apps/desktop/src/components/desk/**`, `apps/desktop/src/lib/desk.ts`, `apps/desktop/src/routes/settings.tsx`
-**Do:** First-run setup, replacing pairing for good: **desk name**, **camera** (chosen from what the
-rig reports, with a live preview from `GET /v1/sessions/:id/frame.jpg`), **arm** (present or not, and
-its model), then **"aim here"** — drag a rectangle over the desk in the preview and the desktop posts
-the rectangle to the rig through `POST /v1/desks/:id/actions` with `arm.point` at its centre to
-confirm. Store the desk id locally; `POST /v1/desks` is idempotent so re-running updates. Then the
-panel in Settings: desk name and state, camera preview, arm connection and pose, capture fps and
-last frame time, a re-aim action, and honest disconnected states.
-**Done when:** a fresh install gets from first launch to a live preview and a registered desk without
-typing a code; re-aiming updates the stored rectangle; an unplugged rig reads as disconnected.
+### HELI-046 · feat(desktop): setup — the goal, the watch, the desk
+**Depends:** 044, 072 **Parallel-safe:** yes **Owner:** 3 · desktop + web
+**Touches:** `apps/desktop/src/routes/setup.tsx`, `apps/desktop/src/components/setup/**`, `apps/desktop/src/components/desk/**`, `apps/desktop/src/lib/desk.ts`, `apps/desktop/src/lib/setup.ts`, `apps/desktop/src/routes/settings.tsx`
+**Do:** First-run setup, replacing pairing for good, and **the onboarding is the demo**: three screens
+and one button, every claim proved live on screen.
+1. **The goal.** The field is pre-filled and editable with the demo sentence, seeded chips (Study ·
+   Work · Life) beside it. On submit: a reading state, then the draft from `072` revealed as editable
+   chips — objective, done-when, minutes, breaks, on-goal apps, off-goal apps and sites — with the
+   permission ladder shown as the escalation it is (`nudge → speak → point at the page`). A keyless
+   or failed draft reveals the local one and says so.
+2. **The watch.** Three live rows, not promises: the camera preview with its fps; the machine — the
+   **actual** frontmost app, window title, input rate and idle, updating live, with a mono ticker of
+   the last signals; and the screen — the last frame as a thumbnail with its timestamp and the line
+   “one frame every 10 s, only while a session is live, kept for the session”. The OS grants as rows
+   with real state and a deep link, plus **Continue anyway**, which degrades honestly and names what
+   will be missing.
+3. **The desk.** **desk name**, **camera** (chosen from what the rig reports, with a live preview),
+   **arm** (present or not, and its model), then **"aim here"** — drag a rectangle over the desk in
+   the preview and the desktop posts it to the rig through `POST /v1/desks/:id/actions` with
+   `arm.point` at its centre to confirm. Store the desk id locally; `POST /v1/desks` is idempotent.
+   Then **Start watching**.
+Then the panel in Settings: desk name and state, camera preview, arm connection and pose, capture fps
+and last frame time, a re-aim action, and honest disconnected states.
+**Done when:** a fresh install gets from first launch to a live session without typing a code, with
+the goal drafted, the watch proved live and the desk aimed; re-aiming updates the stored rectangle;
+an unplugged rig reads as disconnected.
 ---
 
 ## Exit criteria

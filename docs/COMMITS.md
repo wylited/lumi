@@ -17,6 +17,7 @@ notes for every commit below. Read your phase before you claim anything.
 | P4 | [`phases/P4-desk-capture.md`](./phases/P4-desk-capture.md) | **4 · hardware + rig** |
 | P5 | [`phases/P5-web.md`](./phases/P5-web.md) | **3 · desktop + web** (storefront only) |
 | P6 | [`phases/P6-hackathon-day.md`](./phases/P6-hackathon-day.md) | all four |
+| P7 | [`phases/P7-onboarding-and-live.md`](./phases/P7-onboarding-and-live.md) | **2 · server** and **3 · desktop + web** |
 | policy | [`02-intervention-policy.md`](./02-intervention-policy.md) | 1 |
 
 **How a person works with agents.** Each owner runs one agent per commit, not per phase. An agent
@@ -150,7 +151,7 @@ server owns intake, actions and persistence. Full detail, including the Python i
 | ☑ | HELI-043 | `feat(contracts): the desk socket, registration and actions` | 004 | **no** | 2 |
 | ☑ | HELI-044 | `feat(server): desks, the desk socket, and actions with acks` | 043, 041 | **no** | 2 |
 | ☐ | HELI-045 | `feat(edge): the action client and audio playback` | 042, 044 | yes | 4 |
-| ☐ | HELI-046 | `chore(desktop): desk setup and the desk panel` | 044 | yes | 3 |
+| ☐ | HELI-046 | `feat(desktop): setup — the goal, the watch, the desk` | 044, 072 | yes | 3 |
 | ☑ | HELI-047 | `feat(contracts): the line reaches the desk` | 043 | yes | 4 |
 | ☑ | HELI-048 | `feat(server): the observe loop starts` | 020 | **no** | 4 |
 
@@ -238,8 +239,34 @@ decision note in `phases/P5-web.md`. Retired rows stay, struck through.
 | ☐ | HELI-060 | `chore(repo): one-command boot` | P0–P5 | **no** | — |
 | ☐ | HELI-061 | `feat(server): demo replay mode` | 060 | yes | — |
 | ☐ | HELI-062 | `docs(repo): the run of show` | 060 | yes | — |
-| ☐ | HELI-063 | `fix(desktop): projector pass` | P3 | yes | desktop+web |
+| ☐ | HELI-063 | `fix(desktop): projector pass` | P3, 074 | yes | desktop+web |
 | ☐ | HELI-064 | `test(repo): end-to-end rehearsal` | all | **no** | — |
+
+## P7 · Onboarding and the live monitor
+
+Two surfaces, and they are the demo. The onboarding is `046`, extended in place: it now owns all
+three screens — the goal drafted from a sentence, the watch proved live, the desk aimed — and that is
+the specification. `071` and `072` unblock it. Full `Do` and `Done when` in
+`phases/P7-onboarding-and-live.md`.
+
+| ✓ | id | commit | depends | ∥ | owner |
+|---|----|--------|---------|---|-------|
+| ☐ | HELI-071 | `fix(server): per-source frames, and the assess step sees both` | 041 | **no** | 2 · server |
+| ☐ | HELI-072 | `feat(server): drafting the goal from a sentence` | 004, 020 | yes | 2 · server |
+| ☐ | HELI-074 | `feat(desktop): the live monitor, split` | 071, 032 | yes | 3 · desktop + web |
+| ☐ | HELI-075 | `feat(desktop): the focused element, and a consent screen that matches reality` | 033, 046 | yes, after 046 | 3 · desktop + web |
+| ☐ | HELI-076 | `chore(desktop): preflight and demo reset` | 046 | yes, after 046 | 3 · desktop + web |
+
+`047` and `048` belong to P4 and are done; P7 starts at `071`, and `073` is deliberately unassigned
+for the next addendum. **`071` is the gap worth knowing about**: the drafted frame intake ignored
+`x-heli-source`, so a screen frame and a camera frame collide in “the newest frame” and the model can
+be shown a screenshot believing it is the page. The assess step will read both once `071` lands — the
+contracts already model `kind: 'desk' | 'screen'`.
+
+**Storage: keep everything.** Sessions are short and single-user, so `071` stores every frame for the
+session and there is no retention row. The consent screen says exactly that. `075` makes
+Accessibility real — `focus.element` as role and accessible title, never a value — so every consent
+row is a signal a module actually emits.
 
 ---
 
@@ -263,10 +290,10 @@ Reading order for each person. Everything above is either ticked or listed here.
 
 | who | next | why |
 |---|---|---|
-| **1 · the loop** | P2 is done. Take **`043`** (contracts) if person 2 is deep in `044`, or **P6/061** (replay mode) — it drives the same bus the loop already publishes on. | The critical path is clear; the demo fallback is the highest-value unclaimed work. |
-| **2 · server** | **`041`** (drafted, review and finish), then **`043`** contracts, then **`044`** desks/socket/actions. Retire the pairing routes and `ws/device.ts` in `044`. | `043` gates the desk work; `041` makes the rig's frames reach the model. |
-| **3 · desktop + web** | **`046`** (desk setup and panel), then **`063`** (projector pass). The storefront is done. | The setup flow is what replaces pairing, and it needs `044` first. |
-| **4 · hardware + rig** | **`040`** (rig agent), then **`042`** (arm), then **`045`** (actions + audio). | You can start `040` today; `042` needs the arm on the bench; `045` waits on `044`. |
+| **1 · the loop** | P2 is done. Take **`061`** (replay mode) — the demo fallback drives the same bus the loop already publishes on — then **`062`** (the run of show). | The critical path is clear; the demo fallback is the highest-value unclaimed work. |
+| **2 · server** | **`071`** (per-source frames), then **`072`** (goal drafting) — both start immediately. Then **`060`** (one-command boot). | `071` is the bug that would show a screenshot as the page; `072` is what `046` renders. |
+| **3 · desktop + web** | **`046`** (the three screens, after `072`), then **`074`** (the monitor, after `071`), then **`075`** and **`076`**, then **`063`**. | The onboarding and the monitor are the demo; everything else in this lane is done. |
+| **4 · hardware + rig** | **`042`** (record the calibration rect, then `point(x, y)`), then **`045`** end-to-end: `044` has landed, so a real action can arrive from this server. | Both rows are unclaimed because their `Done when` lines are not met; the remaining distance is one bench session. |
 | **all four** | P6: `060` one-command boot, `061` replay, `062` run of show, `063` projector, `064` rehearsal. Claim these early. | They are what make the demo survive the room. |
 
 `022` (speech out) is the server-side piece the loop needs; it lands inside P2 as written. The old
@@ -284,8 +311,8 @@ lines are not met and whoever takes them next should not have to argue with a ti
   (`heli-rig calibrate --rect x,y,w,h`, in `apps/edge/README.md`) that this bench has never had.
 - **`045`** — the socket, the dispatcher, the audio and their 33-odd tests landed; every action in
   `DeskAction` was executed and acked against a desk server speaking the landed contract, with the
-  real camera and the real speaker. What is missing is end-to-end against *this* server: `044` has
-  not landed, so `POST /v1/desks` and `WS /ws/desk` answer 404 and no action can arrive from the
-  server at all. `048`'s `desk` lookup is the same gap from the other side.
+  real camera and the real speaker. `044` has since landed (`0e20258`), so `POST /v1/desks`,
+  `WS /ws/desk` and the action route exist: what is missing is the end-to-end run against *this*
+  server, and `048`’s `desk` lookup is now the only thing that could still drop the line.
 
 `040`, `047` and `048` stay ticked: each one's evidence is a command that was run.

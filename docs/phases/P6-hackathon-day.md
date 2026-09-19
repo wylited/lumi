@@ -32,21 +32,24 @@ indistinguishable from live.
 ### HELI-062 · docs(repo): the run of show
 **Depends:** 060, 061 **Parallel-safe:** yes **Owner:** —
 **Touches:** `docs/DEMO.md`
-**Do:** Ninety seconds, written as beats with the exact words. Who sits down, what the goal is, when
-the distraction is introduced, when the first nudge fires, what the device says, when to cut to the
-desktop's History, when to show that the policy blocked the site, and the closing line about the model
+**Do:** Ninety seconds, written as beats with the exact words, built on the onboarding: the sentence
+drafted into a contract, the watch proved live (app, title, input rate, last frame), the aim, then
+Start watching; the drift, the nudge, the ignored nudge, the spoken line, the arm pointing at the
+page, the recovery, the summary. When to cut to History and the closing line about the model
 proposing and the policy disposing. Include the **fallback line for every beat** if it fails.
 **Done when:** someone else on the team can run the demo from this document without the author.
 
 ### HELI-063 · fix(desktop): projector pass
-**Depends:** P3 **Parallel-safe:** yes **Owner:** —
+**Depends:** P3, 074 **Parallel-safe:** yes **Owner:** —
 **Touches:** `apps/desktop/src/**` (styling only)
 **Do:** Look at every demo surface on an actual projector. Bump the smallest type, raise the
 contrast of muted text on the dark surface, thicken rails and hairlines. Projectors crush dark
 greys — what reads beautifully on a laptop disappears on the wall. Verify the tray icon colour is
-distinguishable from three metres.
+distinguishable from three metres. Add **presentation mode** to the live monitor: a density where the
+camera and screen panes dominate and the type is sized for the wall, toggled from the header, landing
+after `074`.
 **Done when:** every element of the desktop's Live and History is legible from three metres on a real
-projector.
+projector, with presentation mode on and off.
 
 ### HELI-064 · test(repo): end-to-end rehearsal
 **Depends:** all **Parallel-safe:** no **Owner:** —
