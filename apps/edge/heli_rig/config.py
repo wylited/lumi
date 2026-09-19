@@ -24,10 +24,13 @@ API_URL_DEFAULT = "http://localhost:3001"
 MODEL_PATH_DEFAULT = "models/yolo11n-pose.onnx"
 #: The tracker's own cadence, and the share of the frame its aim point may be off
 #: by before the arm is asked to move. The deadband is what keeps a person who is
-#: sitting still from being chased by a camera: without it the arm twitches at
-#: every keypoint jitter.
+#: sitting still from being chased by a camera: without it the arm twitches at every
+#: keypoint jitter. 0.04 is the tracking project's own measured value (`DEADBAND` in
+#: its config.py, where the arm was tuned by hand) — and it is the right order: a
+#: person sitting at the desk measures 0.01-0.03 off the aim point, so anything
+#: coarser silently means "never move".
 TRACK_FPS_DEFAULT = 10.0
-TRACK_DEADBAND_DEFAULT = 0.08
+TRACK_DEADBAND_DEFAULT = 0.04
 CONSOLE_URL_DEFAULT = "http://127.0.0.1:8643"
 HELI_DIR_DEFAULT = "~/.heli"
 # Where the arm bridge lives: a project of its own, with a `tracking.bridge` module

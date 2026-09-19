@@ -38,6 +38,10 @@ if TYPE_CHECKING:
 __all__ = ["Dispatcher"]
 
 _ARM_ACTIONS = frozenset({"arm.aim", "arm.point", "arm.nod", "arm.home"})
+#: The actions that move the arm by themselves, and therefore have to be alone on
+#: it: the follow loop is frozen for the whole of each one. `arm.track` is not in
+#: this set - it is the loop's own switch, not a move.
+_MOVING_ACTIONS = frozenset({"arm.aim", "arm.point", "arm.nod", "arm.home"})
 
 
 class Dispatcher:
@@ -56,7 +60,9 @@ class Dispatcher:
         speaker: Speaker | None,
         cfg: Config,
         log: logging.Logger,
+        tracker: Any | None = None,
     ) -> None:
+        self._tracker = tracker
         self._capture = capture
         self._arm = arm
         self._speaker = speaker
@@ -104,10 +110,42 @@ class Dispatcher:
         if kind == "camera.zoom":
             return self._zoom(action_id)
 
+        if kind == "arm.track":
+            return await self._track(action_id, payload)
+
         if kind in _ARM_ACTIONS:
             return await self._arm_action(action_id, action, payload)
 
         return _ack(action_id, "failed", error="unknown_action")
+
+    # ---- following a person ------------------------------------------------
+
+    async def _track(self, action_id: str, payload: dict) -> dict:
+        """`arm.track`: follow the person at the desk, or stop following them.
+
+        Two refusals, both of them honest rather than convenient. No tracker at all
+        means this rig was never given the pieces (`heli_rig.follow` missing, no arm,
+        no control law) and saying `done` would claim a loop that does not exist. A
+        tracker that exists but was configured `HELI_TRACKING=off` refuses too: a rig
+        that starts moving a camera because a socket said so is exactly what the `off`
+        default is for, and the server can tell the two apart by the error.
+        """
+        tracker = self._tracker
+        if tracker is None:
+            return _ack(action_id, "failed", error="tracking_unavailable")
+        on = bool(payload.get("on"))
+        if on and self._cfg.tracking != "auto":
+            return _ack(action_id, "failed", error="tracking_disabled")
+        try:
+            # Off the event loop: `set_on` puts armd into `pose`, which is a console
+            # round trip, and this handler runs on the loop the capture and the socket
+            # share.
+            await asyncio.to_thread(tracker.set_on, on)
+        except Exception as exc:
+            # The tracker's own words: a missing arm, a model that will not load.
+            self._log.warning("arm.track(%s) failed: %s", on, exc)
+            return _ack(action_id, "failed", error=str(exc))
+        return _ack(action_id, "done")
 
     # ---- capture -----------------------------------------------------------
 
@@ -172,6 +210,12 @@ class Dispatcher:
             return _ack(action_id, "failed", error="no_arm")
 
         kind = action["type"]
+        # One arm, one driver: the follow loop is held for the whole of a move that
+        # was asked for, and released whatever the move did. Counted, so a `nod`
+        # that ends inside a `home` does not release the `home`'s freeze.
+        tracker = self._tracker if kind in _MOVING_ACTIONS else None
+        if tracker is not None:
+            tracker.freeze(kind)
         try:
             if kind == "arm.aim":
                 pose = await asyncio.to_thread(
@@ -193,6 +237,9 @@ class Dispatcher:
             # is wrong with the bus, and a paraphrase would lose the detail.
             self._log.warning("%s failed: %s", kind, exc)
             return _ack(action_id, "failed", error=str(exc))
+        finally:
+            if tracker is not None:
+                tracker.thaw(kind)
 
     async def _nod(self, action_id: str, arm: ArmDriver, payload: dict) -> dict:
         """A nod, how long it took, and — when the arm will say — where it ended up."""

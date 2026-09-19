@@ -148,7 +148,7 @@ re-plugged device is picked up without restarting the rig.
 | `HELI_TRACKING` | `off` | `off` \| `auto`: follow the person at the desk without being asked |
 | `HELI_MODEL` | `models/yolo11n-pose.onnx` | the pose model; a relative path resolves against `apps/edge`, so it is found whatever the working directory is |
 | `HELI_TRACK_FPS` | `10` | the tracker's own cadence (detection is ~25 fps on CPU) |
-| `HELI_TRACK_DEADBAND` | `0.08` | the share of the frame the chest may sit off the aim point before the arm moves |
+| `HELI_TRACK_DEADBAND` | `0.04` | the share of the frame the chest may sit off the aim point before the arm moves |
 | `HELI_LOG_LEVEL` | `info` | `debug` \| `info` \| `warning` \| `error` \| `critical` |
 | `HELI_DIR` | `~/.heli` | where the desk id, token and arm calibration are kept |
 | `HELI_DESK_RECT` | — | the desk rectangle in millimetres (`x,y,w,h`) that `--calibrate` records |
@@ -280,8 +280,10 @@ aim point. It is off by default — an observer that moves on its own is a decis
   `HELI_TRACKING=auto` must be set — a rig configured `off` refuses with `tracking_disabled` rather
   than turning on a camera and an arm nobody asked for), `on: false` stops and leaves the arm where
   it is. Acked with `pose` (where the arm ended up) like the other arm actions.
-- **Silence is the default here too.** Inside `HELI_TRACK_DEADBAND` (8% of the frame) the arm does not
-  move at all: a person sitting still is not chased by a camera twitching at keypoint jitter.
+- **Silence is the default here too.** Inside `HELI_TRACK_DEADBAND` (4% of the frame — the tracking
+  project's own hand-tuned value) the arm does not move: a person sitting still is not chased by a
+  camera twitching at keypoint jitter. It is deliberately tight, because a person sitting at the
+  desk measures 0.01–0.03 off the aim point and a coarser band would silently mean "never move".
 
 ---
 

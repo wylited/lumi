@@ -117,6 +117,7 @@ async def doctor(rig: Rig) -> int:
         await _upload(rig, report, frame)
     _arm(rig, report)
     _desk_plane(rig, report)
+    await _tracking(rig, report)
     _speaker(rig, report)
 
     _print(rig, report)
@@ -372,6 +373,94 @@ def _arm(rig: Rig, report: Report) -> None:
         report.add(WARN, "arm", f"the arm is configured but would not answer: {exc}", None)
         return
     report.add(OK, "arm", detail)
+
+
+async def _tracking(rig: Rig, report: Report) -> None:
+    """Whether this rig could follow a person: the model, the law, and the arm to move.
+
+    The check loads the model for real — a file that exists and will not decode is the
+    failure this is for — and it says which of the three is missing rather than a single
+    "tracking is off", because they are three different people's problems: a missing
+    `models/yolo11n-pose.onnx` is a checkout, a missing control law is this repo, and a
+    missing arm is the bench.
+    """
+    if rig.cfg.tracking == "off":
+        report.add(
+            OK,
+            "tracking",
+            "off: this rig aims when it is told to and does not follow anyone on its own",
+            "set HELI_TRACKING=auto (or --tracking auto) to have it follow the person at the desk",
+        )
+        return
+    try:
+        from .config import model_path
+        from .track.detector import PoseDetector
+    except ImportError:
+        report.add(FAIL, "tracking", "HELI_TRACKING=auto but the tracker is not in this tree", None)
+        return
+    path = model_path(rig.cfg)
+    if not path.exists():
+        report.add(
+            FAIL,
+            "tracking",
+            f"HELI_TRACKING=auto but there is no model at {path}",
+            "it is in the repo at apps/edge/models/yolo11n-pose.onnx; if it is missing, the "
+            "checkout is incomplete, and HELI_MODEL points elsewhere",
+        )
+        return
+    try:
+        detector = PoseDetector(path, rig.log)
+    except Exception as exc:
+        report.add(
+            FAIL,
+            "tracking",
+            f"the model at {path} would not load: {exc}",
+            "re-export it: yolo11n-pose.pt with ultralytics, imgsz 640, opset 12, as ONNX",
+        )
+        return
+    detail = f"the model at {path.name} loaded"
+    if rig.arm is None:
+        report.add(
+            WARN,
+            "tracking",
+            f"{detail}, but there is no arm to move: the law can compute and nothing follows",
+            "an arm is what `arm.track` moves; without one the rig still sees the person and "
+            "still uploads frames",
+        )
+        return
+    # A real frame through the real detector: this is the only check that proves the
+    # camera, the model and the decode agree, and it is the one that fails on a model
+    # exported at the wrong size.
+    if rig.source is not None:
+        try:
+            found = await _detect_one(rig, detector)
+        except Exception as exc:
+            report.add(WARN, "tracking", f"{detail}; no frame to try it on: {exc}", None)
+            return
+        report.add(OK, "tracking", f"{detail}; {found}")
+        return
+    report.add(OK, "tracking", detail)
+
+
+async def _detect_one(rig: Rig, detector: Any) -> str:
+    """Run the detector on one real frame: the only check that the camera, the model and
+    the decode agree — and the one that fails on a model exported at the wrong size."""
+    import cv2
+    import numpy as np
+
+    frame = await rig.source.grab()
+    bgr = cv2.imdecode(np.frombuffer(frame.jpeg, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if bgr is None:
+        raise ValueError("the camera's frame is not decodable")
+    # Detection is ~25 fps of CPU work; off the loop, as the follow loop does it.
+    people = await asyncio.to_thread(detector.detect, bgr)
+    with_chest = [d for d in people if d.chest() is not None]
+    if not people:
+        return f"{frame.width}x{frame.height} through the model: no person in frame (that is fine)"
+    return (
+        f"{frame.width}x{frame.height} through the model: {len(people)} person(s), "
+        f"{len(with_chest)} with a chest to aim at"
+    )
 
 
 def _desk_plane(rig: Rig, report: Report) -> None:

@@ -131,8 +131,21 @@ async def run_rig(cfg: Config, log: logging.Logger) -> None:
         source = _unopened_source(cfg, log)
     tokens = _tokens(cfg, log, partial(_caps, cfg, source, arm))
     uploader = Uploader(cfg, _upload_tokens(cfg, tokens, log), log)
-    capture = CaptureLoop(source, uploader, cfg, log)
+
+    # The follow loop is built before the capture loop because the capture loop is
+    # what feeds it: every frame it takes is handed to `observe`, and the loop reads
+    # the newest one on its own cadence. One camera reader, two consumers.
+    tracker = _tracker(cfg, arm, log)
+    capture = CaptureLoop(source, uploader, cfg, log, on_frame=tracker.observe if tracker else None)
     tasks = [asyncio.create_task(capture.run(), name="heli-rig-capture")]
+    if tracker is not None:
+        tasks.append(asyncio.create_task(tracker.run(), name="heli-rig-follow"))
+        log.info(
+            "tracking: %s (model %s, %g fps)",
+            "following" if tracker.on else "off",
+            cfg.model,
+            cfg.track_fps,
+        )
 
     if _landed("heli_rig.socket"):
         from .actions import Dispatcher
@@ -145,7 +158,7 @@ async def run_rig(cfg: Config, log: logging.Logger) -> None:
         # rather than becoming a user token the desk route will reject.
         client = DeskClient(
             cfg,
-            Dispatcher(capture, arm, speaker, cfg, log),
+            Dispatcher(capture, arm, speaker, cfg, log, tracker=tracker),
             capture,
             arm,
             speaker,
@@ -313,6 +326,58 @@ def _unopened_source(cfg: Config, log: logging.Logger) -> FrameSource:
     plugged in, which is the opposite of what `auto` documents.
     """
     return DeferredSource(cfg, log)
+
+
+def _tracker(cfg: Config, arm: object | None, log: logging.Logger) -> object | None:
+    """The follow loop, or None when this rig cannot have one.
+
+    It needs all three: the module, an arm, and the control law. A rig with any of
+    them missing still captures, uploads and answers actions - it simply cannot
+    follow anyone, and `arm.track` says `tracking_unavailable` rather than acking a
+    loop that does not exist.
+
+    The gimbal is built from the arm's own limits: `window` and `park` are what armd
+    reports, so the law's software bounds are the hardware's, not a second set that
+    could disagree with them.
+    """
+    if not (_landed("heli_rig.follow") and _landed("heli_rig.arm.gimbal")):
+        return None
+    if arm is None:
+        return None
+    from .arm.gimbal import Gimbal
+    from .follow import Tracker
+
+    try:
+        limits = _limits(arm, log)
+        gimbal = Gimbal(
+            log,
+            window=limits.get("window"),
+            ready=limits.get("ready"),
+            park=limits.get("park"),
+            aim=(0.5, 0.5),
+            caps=limits.get("caps"),
+            deadband=cfg.track_deadband,
+        )
+    except Exception as exc:
+        log.warning("tracking is off: the control law would not start (%s)", exc)
+        return None
+    return Tracker(cfg, arm, gimbal, log)  # type: ignore[arg-type]
+
+
+def _limits(arm: object, log: logging.Logger) -> dict:
+    """What the control law needs from the arm, read off the arm itself.
+
+    The tracking project kept this in `limits.json`, written once when a person
+    armed the arm and moved it by hand. The rig has no such file and does not need
+    one: armd already reports the window it will hold, the pose it calls park, and
+    the joints' signs are a property of the arm's own axes. Reading them per boot
+    means a law that cannot disagree with the arm it is driving.
+    """
+    try:
+        return dict(arm.limits())  # type: ignore[attr-defined]
+    except Exception as exc:
+        log.debug("the arm would not report its limits: %s", exc)
+        return {}
 
 
 def _caps(cfg: Config, source: FrameSource, arm: object | None = None) -> dict:

@@ -113,6 +113,15 @@ class ArmDriver(Protocol):
     def home(self) -> ArmPose: ...
     def describe(self) -> dict | None: ...
     def close(self) -> None: ...
+    # The follow loop's three: read where the joints are, read the arm's own travel,
+    # and drive a rate per joint. `jog` is the transport armd actually offers - it
+    # moves a joint only while a fresh jog is arriving - and it is deliberately not
+    # `aim`: a control loop that called `aim` every tick would re-run a settling
+    # search 10 times a second.
+    def joints(self) -> dict[str, float]: ...
+    def limits(self) -> dict: ...
+    def mode(self, name: str) -> None: ...
+    def jog(self, rates: dict[str, float]) -> None: ...
 
 
 def _clamp(value: float, low: float, high: float) -> float:
@@ -454,6 +463,79 @@ class BridgeArm:
     def _jog(self, pan_rate: float, tilt_rate: float) -> None:
         self._cmd('jog', {'joint': self.pan_joint, 'rate': pan_rate})
         self._cmd('jog', {'joint': self.tilt_joint, 'rate': tilt_rate})
+
+    # ------------------------------------------------ the follow loop's needs
+
+    def joints(self) -> dict[str, float]:
+        """Every joint's measured angle, for a control law that steers by them.
+
+        The aiming loop above only ever needs the two it drives; the ported control
+        law (`arm/gimbal.py`) clamps against the whole window and holds the joints it
+        does not steer, so it is handed the whole reading. One `state` command, the
+        same one `pose()` reads.
+        """
+        with self._lock:
+            self._ensure()
+            measured = self._joints(self._state())
+        return {str(joint): float(value) for joint, value in measured.items()}
+
+    def limits(self) -> dict:
+        """The arm's own travel, park pose and telemetry, for the control law.
+
+        `tracking/limits.json` was a file a person captured by hand once; everything
+        in it that a control law needs is already in armd's `state` — the software
+        window it will hold, the pose it calls park, the joints and their measured
+        angles. Reading them per boot is one command and cannot drift from the arm it
+        describes, which a captured file can and did.
+        """
+        with self._lock:
+            self._ensure()
+            state = self._state()
+        window = state.get('window') if isinstance(state.get('window'), dict) else {}
+        park = state.get('park') if isinstance(state.get('park'), dict) else {}
+        return {
+            'window': {
+                str(joint): {'min': float(bounds['min']), 'max': float(bounds['max'])}
+                for joint, bounds in window.items()
+                if isinstance(bounds, dict) and 'min' in bounds and 'max' in bounds
+            },
+            'park': {str(joint): float(value) for joint, value in park.items()},
+            'ready': {str(joint): float(value) for joint, value in park.items()},
+            'measured': self._joints(state),
+            'port': (state.get('info') or {}).get('port') if isinstance(state.get('info'), dict) else None,
+        }
+
+    def mode(self, name: str) -> None:
+        """Put armd in a mode, and say so when it refuses.
+
+        `pose` is the mode a jog is applied in — the follow loop needs it, because
+        `jog` is armd's rate transport and armd ignores one in any other mode — and
+        it is also what `aim` puts it in, so the two never disagree about who is
+        driving. A refusal here is the arm's own words, not a status code.
+        """
+        with self._lock:
+            self._ensure()
+            self._state_of(self._cmd('mode', {'mode': str(name)}))
+
+    def jog(self, rates: dict[str, float]) -> None:
+        """Command a rate per joint, and nothing else.
+
+        This is the transport the control law actually drives: armd moves a joint only
+        while a *fresh* jog is arriving (it drops one after 250 ms), so a loop that
+        wants continuous motion re-sends the rate every tick, and the last thing it
+        sends when it stops must be a zero. The named joints are the ones a caller
+        steers; a joint it does not name is left alone rather than commanded to hold,
+        because holding is armd's own job for the joints nobody is driving.
+
+        armd clamps each rate to its own `JOG_VMAX` (10 deg/s on this rig) — that is
+        the manual-pad ceiling, and the follow loop lives inside it. Driving faster
+        means owning the bus rather than asking the process that does, which is the
+        one thing this rig will not do while the console is up.
+        """
+        with self._lock:
+            self._ensure()
+            for joint, rate in rates.items():
+                self._cmd('jog', {'joint': str(joint), 'rate': float(rate)})
 
     def home(self) -> ArmPose:
         """Slew to the stored park pose and answer where the arm stopped.
