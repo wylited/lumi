@@ -168,3 +168,45 @@ model DeviceTelemetry {
   @@index([deviceId, ts])
   @@map("DeviceTelemetry")
 }
+
+/// The physical rig: a Mac, a camera, and maybe an arm. One row, single user.
+///
+/// Deliberately not `Device`. `Device` is the retired pairing identity that
+/// `Session.deviceId` still references, and sessions hang off it — so the row
+/// stays until something re-points them. This model is what the rig registers,
+/// what `GET /v1/desk` reports, and what actions are addressed to.
+model Desk {
+  id           String    @id
+  name         String
+  camera       Json?
+  arm          Json?
+  registeredAt DateTime  @default(now())
+  lastSeenAt   DateTime?
+
+  actions DeskAction[]
+
+  @@map("Desk")
+}
+
+/// One action issued to the rig, and what became of it.
+///
+/// Persisted rather than held in memory, because "the same lifecycle rules as
+/// any command" means the record outlives the request: a timeout, a retry and a
+/// failure all have to still be there afterwards, which is also what
+/// `GET /v1/desks/:id/actions` serves.
+model DeskAction {
+  id          String    @id
+  deskId      String
+  desk        Desk      @relation(fields: [deskId], references: [id], onDelete: Cascade)
+  type        String
+  payload     Json      @default("{}")
+  status      String    @default("queued")
+  issuedAt    DateTime  @default(now())
+  completedAt DateTime?
+  result      Json?
+  error       String?
+
+  @@index([deskId, issuedAt])
+  @@index([status])
+  @@map("DeskAction")
+}

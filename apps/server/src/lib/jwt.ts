@@ -22,15 +22,18 @@ const ISSUER = 'heli'
 const ALGORITHM = 'HS256'
 const USER_TYP = 'user'
 const DEVICE_TYP = 'device'
+const DESK_TYP = 'desk'
 
 // 12h for a person at a keyboard; 90d for a Pi that is screwed to a desk and
-// should survive a weekend without a re-pair.
+// should survive a weekend without a re-pair. The desk token is the rig's, which
+// is a headless process on the same machine as the user — long-lived for the same
+// reason, and re-running setup rotates it.
 const USER_TTL_SECONDS = 12 * 60 * 60
 const DEVICE_TTL_SECONDS = 90 * 24 * 60 * 60
 
 interface TokenPayload {
   sub: string
-  typ: typeof USER_TYP | typeof DEVICE_TYP
+  typ: typeof USER_TYP | typeof DEVICE_TYP | typeof DESK_TYP
 }
 
 /**
@@ -94,6 +97,20 @@ const subjectOf = (token: string, expectedType: TokenPayload['typ']): string => 
 export const verifyUserToken = (token: string): string => subjectOf(token, USER_TYP)
 
 export const verifyDeviceToken = (token: string): string => subjectOf(token, DEVICE_TYP)
+
+/**
+ * A 90d token for the rig. `sub` is the desk's id.
+ *
+ * The rig is a headless process, so it cannot hold the user's credentials: this
+ * is what `POST /v1/desks` hands it, and what `/ws/desk` and the frame upload
+ * authenticate with instead. Because every verifier checks `typ`, a desk token
+ * cannot be replayed against a route that expects a person, and a stolen user
+ * token cannot be used to impersonate a desk.
+ */
+export const signDeskToken = (deskId: string): string =>
+  sign({ sub: deskId, typ: DESK_TYP }, DEVICE_TTL_SECONDS)
+
+export const verifyDeskToken = (token: string): string => subjectOf(token, DESK_TYP)
 
 /**
  * Reads the token out of an `Authorization: Bearer <token>` header. Returns

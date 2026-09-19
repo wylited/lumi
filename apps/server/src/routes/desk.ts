@@ -2,14 +2,31 @@ import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 
 import { DeskFrameResponse, DeskStatus, FrameRejectionCode } from '@heli/contracts'
+import {
+  Desk,
+  DeskActionRecord,
+  DeskActionRequest,
+  DeskRegistration,
+  DeskRegisterResponse,
+} from '@heli/contracts'
 import type {
-  Desk as DeskContract,
   DeskFrameResponse as DeskFrameBody,
+  DeskRegisterResponse as DeskRegisterBody,
   DeskStatus as DeskStatusBody,
 } from '@heli/contracts'
 
 import { requireUser } from '../lib/jwt.js'
 import { prisma } from '../lib/prisma.js'
+import {
+  buildAction,
+  deskHealthOf,
+  deskRowExists,
+  getTheDesk,
+  isDeskConnected,
+  issueAction,
+  listActions,
+  registerDesk,
+} from '../services/desk.js'
 import { sessionExists } from '../services/session.js'
 import {
   FrameRejectedError,
@@ -48,6 +65,8 @@ const FrameRefused = z.object({
   code: FrameRejectionCode,
   message: z.string(),
 })
+/** The server's own envelope, which is `{ error }` and nothing more. */
+const NotFound = z.object({ error: z.string() })
 
 const capturedAt = (value: unknown): string | undefined =>
   typeof value === 'string' && value.length > 0 ? value : undefined
@@ -64,28 +83,6 @@ const rigSeq = (value: unknown): number | null => {
   const parsed = Number.parseInt(raw, 10)
   return Number.isSafeInteger(parsed) ? parsed : null
 }
-
-/**
- * A `Device` row as the contract's `Desk`.
- *
- * `camera` and `arm` are null until HELI-044 gives the desk a row of its own to
- * hold them, because the rig reports its caps over `/ws/desk`, which does not
- * exist yet. `state` is deliberately dropped: `Desk` has no field for it, and a
- * desk's state is now whether it is connected, which `DeskStatus.connected` says.
- */
-const toApiDesk = (row: {
-  id: string
-  name: string
-  createdAt: Date
-  lastSeenAt: Date | null
-}): DeskContract => ({
-  id: row.id,
-  name: row.name,
-  camera: null,
-  arm: null,
-  registeredAt: row.createdAt.toISOString(),
-  lastSeenAt: row.lastSeenAt === null ? null : row.lastSeenAt.toISOString(),
-})
 
 /**
  * The parser's ceiling, deliberately **above** the frame cap.
@@ -117,7 +114,7 @@ const deskRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: requireUser, schema: { response: { 200: DeskStatus } } },
     async (): Promise<DeskStatusBody> => {
       const [desk, session] = await Promise.all([
-        prisma.device.findFirst({ orderBy: { createdAt: 'asc' } }),
+        getTheDesk(),
         prisma.session.findFirst({ where: { endedAt: null }, orderBy: { startedAt: 'desc' } }),
       ])
       // Resolved from the store, not the in-memory mirror: after a restart the
@@ -126,7 +123,7 @@ const deskRoutes: FastifyPluginAsync = async (app) => {
       const ref = session ? await resolveLatestFrameRef(session.id) : null
 
       return {
-        desk: desk ? toApiDesk(desk) : null,
+        desk,
         session: session
           ? {
               id: session.id,
@@ -141,11 +138,11 @@ const deskRoutes: FastifyPluginAsync = async (app) => {
         // the panel would never look alive.
         frames: session ? framesAccepted(session.id) : 0,
         hasFrame: ref !== null,
-        // The desk socket arrives in HELI-044. `false` is the honest answer
-        // today, and it is what stops a panel claiming a rig is connected when
-        // nothing has ever handshaken.
-        connected: false,
-        health: null,
+        // These two come alive with the desk socket: they now say whether a rig
+        // has actually handshaked, which is what the panel's disconnected state
+        // means. Before 044, `false`/`null` was the honest answer.
+        connected: desk !== null && isDeskConnected(desk.id),
+        health: desk === null ? null : deskHealthOf(desk.id),
       }
     },
   )
@@ -272,6 +269,88 @@ const deskRoutes: FastifyPluginAsync = async (app) => {
         // every paint, and is short enough that a new frame shows up.
         .header('cache-control', 'private, max-age=5')
         .send(Buffer.from(bytes))
+    },
+  )
+
+  /* ---- registration, and the action log ---------------------------------- */
+
+  /**
+   * `POST /v1/desks` — registration replaces pairing.
+   *
+   * The setup UI posts the desk's name, its camera and (optionally) its arm, and
+   * gets back a **desk token**: the rig is a headless process and must never hold
+   * the person's credentials. Idempotent on the id the rig stores locally, so
+   * re-running setup updates the desk instead of creating a second one, and the
+   * token is reissued so a lost one can be recovered by re-running setup.
+   */
+  app.post(
+    '/desks',
+    {
+      preHandler: requireUser,
+      schema: { body: DeskRegistration, response: { 200: DeskRegisterResponse } },
+    },
+    async (request): Promise<DeskRegisterBody> => registerDesk(request.body),
+  )
+
+  /**
+   * `GET /v1/desks` — the one desk.
+   *
+   * There is no `DeskListResponse` in `@heli/contracts` (a gap this row cannot
+   * close, since contracts are not in its `Touches`), so the array is composed
+   * from the contract's own `Desk` rather than a hand-written shape.
+   */
+  app.get(
+    '/desks',
+    { preHandler: requireUser, schema: { response: { 200: z.array(Desk) } } },
+    async () => {
+      const desk = await getTheDesk()
+      return desk === null ? [] : [desk]
+    },
+  )
+
+  /**
+   * `POST /v1/desks/:id/actions` — a manual action.
+   *
+   * Answers `200` with the record, **including when the action failed**: "I
+   * pressed it and nothing happened" is the one outcome the panel must never
+   * produce, so a missing rig comes back as a record with `failed` and
+   * `desk_offline` rather than as an HTTP error the caller might swallow.
+   */
+  app.post(
+    '/desks/:id/actions',
+    {
+      preHandler: requireUser,
+      schema: {
+        params: z.object({ id: z.string().min(1) }),
+        body: DeskActionRequest,
+        response: { 200: DeskActionRecord, 404: NotFound },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params
+      if (!(await deskRowExists(id))) return reply.code(404).send({ error: `No desk ${id}.` })
+
+      // `buildAction` parses against the contract's own union, so an unknown type
+      // or a payload the contract forbids is a 400 here rather than a frame the
+      // rig cannot understand.
+      return issueAction(id, buildAction(request.body))
+    },
+  )
+
+  /** `GET /v1/desks/:id/actions` — the log, newest first. */
+  app.get(
+    '/desks/:id/actions',
+    {
+      preHandler: requireUser,
+      schema: {
+        params: z.object({ id: z.string().min(1) }),
+        response: { 200: z.array(DeskActionRecord), 404: NotFound },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params
+      if (!(await deskRowExists(id))) return reply.code(404).send({ error: `No desk ${id}.` })
+      return listActions(id)
     },
   )
 }

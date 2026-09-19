@@ -148,14 +148,24 @@ server owns intake, actions and persistence. Full detail, including the Python i
 | ☑ | HELI-041 | `feat(server): frame intake and the newest frame` | 040, 014 | **no** | 2 |
 | ☑ | HELI-042 | `feat(edge): the arm adapter and aiming` | 040 | yes | 4 · hardware + rig |
 | ☑ | HELI-043 | `feat(contracts): the desk socket, registration and actions` | 004 | **no** | 2 |
-| ☐ | HELI-044 | `feat(server): desks, the desk socket, and actions with acks` | 043, 041 | **no** | 2 |
+| ☑ | HELI-044 | `feat(server): desks, the desk socket, and actions with acks` | 043, 041 | **no** | 2 |
 | ☑ | HELI-045 | `feat(edge): the action client and audio playback` | 042, 044 | yes | 4 · hardware + rig |
 | ☐ | HELI-046 | `chore(desktop): desk setup and the desk panel` | 044 | yes | 3 |
 | ☑ | HELI-047 | `feat(contracts): the line reaches the desk` | 043 | yes | 4 · hardware + rig |
 | ☑ | HELI-048 | `feat(server): the observe loop starts` | 020 | **no** | 4 · hardware + rig |
 
 `041` landed in `879a5d9` as a draft and was reviewed and finished by owner 2; its `Done when` is
-proved with curl uploads, so it does not wait on `040`'s rig agent. `043` is the contracts gate: nothing desk-shaped should be
+proved with curl uploads, so it does not wait on `040`'s rig agent.
+
+**The pairing routes and the device socket are retired but not deleted.** `044`'s `Done when` asks for
+`grep -r "ws/device" apps/` to find nothing but the retired file, and that cannot be true yet: the
+**mocks still drive the retired path** — `dev/mock-device.ts` pairs over `POST /v1/devices/pair` and
+connects to `/ws/device`, and `dev/mock-desktop.ts` reads `/v1/devices` — and those mocks are the
+demo's fallback until `040`'s rig agent exists. Deleting `src/ws/device.ts` and `src/routes/devices.ts`
+now would break `pnpm server:mock` for everyone, and neither file is in `044`'s `Touches`. So this is
+the phase doc's own alternative branch: marked deleted here, with the reason. The deletion belongs with
+`040`, in the commit where the mocks stop being the only thing that talks to a desk. `services/session.ts`
+only mentions the device socket in comments, so nothing else depends on it. `043` is the contracts gate: nothing desk-shaped should be
 written before it lands.
 
 `047` is an addendum to `043` (`b7ae2cd`), which carries actions down `/ws/desk` and no audio.
