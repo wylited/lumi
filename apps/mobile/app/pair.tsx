@@ -99,6 +99,10 @@ export default function PairScreen() {
             keyboardType="number-pad"
             inputMode="numeric"
             maxLength={6}
+            returnKeyType="done"
+            onSubmitEditing={() => {
+              if (code.length === 6 && !busy) void submit()
+            }}
             placeholder="000000"
             placeholderTextColor={t.textFaint}
             style={[field, { fontFamily: type.family.mono, fontSize: 24, letterSpacing: 6 }]}

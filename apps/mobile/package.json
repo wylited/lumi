@@ -11,8 +11,6 @@
     "ios": "expo run:ios"
   },
   "dependencies": {
-    "@expo-google-fonts/jetbrains-mono": "^0.4.1",
-    "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
     "@expo/metro-runtime": "~6.1.2",
     "@heli/contracts": "workspace:*",
     "@heli/tokens": "workspace:*",
@@ -21,7 +19,6 @@
     "expo-build-properties": "~1.0.10",
     "expo-device": "~8.0.10",
     "expo-file-system": "~19.0.24",
-    "expo-font": "~14.0.12",
     "expo-modules-core": "~3.0.30",
     "expo-notifications": "~0.32.17",
     "expo-router": "~6.0.24",
