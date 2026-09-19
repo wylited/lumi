@@ -13,7 +13,7 @@ import {
 import { prisma as defaultPrisma } from '../lib/prisma.js'
 import type { ObjectRef } from '../lib/storage.js'
 import { getWindow } from '../services/signals.js'
-import { getFrame, latestFrameRef } from '../services/frames.js'
+import { getFrame, listFrames, resolveLatestFrameRef } from '../services/frames.js'
 import type {
   AssessFrame,
   Bus,
@@ -81,20 +81,28 @@ export function createPrismaReader(
     },
 
     async frames(sessionId: string): Promise<AssessFrame[]> {
-      // The newest frame the rig uploaded wins. The signal window's `lastFrameRef`
-      // is only a hint; the frame store is the truth, and it survives a stream
-      // stopping so the last page can still be assessed.
-      const ref = latestFrameRef(sessionId)
+      // The newest frame the rig uploaded wins, and it is resolved from the frame
+      // **store**: the signal window's `lastFrameRef` is only a hint, and the
+      // in-memory mirror is empty after a restart, so neither can be the truth.
+      // `resolveLatestFrameRef` falls back to the store and warms the mirror.
+      const ref = await resolveLatestFrameRef(sessionId)
       if (ref === null) return []
       const bytes = frameBytes ? await frameBytes(ref) : await getFrame(ref)
+
+      // The dimensions come from the retained frame's metadata so the assessment
+      // knows how large the image it is looking at is. They are absent rather
+      // than wrong once `endMediaSession` has released the ring but the mirrored
+      // still is still being served.
+      const meta = listFrames(sessionId).at(-1)
+
       return [
         {
           kind: 'desk',
-          ref: typeof ref === 'string' ? ref : (ref.key ?? String(ref)),
+          ref: typeof ref === 'string' ? ref : ref.key,
           mediaType: 'image/jpeg',
           bytes: bytes ? Buffer.from(bytes) : null,
-          width: null,
-          height: null,
+          width: meta?.width ?? null,
+          height: meta?.height ?? null,
         },
       ]
     },

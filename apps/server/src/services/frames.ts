@@ -1,6 +1,6 @@
-import type { MediaAudioMeta, MediaFrameMeta } from '@heli/contracts'
+import type { FrameRejectionCode, MediaAudioMeta, MediaFrameMeta } from '@heli/contracts'
 
-import { getObject, putObject } from '../lib/storage.js'
+import { getObject, putObject, storageBackend } from '../lib/storage.js'
 import type { ObjectRef } from '../lib/storage.js'
 import { endHubSession, publish, resetHub } from '../media/hub.js'
 
@@ -23,13 +23,17 @@ export const MAX_FRAME_DIMENSION = 1600
 /* ---- rejection ----------------------------------------------------------- */
 
 /**
- * The three codes the device contract promises (§5, §11). They travel with a
- * `statusCode` so the HTTP path can answer correctly too, and with a
- * machine-readable `code` so HELI-012 can reply `{ t:'error', code }` on the
- * socket without string-matching an English message.
+ * A rejected frame travels with a machine-readable `code` so the caller branches
+ * on the code rather than on an English sentence, and with the `statusCode` that
+ * fits it — which is this codebase's convention for every error that can reach a
+ * request (`plugins/errors.ts` reads exactly this field), so a rejection that
+ * escaped the route's own catch would answer 413 or 415 rather than a masked 500.
+ *
+ * The union itself is the contract's (`packages/contracts/src/desk.ts`), because
+ * the rig branches on these three strings and reads them out of
+ * `dist/json-schema.json`. This file used to hand-write the same three values,
+ * which is exactly the duplication "contracts are law" forbids.
  */
-export type FrameRejectionCode = 'frame_not_jpeg' | 'frame_too_large' | 'frame_too_wide'
-
 export class FrameRejectedError extends Error {
   readonly code: FrameRejectionCode
   readonly statusCode: number
@@ -66,6 +70,14 @@ const isStartOfFrame = (marker: number): boolean =>
  *
  * Throws a 415 `frame_not_jpeg` for anything that is not a walkable JPEG: a
  * truncated stream, a lost marker, or a stream with no SOF at all.
+ *
+ * Known limit, deliberately not closed here: this validates the **header**, not
+ * the whole stream. A JPEG cut short after its SOF still walks cleanly, so a
+ * truncated upload is accepted and reaches a provider that cannot decode it,
+ * where the loss surfaces as a provider error rather than a 422. Closing it means
+ * checking for the `FFD9` end-of-image marker — scanning the last few bytes,
+ * since some encoders append padding after it — which is a change to HELI-014's
+ * validation contract and wants its own row rather than a drive-by.
  */
 export function readJpegSize(bytes: Uint8Array): { width: number; height: number } {
   if (bytes.length < 4) throw notJpeg('shorter than a JPEG header')
@@ -158,6 +170,16 @@ export interface VideoFrameInput {
   bytes: Uint8Array
   seq: number
   ts?: string
+  /**
+   * How much of this session's video to hold.
+   *
+   * `recent` (the default) keeps a bounded ring — what the live fan-out and the
+   * mock device want. `newest` keeps exactly one, which is the desk path: the rig
+   * uploads at about 2 fps, and a stale still is worse than a missing one, so it
+   * drops what it held rather than letting a backlog build behind the frame the
+   * next assessment is about to read.
+   */
+  retain?: 'recent' | 'newest'
 }
 
 export interface AudioChunkInput {
@@ -171,6 +193,13 @@ export interface AudioChunkInput {
 interface MediaSessionState {
   frames: VideoFrameMeta[]
   audio: AudioChunkMeta[]
+  /**
+   * Frames accepted for this session since this process started, whether or not
+   * they are still held. This is what `DeskStatus.frames` means — the desk panel
+   * shows it climbing — and it is deliberately not `frames.length`, which is a
+   * retention ring and sits at 1 once a desk keeps only its newest frame.
+   */
+  accepted: number
 }
 
 const sessions = new Map<string, MediaSessionState>()
@@ -190,7 +219,7 @@ const latestFrames = new Map<string, ObjectRef>()
 const sessionState = (sessionId: string): MediaSessionState => {
   let state = sessions.get(sessionId)
   if (state === undefined) {
-    state = { frames: [], audio: [] }
+    state = { frames: [], audio: [], accepted: 0 }
     sessions.set(sessionId, state)
   }
   return state
@@ -218,6 +247,36 @@ const frameKey = (sessionId: string, ts: string, seq: number): string =>
 /* ---- intake -------------------------------------------------------------- */
 
 /**
+ * The desk's one frame lives at one key, so every upload overwrites the last.
+ *
+ * This is what makes "only one frame is retained per session" true of the
+ * **bytes** and not merely of the metadata ring. A per-frame key plus a delete
+ * would need a delete in `lib/storage.ts`, which belongs to HELI-014 and not to
+ * this row — and overwriting is better anyway, because it cannot fail halfway
+ * and leave the previous frame sitting in the bucket.
+ *
+ * A stable key is also a stable URL, which is what the desktop's preview wants:
+ * `GET /v1/sessions/:id/frame.jpg` is pointed at one path and caches for 5 s.
+ */
+const latestFrameKey = (sessionId: string): string =>
+  `sessions/${sessionId.replace(/[^A-Za-z0-9_-]/g, '_')}/frames/latest.jpg`
+
+/**
+ * The timestamp is caller-supplied — a header on the desk path, a message field
+ * on the device path — and it used to reach the object key verbatim. Slugging
+ * neutralised `..`, but `/` survived, so a caller could shape the key's
+ * directories; and a long enough value pushed the key past S3's 1024-byte limit
+ * for a 500 that the memory backend would never have produced. Parsing it here
+ * means only a real ISO instant can reach a key or a contract field, and an
+ * unparseable one is replaced rather than propagated.
+ */
+const normaliseTs = (value: string | undefined): string => {
+  if (value === undefined) return new Date().toISOString()
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : new Date().toISOString()
+}
+
+/**
  * Validates, stores and fans out one video frame.
  *
  * Order matters: size first (cheapest, and the cap the device contract names
@@ -227,7 +286,7 @@ const frameKey = (sessionId: string, ts: string, seq: number): string =>
  */
 export async function ingestVideoFrame(input: VideoFrameInput): Promise<VideoFrameMeta> {
   const { sessionId, bytes, seq } = input
-  const ts = input.ts ?? new Date().toISOString()
+  const ts = normaliseTs(input.ts)
 
   if (bytes.byteLength > MAX_FRAME_BYTES) {
     throw new FrameRejectedError(
@@ -248,7 +307,9 @@ export async function ingestVideoFrame(input: VideoFrameInput): Promise<VideoFra
   }
 
   const ref = await putObject({
-    key: frameKey(sessionId, ts, seq),
+    // One key per session on the desk path, so the previous frame is overwritten
+    // rather than accumulating at the rig's ~2 fps.
+    key: input.retain === 'newest' ? latestFrameKey(sessionId) : frameKey(sessionId, ts, seq),
     body: bytes,
     contentType: 'image/jpeg',
   })
@@ -264,7 +325,17 @@ export async function ingestVideoFrame(input: VideoFrameInput): Promise<VideoFra
   }
 
   const state = sessionState(sessionId)
-  pushBounded(state.frames, meta, FRAME_RING_LIMIT)
+  state.accepted += 1
+  if (input.retain === 'newest') {
+    // The desk path. Drop what we held instead of queueing behind it: the one
+    // frame that matters is the newest, and this is what makes
+    // "only one frame is retained per session" true without a second code path
+    // for storing it.
+    state.frames.length = 0
+    state.frames.push(meta)
+  } else {
+    pushBounded(state.frames, meta, FRAME_RING_LIMIT)
+  }
   latestFrames.set(sessionId, ref)
 
   publish(sessionId, { kind: 'frame', frame: meta })
@@ -341,14 +412,55 @@ export async function ingestAudioChunk(input: AudioChunkInput): Promise<AudioChu
 export const latestFrameRef = (sessionId: string): ObjectRef | null =>
   latestFrames.get(sessionId) ?? null
 
+/**
+ * The newest frame for a session, **resolved from the store** when this process
+ * has not seen one.
+ *
+ * `latestFrameRef` is an in-memory mirror, which means a server that restarted
+ * mid-session has no ref even though the rig's frame is sitting in the bucket —
+ * and the loop would then assess nothing until the rig uploaded again. That is
+ * not "the frame store is the truth", it is the mirror being the truth.
+ *
+ * The desk path writes to one stable key per session, so the ref is *derivable*:
+ * when the mirror is empty we ask the store whether that key is there, and warm
+ * the mirror with what we find. On the non-desk path the key carries a timestamp
+ * and a seq, so this probe simply misses and answers null — the same answer the
+ * mirror would have given, at the cost of one round trip per session.
+ */
+export async function resolveLatestFrameRef(sessionId: string): Promise<ObjectRef | null> {
+  const mirrored = latestFrames.get(sessionId)
+  if (mirrored !== undefined) return mirrored
+
+  const stored = await getObject(latestFrameKey(sessionId))
+  if (stored === null) return null
+
+  const ref: ObjectRef = {
+    key: latestFrameKey(sessionId),
+    contentType: stored.contentType,
+    bytes: stored.body.byteLength,
+    backend: storageBackend(),
+  }
+  latestFrames.set(sessionId, ref)
+  return ref
+}
+
 /** Frame bytes back out of the object store; null when the key is gone. */
 export async function getFrame(ref: ObjectRef | string): Promise<Uint8Array | null> {
   const object = await getObject(ref)
   return object ? object.body : null
 }
 
-export const countFrames = (sessionId: string): number =>
-  sessions.get(sessionId)?.frames.length ?? 0
+/**
+ * Frames accepted for this session since this process started. Monotonic, so it
+ * keeps climbing as the rig uploads even though only the newest is retained, and
+ * it survives a frame being dropped on retention. Process-local, like everything
+ * else here: a restart starts it again from zero.
+ *
+ * (`listFrames(sessionId).length` is the count of what is *held*, which on the
+ * desk path is always one. Two different questions, so two names.)
+ */
+export const framesAccepted = (sessionId: string): number =>
+  sessions.get(sessionId)?.accepted ?? 0
 
 /** A copy: the ring is the server's, and a caller must not be able to mutate it. */
 export const listFrames = (sessionId: string): VideoFrameMeta[] => [
