@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "postinstall": "prisma generate",
+    "dev": "tsx watch --include 'src/**/*.ts' src/index.ts",
     "start": "node --import tsx src/index.ts",
     "db:reset": "prisma db push --force-reset && prisma generate && prisma db seed",
     "db:generate": "prisma generate",
