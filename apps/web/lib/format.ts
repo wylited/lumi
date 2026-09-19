@@ -5,7 +5,7 @@ export function minutes(value: number): string {
   if (value < 60) return String(Math.round(value))
   const h = Math.floor(value / 60)
   const m = Math.round(value % 60)
-  return m ? `${h}h ${m}` : `${h}h`
+  return m ? `${h}h ${m}m` : `${h}h`
 }
 
 export function duration(seconds: number): string {
