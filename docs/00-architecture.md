@@ -1,0 +1,132 @@
+# Architecture
+
+## What it is
+
+An observer that helps one person finish what they sat down to do. It watches the desk with a
+camera and a microphone, watches the machine through the desktop app, keeps the record, and — only
+when the evidence and the goal allow — **acts**: an ambient signal, a nudge, a spoken line, or an
+automatic change to the machine.
+
+```
+ desk: camera + mic ─┐
+                     ├─▶ server: aggregate ─▶ assess ─▶ policy ─▶ act ─▶ record
+ machine: apps, tabs,┤        (signals)     (model)   (rules)   (notify, speak, block)
+ input, idle ────────┘
+```
+
+---
+
+## The loop
+
+```
+signal  →  aggregate  →  assess  →  policy  →  act  →  outcome
+ (raw)      (per session) (model)   (ours)     (tiered)  (recorded)
+```
+
+- **signal** — a cheap raw event: a frame, a screen capture, the frontmost app, a window title,
+  an idle transition, an input burst. Signals are noisy and individually meaningless.
+- **aggregate** — fold signals into a short window per session so the model sees context, not a
+  single twitch.
+- **assess** — one structured `Assessment`: what is happening, is it on the goal, how sure are we.
+  This is the only place a model runs.
+- **policy** — ours. Turns an assessment into an intervention tier, or into silence, using the
+  goal, the thresholds, the rate limits and what worked before.
+- **act** — the tier that fired: log, ambient, nudge, speak, automate, or the session summary.
+- **outcome** — recorded either way. That record is how the policy adapts.
+
+Most windows end at **silence**. That is the intended default, not a gap.
+
+---
+
+## Who owns what
+
+| | what it does | what it must never do |
+|---|---|---|
+| **desktop** (Tauri) | the base app. goal, live state, audio, and the native macOS signals | hold a model key, or act on the machine without logging it |
+| **edge** (Pi) | camera frames, mic audio, speaker out, LED state | call a model, or store anything |
+| **server** | aggregate, assess, policy, persist, push, speech and vision adapters | invent pedagogy or a goal |
+| **web** | analytics after the fact, and the landing page | write to the session |
+
+### desktop (Tauri 2)
+A Rust sidecar reads read-only signals, a webview renders the goal and the live state.
+
+Native signals, all requiring consent:
+`NSWorkspace.frontmostApplication` (which app), `CGWindowListCopyWindowInfo` (window title),
+`AXUIElement` (focused element), `CGEventTap` (**counts and timing only — never key content**),
+`CGEventSourceSecondsSinceLastEventType` (idle), the Focus / Do Not Disturb state, and
+`ScreenCaptureKit` for a periodic screen frame.
+
+The desktop app owns the interruption surfaces: menu-bar state, notifications with an action, and
+audio playback.
+
+### edge (Pi)
+One frame per trigger, plus continuous media when a session is live. Tagged binary to the server
+(`0x01` video JPEG, `0x02` audio PCM). No provider key, no storage. See
+`docs/03-device-contract.md`.
+
+### server (Fastify)
+Everything that persists; the only holder of a key. Goals and sessions, the observation row, the
+policy, provider adapters, the media relay, analytics and SSE.
+
+### web (Next.js)
+Read-only review: what happened, what the policy did, what worked. Plus marketing.
+
+---
+
+## The one row that matters
+
+```
+observation(session_id, ts, source, signals, assessment, tier, action, outcome, confidence)
+```
+
+Analytics are a `GROUP BY` over it. "What actually gets me back on task" is a `GROUP BY tier,
+outcome`. Get this row right and every screen is a query.
+
+---
+
+## Signals we read (v1)
+
+**Desk** — presence, away, posture, phone in hand, on-screen vs notebook, hand activity, ambient
+noise, speech activity.
+
+**Machine** — frontmost app, window title, browser tab title and (with an extension) URL, idle
+time, input cadence and bursts, context switches per minute, session length, break compliance,
+Focus / DND state, power and thermal.
+
+Each signal carries a source, a timestamp and a confidence. Nothing content-bearing is stored:
+we keep counts and titles, never keystrokes, never page bodies.
+
+---
+
+## Provider adapters
+
+One interface each, so the demo never depends on a key:
+
+- **vision + assessment** — `deepseek-flash` is primary (images in, strict JSON out, ~384 tokens
+  per image, so watching a desk is cheap). Dense screenshots are tiled into overlapping crops.
+  Gemini sits behind the same interface as escalation. A local stub returns canned assessments so
+  the loop runs with no key.
+- **speech out** — a local adapter works offline; ElevenLabs is key-gated behind it.
+
+Keys live in `apps/server` and nowhere else.
+
+---
+
+## Budgets
+
+| | target |
+|---|---|
+| signal to assessment | ≤ 4 s, then silence |
+| desktop signals | ≤ 1 read per second, aggregated into windows |
+| screen frames | ≤ 1 per 10 s, on change |
+| speaking | at most once per `minGapMs` (default 90 s) |
+| nudges | at most one per 3 minutes |
+| machine actions | logged, visible, one-click reversible |
+
+---
+
+## Privacy, said plainly
+
+It watches one consenting person's desk and machine, keeps counts and titles, never keystrokes or
+page bodies, and everything it does to the machine is logged and undoable. The shutter is
+mechanical: closed means no frames leave the unit.

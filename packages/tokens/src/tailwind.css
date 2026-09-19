@@ -1,0 +1,169 @@
+/*
+ * @heli/tokens — Tailwind v4 theme.
+ *
+ * Import AFTER `tailwindcss` and `tokens.css`:
+ *   @import 'tailwindcss';
+ *   @import '@heli/tokens/tokens.css';
+ *   @import '@heli/tokens/tailwind.css';
+ *
+ * Colours are wired to the runtime CSS custom properties in tokens.css, so a
+ * class like `bg-surface` resolves to `var(--surface)` and follows light/dark
+ * (and the pinned console surface) with no per-theme classnames.
+ */
+
+@theme inline {
+  /* ---- palette ------------------------------------------------------- */
+  --color-jade-50: #e9f8f1;
+  --color-jade-100: #cbeede;
+  --color-jade-200: #9bdec3;
+  --color-jade-300: #62c9a2;
+  --color-jade-400: #2fb283;
+  --color-jade-500: #0fa36b;
+  --color-jade-600: #0b8557;
+  --color-jade-700: #0a6845;
+  --color-jade-800: #084f35;
+  --color-jade-900: #063723;
+
+  --color-ink-50: #f3f7f5;
+  --color-ink-100: #e3ebe7;
+  --color-ink-200: #c2cfc9;
+  --color-ink-300: #94a59e;
+  --color-ink-400: #6b7d76;
+  --color-ink-500: #4a5c55;
+  --color-ink-600: #2e403a;
+  --color-ink-700: #1e2d28;
+  --color-ink-800: #14201c;
+  --color-ink-900: #0b1512;
+
+  --color-amber-500: #d9920b;
+  --color-amber-soft: #fbf1da;
+  --color-red-500: #d24b3e;
+  --color-red-soft: #fbe7e4;
+
+  /* ---- roles (follow the live theme) --------------------------------- */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-strong-hover: var(--accent-strong-hover);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-accent-wash: var(--accent-wash);
+  --color-accent-link: var(--accent-link);
+  --color-warn: var(--warn);
+  --color-warn-wash: var(--warn-wash);
+  --color-danger: var(--danger);
+  --color-danger-wash: var(--danger-wash);
+
+  /* ---- type ---------------------------------------------------------- */
+  --font-ui: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --text-display-1: 48px;
+  --text-display-1--line-height: 1.04;
+  --text-display-1--letter-spacing: -0.03em;
+  --text-display-0: 62px;
+  --text-display-0--line-height: 1;
+  --text-display-0--letter-spacing: -0.035em;
+  --text-display-2: 34px;
+  --text-display-2--line-height: 1.1;
+  --text-display-2--letter-spacing: -0.025em;
+  --text-title-1: 26px;
+  --text-title-1--line-height: 1.2;
+  --text-title-1--letter-spacing: -0.02em;
+  --text-title-2: 20px;
+  --text-title-2--line-height: 1.28;
+  --text-title-2--letter-spacing: -0.015em;
+  --text-title-3: 17px;
+  --text-title-3--line-height: 1.38;
+  --text-title-3--letter-spacing: -0.01em;
+  --text-body: 15px;
+  --text-body--line-height: 1.55;
+  --text-body-strong: 15px;
+  --text-body-strong--line-height: 1.55;
+  --text-small: 13.5px;
+  --text-small--line-height: 1.5;
+  --text-caption: 12px;
+  --text-caption--line-height: 1.4;
+  --text-caption--letter-spacing: 0.01em;
+  --text-label: 11px;
+  --text-label--line-height: 1.3;
+  --text-label--letter-spacing: 0.13em;
+  --text-mono: 13px;
+  --text-mono--line-height: 1.55;
+
+  /* ---- radius / elevation -------------------------------------------- */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(11, 21, 18, 0.06);
+  --shadow-md: 0 8px 24px -8px rgba(11, 21, 18, 0.18);
+  --shadow-lg: 0 24px 48px -16px rgba(11, 21, 18, 0.24);
+
+  /* ---- motion -------------------------------------------------------- */
+  --ease-sifu: cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+@utility duration-fast {
+  transition-duration: var(--dur-fast);
+}
+@utility duration-base {
+  transition-duration: var(--dur-base);
+}
+@utility duration-slow {
+  transition-duration: var(--dur-slow);
+}
+
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility measure {
+  max-width: var(--measure);
+}
+
+@utility text-balance {
+  text-wrap: balance;
+}
+
+/* The only two animations in the product. Both belong to LiveDot. */
+@keyframes sifu-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
+}
+
+@keyframes sifu-ring {
+  0% {
+    opacity: 0.5;
+    transform: scale(0.7);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.1);
+  }
+}
+
+@utility pulse-live {
+  animation: sifu-pulse 2s cubic-bezier(0.2, 0.7, 0.3, 1) infinite;
+}
+
+@utility ring-speak {
+  animation: sifu-ring 2s cubic-bezier(0.2, 0.7, 0.3, 1) infinite;
+}
+

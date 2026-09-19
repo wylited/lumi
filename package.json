@@ -1,0 +1,36 @@
+{
+  "name": "helicopter",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@12.4.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "eslint .",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,css,md}\"",
+    "web": "pnpm --filter @sifu/web dev",
+    "web:build": "pnpm --filter @sifu/web build"
+  },
+  "devDependencies": {
+    "eslint": "9.39.5",
+    "prettier": "3.9.7",
+    "turbo": "2.10.13",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@google/genai",
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma",
+      "protobufjs"
+    ]
+  }
+}
