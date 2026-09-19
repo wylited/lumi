@@ -1,10 +1,32 @@
 //! The real state of each macOS consent, and the exact pane to grant it in.
 
 use serde::Serialize;
+use std::ffi::c_void;
+
+use super::CFTypeRef;
+
+type CFStringRef = *const c_void;
+type CFDictionaryRef = *const c_void;
 
 #[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
     fn AXIsProcessTrusted() -> bool;
+    fn AXIsProcessTrustedWithOptions(options: CFDictionaryRef) -> bool;
+    /// The framework's own key for "and put this app in the list".
+    static kAXTrustedCheckOptionPrompt: CFStringRef;
+}
+
+#[link(name = "CoreFoundation", kind = "framework")]
+extern "C" {
+    static kCFBooleanTrue: CFTypeRef;
+    fn CFDictionaryCreate(
+        allocator: CFTypeRef,
+        keys: *const CFTypeRef,
+        values: *const CFTypeRef,
+        count: isize,
+        key_callbacks: CFTypeRef,
+        value_callbacks: CFTypeRef,
+    ) -> CFDictionaryRef;
 }
 
 #[link(name = "CoreGraphics", kind = "framework")]
@@ -54,6 +76,39 @@ pub fn accessibility() -> bool {
     unsafe { AXIsProcessTrusted() }
 }
 
+/**
+ * Accessibility has no `CGRequest…` twin: `AXIsProcessTrusted` answers and asks
+ * for nothing. Only `AXIsProcessTrustedWithOptions` with
+ * `kAXTrustedCheckOptionPrompt` makes macOS put this app **into** the pane and
+ * show its own dialog — and an app that has never asked is not listed at all, so
+ * the `+` button was the only way in, and macOS refuses to add a bundle there
+ * whose signature it cannot verify. The answer is asynchronous: this returns
+ * `false` while the dialog is up, and the grant lands in Settings afterwards.
+ */
+fn accessibility_prompt() -> bool {
+    unsafe {
+        let keys = [kAXTrustedCheckOptionPrompt as CFTypeRef];
+        let values = [kCFBooleanTrue as CFTypeRef];
+        // NULL callbacks on purpose: both objects outlive the call, so a dictionary
+        // that retains nothing is exactly right, and the alternative is three more
+        // raw-FFI callback tables to be wrong about.
+        let options = CFDictionaryCreate(
+            std::ptr::null(),
+            keys.as_ptr(),
+            values.as_ptr(),
+            1,
+            std::ptr::null(),
+            std::ptr::null(),
+        );
+        if options.is_null() {
+            return AXIsProcessTrusted();
+        }
+        let trusted = AXIsProcessTrustedWithOptions(options);
+        super::CFRelease(options);
+        trusted
+    }
+}
+
 fn state(ok: bool) -> &'static str {
     if ok {
         "granted"
@@ -94,6 +149,7 @@ pub fn permissions() -> Vec<Permission> {
 #[tauri::command]
 pub fn request_permission(id: String) -> bool {
     match id.as_str() {
+        "accessibility" => accessibility_prompt(),
         "screen" => unsafe { CGRequestScreenCaptureAccess() },
         "input" => unsafe { CGRequestListenEventAccess() },
         _ => false,
