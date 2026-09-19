@@ -10,6 +10,10 @@ const topLevel: Record<string, ZodTypeAny> = {
   SignalBatch: contracts.SignalBatch,
   SignalWindow: contracts.SignalWindow,
   Goal: contracts.Goal,
+  // The drafting step (HELI-072): the desktop renders a draft and the Python
+  // side reads one, and neither hand-writes the shape.
+  GoalDraft: contracts.GoalDraft,
+  GoalDraftRequest: contracts.GoalDraftRequest,
   Policy: contracts.Policy,
   Assessment: contracts.Assessment,
   Intervention: contracts.Intervention,
