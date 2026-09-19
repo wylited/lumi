@@ -1,5 +1,4 @@
 import type {
-  ApiSessionStart,
   Goal as ApiGoal,
   Intervention as ApiIntervention,
   Observation as ApiObservation,
@@ -52,11 +51,10 @@ const log = childLogger({ module: 'session' })
  * Two things it deliberately does *not* do:
  *
  *   - It does not call `endSignalSession` or `endMediaSession` on close. The
- *     signal ring and the media hub are owned by the **device socket**, which
- *     ends them when its connection goes (HELI-012/014/015); a REST close with
- *     no socket is a session the device already stopped talking to, and
- *     dropping its ring would lose the windows the closing client is about to
- *     read.
+ *     signal ring and the media hub are process-local state that outlives a
+ *     session on purpose: the closing client is about to read the windows that
+ *     were built from them, and dropping the ring first would lose exactly the
+ *     numbers it came for.
  *   - It does not invent a `CloseSessionResponse`. `packages/contracts` has
  *     none, so `POST /v1/sessions/:id/close` answers the contract's `Session`.
  *     That is a local choice, not a shape from the contract — see
@@ -384,18 +382,8 @@ export interface OpenSessionInput {
 }
 
 /**
- * `openSession` — what both the REST route (HELI-013) and the device socket's
- * `session.open` (HELI-012) call, so the two cannot disagree about what opening
- * a session means.
- *
- * It returns the HTTP shape **and** the device's `session.start` frame:
- *
- *   - `{ session, goal, policy }` is `OpenSessionResponse`;
- *   - `start` is `ApiSessionStart`, `{ t:'session.start', sessionId, goal,
- *     policy }`, which is what §6 says the device is told when its session
- *     begins. Building it here rather than in the socket is the point: the goal
- *     and the policy in that frame are the same objects the REST caller gets, so
- *     the device and the console always hold one policy.
+ * `openSession` — the REST route (HELI-013) and the desktop's start-of-session
+ * call, so there is one answer to what opening a session means.
  *
  * `goalId: null` means "whatever goal is active", which is the nullability §7
  * has in `OpenSessionRequest` while `Session.goalId` is required in the schema.
@@ -407,9 +395,7 @@ export interface OpenSessionInput {
  * behaviour the phase doc does not state — so it is the oldest active goal,
  * which is stable and never changes under a desktop that reconnects.
  */
-export async function openSession(input: OpenSessionInput): Promise<
-  OpenSessionResponse & { start: ApiSessionStart }
-> {
+export async function openSession(input: OpenSessionInput): Promise<OpenSessionResponse> {
   // Checked first, and by hand: `Session.deviceId` is a required foreign key, so
   // an unpaired device id would otherwise be a P2003 — a 500 — instead of "that
   // device does not exist".
@@ -456,14 +442,10 @@ export async function openSession(input: OpenSessionInput): Promise<
   bindSession(device.id, row.id)
 
   const goal = toApiGoal(row.goal)
-  // One policy object, shared by the response and the device frame: two copies
-  // would be two things to keep in step.
-  const policy = goal.policy
   const session = toApiSession(row, rollupOf(row, EMPTY_CHILDREN, goal))
-  const start: ApiSessionStart = { t: 'session.start', sessionId: row.id, goal, policy }
 
   log.info({ sessionId: row.id, deviceId: device.id, goalId: goal.id }, 'session opened')
-  return { session, goal, policy, start }
+  return { session, goal, policy: goal.policy }
 }
 
 export interface CloseSessionInput {

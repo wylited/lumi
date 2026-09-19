@@ -22,9 +22,8 @@ import type { FastifyInstance, FastifyPluginAsync } from 'fastify'
  * `/ws/...`). A folder that does not exist yet is skipped.
  *
  * A file that exports no default plugin is treated as a shared module living
- * beside the routes that use it — `src/ws/registry.ts` is one, and HELI-012's
- * `Touches` put it in this folder on purpose — and is skipped with a warning
- * naming it. Crashing the boot instead was the original behaviour, and it made
+ * beside the routes that use it — `src/ws/live-desktop.ts` is one — and is
+ * skipped with a warning naming it. Crashing the boot instead was the original behaviour, and it made
  * a library in this directory impossible: the phase doc is the plan of record
  * for where a file lives, so the loader yields rather than the file moving.
  * The cost is that a forgotten `export default` shows up as a warning and a

@@ -6,7 +6,7 @@ import type { ZodType, input, output } from 'zod'
  * `@heli/contracts` and gets `request.body` inferred from it.
  *
  * Owned by HELI-010, repaired by HELI-020. A later commit that adds a decorator
- * (`requireUser`, `requireDevice`) declares its own `declare module 'fastify'`
+ * (`requireUser`, `requireMobile`) declares its own `declare module 'fastify'`
  * block inside the file that implements it, so it never has to edit this one.
  *
  * Why the members are written out instead of `extends ZodTypeProvider {}`:

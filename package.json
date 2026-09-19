@@ -14,7 +14,6 @@
     "test": "turbo run test",
     "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,css,md}\"",
     "server": "pnpm --filter @heli/server dev",
-    "server:mock": "pnpm --filter @heli/server dev:mock",
     "web": "pnpm --filter @heli/web dev",
     "web:build": "pnpm --filter @heli/web build",
     "desktop": "pnpm --filter @heli/desktop dev"

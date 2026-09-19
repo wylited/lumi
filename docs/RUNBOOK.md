@@ -33,8 +33,10 @@ pnpm --filter @heli/server dev   # API on :3001
 pnpm --filter @heli/web dev      # the storefront on :3000 (needs no server)
 ```
 
-`db:reset` applies the Prisma schema and seeds one user, one device (`HELI-DEMO`), one goal and
-one finished session. On a fresh machine this is the whole setup.
+`db:reset` applies the Prisma schema and seeds the bootstrap: one user and this machine's device
+(`LUMI-ONE`). No goal and no sessions — those come from using the app. The loop needs
+`DEEPSEEK_API_KEY`, `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` in `apps/server/.env`; without
+them the server serves HTTP and logs which key is missing.
 
 The root `pnpm server`, `pnpm web` and `pnpm desktop` are one-line shortcuts for the same filters.
 
@@ -49,39 +51,15 @@ The root `pnpm server`, `pnpm web` and `pnpm desktop` are one-line shortcuts for
 | `pnpm test` | `turbo run test` |
 | `pnpm format` | Prettier over the repo |
 | `pnpm server` | `pnpm --filter @heli/server dev` |
-| `pnpm server:mock` | `pnpm --filter @heli/server dev:mock` — fake desk + fake desktop |
 | `pnpm web` | `pnpm --filter @heli/web dev` |
 | `pnpm desktop` | `pnpm --filter @heli/desktop dev` |
-
----
-
-## Mocks
-
-`pnpm --filter @heli/server dev:mock` (or `pnpm server:mock`) runs both fakes together. This is how
-desktop and web develop with no hardware and no macOS permissions.
-
-- **Fake desk** (`apps/server/src/dev/mock-device.ts`) — connects as a device, opens a session and
-  streams four real notebook frames plus a spoken line.
-- **Fake desktop** (`apps/server/src/dev/mock-desktop.ts`) — replays a plausible work pattern as
-  real signals at real timings: 6 minutes in the editor, then a tab switch to a distracting site for
-  40 s, then back.
-
-Pick a scenario with `--scenario`:
-
-| scenario | emits | expected |
-|---|---|---|
-| `focused` | desk at work in the editor | `onTrack:true` → silence |
-| `drifting` | the 40 s off-task tab switch | `onTrack:false`, `driftSeconds>30` → nudge, then a spoken line |
-| `phone` | phone in hand at the desk | non-empty `activity` |
-
-A session fills with signals, a window, observations and one intervention with no hardware attached.
 
 ---
 
 ## macOS consent
 
 The desktop reads the machine through three separate permissions. Each prompts on its own, and a
-missed prompt on the demo machine can kill the demo. Accept all three before you rehearse.
+missed prompt means that signal is missing. Accept all three before a session.
 
 | prompt | System Settings path | used by |
 |---|---|---|
@@ -114,52 +92,25 @@ What to look for in the logs:
 - provider **429 / rate-limit** errors from the DeepSeek adapter;
 - the orchestrator logs `latencyMs` per window and emits silence if the loop exceeds its 6 s budget.
 
-Fall back to the keyless stub by setting, in `apps/server/.env`:
-
-```bash
-VISION_PROVIDER=local
-```
-
-`local` is deterministic and needs no key, so the whole loop still runs. Restart the server after
-changing it. The recorded replay used by the demo lands with **HELI-061**
-(`apps/server/src/dev/replay.ts`), which is not in the tree yet.
+There is no offline assessor. A window whose assessment fails is recorded as silence, and the loop
+tries again on the next one.
 
 ---
 
 ## Speech
 
-The same shape as the model. `SPEECH_PROVIDER=local` needs no key and speaks in a deliberately
-unintelligible tone motif, so the whole path runs offline. `SPEECH_PROVIDER=elevenlabs` needs both
-`ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` — the id, not the name.
+ElevenLabs, and only ElevenLabs. It needs both `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` —
+the id, not the name.
 
 **Default voice: Matilda** (`XrExE9yKIg1WjnnlVkGX`, knowledgeable/professional); alternates Alice
 (`Xb7hH8MSUJpSbSDYk0k2`) and Sarah (`EXAVITQu4vr4xnSDxMaL`). `GET /v1/voices` lists 21 premade
 voices with the key in `.env`; the free plan refuses some ids with `paid_plan_required`, so after
-changing the voice, synthesize one line and listen before demo day.
+changing the voice, synthesize one line and listen.
 
 Synthesis is a cloud call **after** the assessment, so it does not consume the loop's budget and a
 failure is recorded as `delivered: false` rather than spoken. It is not instant: **~5 s per line**
 from this network on the free plan, so a tier-3 line lands several seconds after the window it
-describes. Keep `local` one edit away on demo day.
-
----
-
-## Demo fallback
-
-`DEMO_MODE=replay` plays a recorded session — real signals, assessments, interventions and timings —
-through the **identical** bus and SSE path the live loop uses. Flip one env var and the demo still
-runs if the camera dies, the wifi dies or the model rate-limits.
-
-Once `HELI-060` lands, the one-command boot is:
-
-```bash
-./scripts/demo.sh
-```
-
-It brings up Postgres and MinIO, the server, the desktop and the web, seeds the DB, starts the mock
-desk and mock desktop, and prints the desk URL and the console URL. It is
-idempotent and safe to re-run. `./scripts/verify.sh` runs install check, lint, typecheck, tests and
-a handful of route curls, printing a pass or fail per check. Until then, use **First run** above.
+describes.
 
 ---
 

@@ -113,13 +113,13 @@ we keep counts and titles, never keystrokes, never page bodies.
 
 ## Provider adapters
 
-One interface each, so the demo never depends on a key:
+One interface each, so a provider can be swapped without touching the loop:
 
 - **vision + assessment** — `deepseek-flash` is primary (images in, strict JSON out, ~384 tokens
   per image, so watching a desk is cheap). Dense screenshots are tiled into overlapping crops.
-  Gemini sits behind the same interface as escalation. A local stub returns canned assessments so
-  the loop runs with no key.
-- **speech out** — a local adapter works offline; ElevenLabs is key-gated behind it.
+  Gemini sits behind the same interface as escalation. There is no offline stub: no key, no loop,
+  and the server log says which key.
+- **speech out** — ElevenLabs.
 
 Keys live in `apps/server` and nowhere else.
 

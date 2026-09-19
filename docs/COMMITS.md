@@ -157,16 +157,13 @@ server owns intake, actions and persistence. Full detail, including the Python i
 `041` landed in `879a5d9` as a draft and was reviewed and finished by owner 2; its `Done when` is
 proved with curl uploads, so it does not wait on `040`'s rig agent.
 
-**The pairing routes and the device socket are retired but not deleted.** `044`'s `Done when` asks for
-`grep -r "ws/device" apps/` to find nothing but the retired file, and that cannot be true yet: the
-**mocks still drive the retired path** — `dev/mock-device.ts` pairs over `POST /v1/devices/pair` and
-connects to `/ws/device`, and `dev/mock-desktop.ts` reads `/v1/devices` — and those mocks are the
-demo's fallback until `040`'s rig agent exists. Deleting `src/ws/device.ts` and `src/routes/devices.ts`
-now would break `pnpm server:mock` for everyone, and neither file is in `044`'s `Touches`. So this is
-the phase doc's own alternative branch: marked deleted here, with the reason. The deletion belongs with
-`040`, in the commit where the mocks stop being the only thing that talks to a desk. `services/session.ts`
-only mentions the device socket in comments, so nothing else depends on it. `043` is the contracts gate: nothing desk-shaped should be
-written before it lands.
+**The pairing routes and the device socket are deleted.** The mocks that drove them are gone too —
+there is no demo mode and no offline stand-in — so `src/ws/device.ts`, `src/ws/registry.ts`,
+`src/routes/devices.ts` and the device token in `lib/jwt.ts` were removed, along with the
+`session.start` frame `openSession` built for the device socket and nobody else. `services/session.ts`
+keeps `Session.deviceId` (a required foreign key — the desktop reports a machine id) and nothing else
+depends on the Pi path. `043` was the contracts gate; the contract's device shapes remain but nothing
+in the run path reads them.
 
 `047` is an addendum to `043` (`b7ae2cd`), which carries actions down `/ws/desk` and no audio.
 `docs/03-desk-capture.md` says the rig plays the line — "Speech is played on the Mac" — and `045`
@@ -236,7 +233,7 @@ decision note in `phases/P5-web.md`. Retired rows stay, struck through.
 | ✓ | id | commit | depends | ∥ | owner |
 |---|----|--------|---------|---|-------|
 | ☐ | HELI-060 | `chore(repo): one-command boot` | P0–P5 | **no** | — |
-| ☐ | HELI-061 | `feat(server): demo replay mode` | 060 | yes | — |
+| — | ~~HELI-061~~ | ~~`feat(server): demo replay mode`~~ — no demo mode: the loop is real or it is silent | | | |
 | ☐ | HELI-062 | `docs(repo): the run of show` | 060 | yes | — |
 | ☑ | HELI-063 | `fix(desktop): projector pass` (presenter mode; not yet seen on a real projector) | P3, 074 | yes | desktop+web |
 | ☐ | HELI-064 | `test(repo): end-to-end rehearsal` | all | **no** | — |
@@ -294,11 +291,11 @@ Reading order for each person. Everything above is either ticked or listed here.
 
 | who | next | why |
 |---|---|---|
-| **1 · the loop** | P2 is done. Take **`061`** (replay mode) — the demo fallback drives the same bus the loop already publishes on — then **`062`** (the run of show). | The critical path is clear; the demo fallback is the highest-value open work. |
+| **1 · the loop** | P2 and `073` are done, and `071`/`072` landed. Take the phone: contracts, pair, socket, the line that reaches it — then **`062`** (the run of show). | The phone is the last unbuilt surface, and the loop already knows how to speak to a socket. |
 | **2 · server** | **`071`** (per-source frames), then **`072`** (goal drafting) — both start immediately. Then **`060`** (one-command boot). | `071` is the bug that would show a screenshot as the page; `072` is what `046` renders. |
 | **3 · desktop + web** | **`046`** (the three screens, after `072`), then **`074`** (the monitor, after `071`), then **`075`** and **`076`**, then **`063`**. | The onboarding and the monitor are the demo; everything else in this lane is done. |
 | **4 · hardware + rig** | **`042`** (record the calibration rect, then `point(x, y)`), then **`045`** end-to-end: `044` has landed, so a real action can arrive from this server. | Both rows are open because their `Done when` lines are not met; the remaining distance is one bench session. |
-| **all four** | P6: `060` one-command boot, `061` replay, `062` run of show, `063` projector, `064` rehearsal. Start these early. | They are what make the demo survive the room. |
+| **all four** | P6: `060` one-command boot, `062` run of show, `063` projector, `064` rehearsal. Start these early. | They are what make the presentation survive the room. |
 
 `022` (speech out) is the server-side piece the loop needs; it lands inside P2 as written. The old
 `041` media relay is retired with the Pi — frame intake is now `041` in the new P4.

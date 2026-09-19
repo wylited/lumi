@@ -49,11 +49,11 @@ const log = childLogger({ module: 'ws.desk' })
  *     binary frame *from* the rig is therefore refused, not guessed at.
  */
 
-/** Heartbeat, the same cadence as the device and desktop sockets. */
+/** Heartbeat, the same cadence as the desktop and phone sockets. */
 const PING_MS = 20_000
 const DEAD_MS = 60_000
 
-/** `WebSocket.OPEN`. See `ws/registry.ts` for why this is spelled out. */
+/** `WebSocket.OPEN`, spelled without importing `ws` for one constant. */
 const SOCKET_OPEN = 1
 
 const unauthorized = (message: string): Error =>
@@ -63,7 +63,7 @@ const unauthorized = (message: string): Error =>
  * The rig cannot set an `Authorization` header on a `WebSocket` — no browser,
  * runtime or `websockets` client will let it — so HELI-044's phase doc puts the
  * desk token in the query, and that is the documented form:
- * `/ws/desk?token=<deskToken>`. It is the same reason the device socket takes a
+ * `/ws/desk?token=<deskToken>`. The desktop and phone sockets take the same
  * credential out of band, one transport over.
  */
 const DeskQuery = z.object({ token: z.string().min(1).optional() })
@@ -76,7 +76,7 @@ const splitProtocols = (header: string | undefined): string[] =>
 
 /**
  * `Sec-WebSocket-Protocol: heli.v1, <deskToken>` — the value *after* the
- * protocol name, exactly as `ws/desktop.ts` and `ws/device.ts` read it. A client
+ * protocol name, exactly as `ws/desktop.ts` and `ws/mobile.ts` read it. A client
  * that sends only `heli.v1` has presented no token and is refused rather than
  * quietly let in.
  *
@@ -111,8 +111,8 @@ const frameText = (raw: unknown): string => {
  * Declared here rather than in a shared file for the reason
  * `src/types/fastify.d.ts` gives: the commit that adds a request member declares
  * its own `declare module 'fastify'` block beside the code that sets it, so two
- * rows never have to edit one augmentation. `userId` and `deviceId` live in
- * `lib/jwt.ts` because their hooks (`requireUser`, `requireDevice`) do; the desk
+ * rows never have to edit one augmentation. `userId` and `phoneId` live in
+ * `lib/jwt.ts` because their hooks (`requireUser`, `requireMobile`) do; the desk
  * socket's hook is this file.
  */
 declare module 'fastify' {

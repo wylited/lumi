@@ -16,15 +16,14 @@ import { ingestSignals } from '../services/signals.js'
  * `{ t:'ack', accepted }` and this replies `{ accepted }` — the same number, from
  * the same return value.
  *
- * `requireUser`, not `requireDevice`: these signals come from a person's own
- * machine, and the 90-day device token the Pi holds must not be usable against a
- * route that writes into a session's window.
+ * `requireUser`, not a device credential: these signals come from a person's own
+ * machine, and the token already proves they are that person.
  *
  * The body carries a `deviceId`, which is *not* checked against the caller. The
  * deployment is one person, one device and one goal set (AGENTS.md, "Seeded,
- * single-user"), the token already proves they are that person, and a device it
- * has not paired yet is exactly the case this route has to accept: a desktop
- * flushing a batch from a machine that was offline when the session opened.
+ * single-user"), and a device it has not paired yet is exactly the case this
+ * route has to accept: a desktop flushing a batch from a machine that was
+ * offline when the session opened.
  */
 /**
  * Fastify's default body limit is 1 MiB, and `SignalBatch` permits **500**

@@ -23,7 +23,6 @@ pnpm install
 docker compose up -d          # postgres + minio
 pnpm --filter server db:reset # schema + seed
 pnpm dev                      # server :3001 · storefront :3000
-pnpm --filter server dev:mock # a fake desk and a fake desktop
 ```
 
 ## Layout
