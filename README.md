@@ -1,11 +1,8 @@
 # Lumi
 
 <!--
-  TODO(hero): wide image, roughly 1600x900: the unit on a desk, the desktop app behind it, the
-  phone beside it. Save it as docs/media/hero.png. Stills already in the tree: apps/web/public/.
+  TODO(hero): wide image that showcases our desktop and mobile app @cedric.
 -->
-
-![the desk robot](docs/media/hero.png)
 
 Lumi makes you finish what you sat down to do, automating your helicopter mom.
 
@@ -23,13 +20,7 @@ Frames, signals and decisions live on your own server: your Postgres, your objec
 
 Assessment is the only call that leaves your machine. The frame goes to DeepSeek vision, comes back as a verdict, and DeepSeek retains nothing.
 
-## The Robotic Arm
-
-Not all work happens statically; the SO101 arm empowers us to move the camera around the workspace and track the user as they work.
-
-Moves arrive over the desk socket: an `arm.point` carries a desk coordinate, and the rig acks the pose it actually reached.
-
-The tracker yields while an aim, point or home runs, so a move that was asked for is never fought by the loop.
+The robotic arm? Well, not all work happens statically; the SO101 arm empowers us to pan and tilt the camera around the workspace and track the user, and their environment, as they work.
 
 ## Running it
 
