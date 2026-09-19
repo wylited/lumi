@@ -5,7 +5,7 @@ import { price, PRICE } from '@/lib/product'
 
 export const metadata: Metadata = { title: 'Order the desk unit' }
 
-const INCLUDED = ['The desk unit', 'USB-C cable', 'Pairing card', 'Helicopter for Mac, free']
+const INCLUDED = ['The desk unit', 'USB-C cable', 'Pairing card', 'The desktop app, free']
 
 export default function OrderPage() {
   return (

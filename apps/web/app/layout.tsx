@@ -7,7 +7,7 @@ import type { ReactNode } from 'react'
 export const metadata: Metadata = {
   title: { default: 'Helicopter — set a goal, it makes sure it happens', template: '%s · Helicopter' },
   description:
-    'A desk unit and a Mac app that notice when you drift from what you sat down to do, and step in — a nudge, a spoken line, a change — only when it matters.',
+    'A desk unit and a desktop app that notice when you drift from what you sat down to do, and step in — a nudge, a spoken line, a change — only when it matters.',
 }
 
 export const viewport: Viewport = { colorScheme: 'light' }

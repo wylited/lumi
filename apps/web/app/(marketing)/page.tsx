@@ -14,14 +14,14 @@ export default function Home() {
           Set a goal. It makes sure it happens.
         </h1>
         <p className="max-w-[52ch] text-title-3 font-normal text-text-muted">
-          A small unit on your desk and an app on your Mac notice when you drift — and step in only when it matters.
+          A small unit on your desk and a desktop app notice when you drift — and step in only when it matters.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Link href="/order" className="rounded-pill bg-text px-6 py-3 text-body-strong font-medium text-bg transition-opacity hover:opacity-85">
             Order the desk unit · {price(PRICE.unit)}
           </Link>
           <Link href="/download" className="rounded-pill border border-border-strong px-6 py-3 text-body-strong font-medium text-text hover:bg-ink-50">
-            Download for Mac
+            Download the desktop app
           </Link>
         </div>
       </section>
@@ -33,7 +33,7 @@ export default function Home() {
               <Unit />
             </div>
             <div className="order-1 px-5 pt-8 md:order-2 md:py-14 md:pl-0 md:pr-14">
-              <MacWindow src="/shots/live-nudge.png" alt="The Helicopter Mac app mid-session: a ribbon of minutes, and a nudge offering to go back to the goal" priority />
+              <MacWindow src="/shots/live-nudge.png" alt="The Helicopter desktop app mid-session: a ribbon of minutes, and a nudge offering to go back to the goal" priority />
             </div>
           </div>
         </div>
@@ -81,13 +81,13 @@ export default function Home() {
         </Link>
         <Link href="/download" className="group flex flex-col overflow-hidden rounded-[24px] bg-surface">
           <div className="flex flex-col gap-2 p-8">
-            <span className="text-small text-text-faint">Mac app · Free</span>
+            <span className="text-small text-text-faint">Desktop app · Free</span>
             <h3 className="text-title-1 font-semibold text-text">Reads the machine. Counts, not keys.</h3>
             <p className="text-body text-text-muted">The front app, window titles, how often you type. Your goal and your history live here.</p>
             <span className="mt-2 text-body-strong font-medium text-accent-link group-hover:underline">Get the app →</span>
           </div>
           <div className="mt-auto pl-8">
-            <MacWindow src="/shots/history.png" alt="History in the Mac app: a week of focus and what brings you back" className="rounded-b-none rounded-r-none" />
+            <MacWindow src="/shots/history.png" alt="History in the desktop app: a week of focus and what brings you back" className="rounded-b-none rounded-r-none" />
           </div>
         </Link>
       </section>
@@ -97,7 +97,7 @@ export default function Home() {
         <p className="max-w-[40ch] text-title-1 font-semibold text-balance text-text md:text-display-2">
           Counts and titles, never keystrokes or page contents.{' '}
           <span className="text-text-faint">
-            Every change it makes to your Mac is shown and undone in one click. The shutter is mechanical.
+            Every change it makes to your computer is shown and undone in one click. The shutter is mechanical.
           </span>
         </p>
         <Link href="/privacy" className="mt-6 inline-block text-body-strong font-medium text-accent-link hover:underline">
@@ -114,7 +114,7 @@ export default function Home() {
               Order the desk unit
             </Link>
             <Link href="/download" className="rounded-pill border border-border-strong px-6 py-3 text-body-strong font-medium text-text hover:bg-ink-50">
-              Download for Mac
+              Download the desktop app
             </Link>
           </div>
           <span className="text-small text-text-faint">{DOWNLOAD.requires}. The app works without the unit.</span>

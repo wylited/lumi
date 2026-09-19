@@ -1,7 +1,7 @@
 # P5 · Web — the storefront
 
 **Goal:** the site a stranger lands on. It says what Helicopter does in ten seconds, sells the desk
-unit, and hands out the Mac app. **The product is the desktop app and the device**; the web is
+unit, and hands out the desktop app. **The product is the desktop app and the device**; the web is
 marketing only. It never reads or writes a session and never talks to the server.
 
 **Depends:** P0, and real screens from P3 (the screenshots are of the actual app).

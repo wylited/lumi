@@ -53,11 +53,11 @@ export function ReserveForm() {
         <span className="text-small text-text-faint">Reserved</span>
         <h2 className="text-title-1 font-semibold text-text">You are number {done} on the list.</h2>
         <p className="text-body text-text-muted">
-          Nothing was charged. We will email you before any unit ships, and you can say no then. In the meantime the Mac app
+          Nothing was charged. We will email you before any unit ships, and you can say no then. In the meantime the desktop app
           works on its own.
         </p>
         <a href="/download" className="mt-2 self-start rounded-pill border border-border-strong px-5 py-2.5 text-body-strong font-medium text-text hover:bg-ink-50">
-          Download for Mac
+          Download the desktop app
         </a>
       </div>
     )

@@ -16,7 +16,7 @@ const PARTS = [
 ] as const
 
 const NEVER = [
-  'Stores a frame. It sends, the Mac app decides, and nothing stays on the unit.',
+  'Stores a frame. It sends, the desktop app decides, and nothing stays on the unit.',
   'Calls a model or holds a key. It has no idea what it is looking at.',
   'Sends anything with the shutter closed — within 200 ms of closing it.',
   'Animates while you are concentrating. A light that moves is a light that interrupts.',
@@ -28,9 +28,9 @@ const SPECS: Array<[string, string]> = [
   ['Audio', 'Four-mic array · down-firing speaker'],
   ['Light', '24-dot LED ring'],
   ['Privacy', 'Mechanical shutter, reported to the app'],
-  ['Connection', 'Wi-Fi · pairs with a code from the Mac app'],
+  ['Connection', 'Wi-Fi · pairs with a code from the desktop app'],
   ['Power', 'USB-C'],
-  ['Works with', 'Helicopter for Mac'],
+  ['Works with', 'Helicopter desktop'],
 ]
 
 export default function DevicePage() {
@@ -45,7 +45,7 @@ export default function DevicePage() {
           <Link href="/order" className="rounded-pill bg-text px-6 py-3 text-body-strong font-medium text-bg hover:opacity-85">
             Order · {price(PRICE.unit)}
           </Link>
-          <span className="text-small text-text-faint">Needs the free Mac app</span>
+          <span className="text-small text-text-faint">Needs the free desktop app</span>
         </div>
       </section>
 

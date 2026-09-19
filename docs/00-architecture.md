@@ -76,7 +76,7 @@ explains them, sells the unit and hands out the app:
 |---|---|
 | `/` | what it does, shown: the unit in 3D, the app's real screens, one session as a ribbon, the escalation ladder |
 | `/device` | the desk unit: its states (try the ring and the shutter), parts, what it never does, specs, buy |
-| `/download` | the Mac app: download, the three permissions and what each never reads, setup in three steps |
+| `/download` | the desktop app: download, the three permissions and what each never reads, setup in three steps |
 | `/order` | reserve a unit — no payment exists in this build; a reservation is a line on the web server |
 | `/privacy` | the privacy promise in plain words |
 

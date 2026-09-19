@@ -4,7 +4,7 @@ import { price, PRICE } from '@/lib/product'
 
 const LINKS = [
   { href: '/device', label: 'Desk unit' },
-  { href: '/download', label: 'Mac app' },
+  { href: '/download', label: 'Desktop app' },
   { href: '/privacy', label: 'Privacy' },
 ]
 

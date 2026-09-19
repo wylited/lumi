@@ -1,7 +1,7 @@
 # Helicopter
 
 An observer that helps one person finish what they sat down to do. A desk unit (camera, mic, speaker)
-watches the desk; a Mac app watches the machine; the server keeps the record and **acts** — an ambient
+watches the desk; a desktop app watches the machine; the server keeps the record and **acts** — an ambient
 signal, a nudge, a spoken line, or an automatic change — so the goal you set actually happens.
 
 Built for the "Automate your studies / job / life" brief.

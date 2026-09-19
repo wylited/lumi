@@ -13,7 +13,7 @@ function stateOf(o: Observation): State {
 
 const FILL: Record<State, string> = { focus: 'bg-accent', glance: 'bg-jade-300', drift: 'bg-warn', break: 'bg-ink-200' }
 
-/** The seeded demo session, minute by minute — the same ribbon the Mac app draws. */
+/** The seeded demo session, minute by minute — the same ribbon the desktop app draws. */
 export function SessionRibbon() {
   const obs = fixtures().session(SEED_SESSION_ID)?.observations ?? []
   return (

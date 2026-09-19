@@ -6,7 +6,7 @@ const SECTIONS: Array<{ title: string; body: string[] }> = [
   {
     title: 'What it reads',
     body: [
-      'On your Mac: the app in front, its window title, how often you type and click, how long you have been idle, and — with your permission — one small screen frame at most every ten seconds.',
+      'On your computer: the app in front, its window title, how often you type and click, how long you have been idle, and — with your permission — one small screen frame at most every ten seconds.',
       'On your desk: a camera frame when something changes, and whether you are speaking.',
     ],
   },
@@ -30,7 +30,7 @@ const SECTIONS: Array<{ title: string; body: string[] }> = [
     ],
   },
   {
-    title: 'What it does to your Mac',
+    title: 'What it does to your computer',
     body: [
       'Only what your goal allows — muting a site, pausing notifications, starting a break. Every change is shown and can be undone in one click, and each one is recorded with whether you undid it.',
     ],
@@ -38,7 +38,7 @@ const SECTIONS: Array<{ title: string; body: string[] }> = [
   {
     title: 'Where the model runs',
     body: [
-      'Assessment runs on the Helicopter server, the only place that holds a model key. Neither the Mac app nor the desk unit ever calls a model.',
+      'Assessment runs on the Helicopter server, the only place that holds a model key. Neither the desktop app nor the desk unit ever calls a model.',
     ],
   },
 ]

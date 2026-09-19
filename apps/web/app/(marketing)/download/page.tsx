@@ -4,8 +4,8 @@ import { MacWindow } from '@/components/marketing/MacWindow'
 import { DOWNLOAD } from '@/lib/product'
 
 export const metadata: Metadata = {
-  title: 'Helicopter for Mac',
-  description: 'The Mac app: set the goal, watch the session, and see what actually brings you back. Free.',
+  title: 'Helicopter desktop',
+  description: 'The desktop app: set the goal, watch the session, and see what actually brings you back. Free.',
 }
 
 const PERMISSIONS = [
@@ -24,7 +24,7 @@ export default function DownloadPage() {
   return (
     <>
       <section className="mx-auto flex max-w-[var(--max-content)] flex-col items-center gap-5 px-5 pt-16 text-center md:pt-24">
-        <span className="text-body text-text-faint">Helicopter for Mac</span>
+        <span className="text-body text-text-faint">Helicopter desktop</span>
         <h1 className="max-w-[16ch] text-[40px] font-semibold leading-[1.04] tracking-[-0.03em] text-balance text-text md:text-display-1">
           The goal, the session, and what works.
         </h1>
@@ -40,7 +40,7 @@ export default function DownloadPage() {
       </section>
 
       <section className="mx-auto max-w-[1100px] px-5 pt-14">
-        <MacWindow src="/shots/live-nudge.png" alt="The Mac app during a session, with a nudge in the corner" priority />
+        <MacWindow src="/shots/live-nudge.png" alt="The desktop app during a session, with a nudge in the corner" priority />
       </section>
 
       <section className="mx-auto flex max-w-[var(--max-content)] flex-col gap-24 px-5 pt-32">
@@ -80,7 +80,7 @@ export default function DownloadPage() {
         <div className="flex flex-col items-start justify-between gap-6 rounded-[28px] bg-surface p-10 md:flex-row md:items-center">
           <div className="flex flex-col gap-2">
             <h2 className="text-title-1 font-semibold text-text">Add eyes on the desk.</h2>
-            <p className="text-body text-text-muted">The desk unit sees the phone in your hand, which your Mac never can.</p>
+            <p className="text-body text-text-muted">The desk unit sees the phone in your hand, which your computer never can.</p>
           </div>
           <Link href="/device" className="rounded-pill border border-border-strong bg-bg px-6 py-3 text-body-strong font-medium text-text hover:bg-ink-50">
             See the desk unit

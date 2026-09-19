@@ -166,7 +166,7 @@ path.
 |---|---|---|---|
 | **1 · the loop** | P2 | 020, 021, 023, 024, 025, 026 | the critical path. Protect this person from everything else. |
 | **2 · server** | P1 (+ media relay) | 010–018, 041 | server core. Start the moment P0 lands. |
-| **3 · desktop + web** | P3 + P5 | 030–039, 070, 050–05A, 063 | the product (the Mac app) and the storefront that sells it with the unit. |
+| **3 · desktop + web** | P3 + P5 | 030–039, 070, 050–05A, 063 | the product (the desktop app) and the storefront that sells it with the unit. |
 | **4 · hardware + edge** | P4 + the contract | 009, 040, 042, 043 | owns `docs/03-device-contract.md`; never touches `apps/` except `apps/edge`. |
 | **all four** | P0 | 001–008 | 001 alone first, then 002–008 in parallel, the night before. |
 
