@@ -169,3 +169,53 @@ test('an away phone that cannot carry audio refuses it rather than speaking to t
   assert.equal(desk.binaries.length, 0)
   assert.equal(phone.binaries.length, 0)
 })
+
+test('tier 4 reaches the desktop as a contract-valid automation, and nowhere without one', async () => {
+  const { ApiToDesktop } = await import('@heli/contracts')
+  const { createDesktopAutomate } = await import('../src/observe/outbound.js')
+  const sent: unknown[] = []
+  const socket: DeskSocket = { send: (p) => (sent.push(p), true) }
+  const automate = createDesktopAutomate((id) => (id === 'sess_1' ? socket : null))
+
+  const input = { sessionId: 'sess_1', action: 'mute_site', target: 'instagram.com', message: 'Muted it.' }
+  assert.equal(await automate(input), true)
+  assert.equal(ApiToDesktop.safeParse(sent[0]).success, true)
+  assert.deepEqual(sent[0], {
+    t: 'automation',
+    observationId: null,
+    action: 'mute_site',
+    target: 'instagram.com',
+    message: 'Muted it.',
+  })
+
+  assert.equal(await automate({ ...input, sessionId: 'sess_2' }), false, 'no desktop, nothing changes')
+  assert.equal(await automate({ ...input, action: 'format_disk' }), false, 'only the contract’s actions')
+  assert.equal(sent.length, 1)
+})
+
+test('tier 4 acts on the top off-goal site, else the top off-goal app', async () => {
+  const { offGoalTarget } = await import('../src/observe/index.js')
+  const base = { topApps: [], topSites: [] } as unknown as Parameters<typeof offGoalTarget>[0]
+  assert.equal(offGoalTarget(base), null)
+  assert.equal(
+    offGoalTarget({
+      ...base,
+      topApps: [
+        { app: 'Code', seconds: 40, onTask: true },
+        { app: 'Discord', seconds: 15, onTask: false },
+      ],
+    }),
+    'Discord',
+  )
+  assert.equal(
+    offGoalTarget({
+      ...base,
+      topApps: [{ app: 'Discord', seconds: 15, onTask: false }],
+      topSites: [
+        { title: 'youtube.com', seconds: 10, onTask: false },
+        { title: 'instagram.com', seconds: 30, onTask: false },
+      ],
+    }),
+    'instagram.com',
+  )
+})

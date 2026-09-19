@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { DeviceCaps, DeviceState, DeviceTransport } from './device.js'
-import { Goal } from './goal.js'
+import { Automation, Goal } from './goal.js'
 import { Policy } from './policy.js'
 import { MediaStart, MediaStop, MediaState, AudioOut } from './media.js'
 import { DeviceCommand, CommandAck, DeviceTelemetry } from './control.js'
@@ -249,9 +249,29 @@ export const ApiNudge = z
 export type ApiNudge = z.infer<typeof ApiNudge>
 
 /**
+ * Tier 4, where the machine is: change something the goal allows, reversibly.
+ *
+ * The desktop carries out what it can — `mute_site` and `navigate_tab` move the front browser tab
+ * off `target` (or hide the front app when `target` is an app) and keep it blocked for the rest of
+ * the session — and shows the person what changed, with undo. What it cannot do it ignores; the
+ * outcome is reported like any other, as an `automation.applied` or `automation.undone` signal.
+ */
+export const ApiAutomation = z
+  .object({
+    t: z.literal('automation'),
+    observationId: z.string().nullable().default(null),
+    action: Automation,
+    /** The site or app the window was off the goal on; null means whatever is in front. */
+    target: z.string().nullable().default(null),
+    message: z.string().min(1).max(220),
+  })
+  .strict()
+export type ApiAutomation = z.infer<typeof ApiAutomation>
+
+/**
  * A union rather than a discriminated union on purpose: `ApiError` is the one
  * shape both sockets share with the device, and wrapping it would mean two
  * error types to keep in step.
  */
-export const ApiToDesktop = z.union([DesktopAck, ApiAudioOut, ApiNudge, ApiError])
+export const ApiToDesktop = z.union([DesktopAck, ApiAudioOut, ApiNudge, ApiAutomation, ApiError])
 export type ApiToDesktop = z.infer<typeof ApiToDesktop>

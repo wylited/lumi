@@ -2,7 +2,7 @@ import { env } from './env.js'
 import { publish } from './lib/bus.js'
 import { prisma } from './lib/prisma.js'
 import { childLogger, logger } from './logger.js'
-import type { DeskSocketLookup } from './observe/outbound.js'
+import { createDesktopAutomate, type DeskSocketLookup } from './observe/outbound.js'
 import {
   createLoopRuntime,
   DEFAULT_ASSESS_INTERVAL_MS,
@@ -50,6 +50,8 @@ const activeSessions = async (): Promise<string[]> => {
  * and the server still serves HTTP. A failure here is logged and the server keeps
  * running — the rig's uploads matter more than the assessment cadence.
  */
+const automate = createDesktopAutomate(desk)
+
 let runtime: LoopRuntime | null = null
 
 try {
@@ -60,6 +62,7 @@ try {
     away,
     activeSessions,
     publish,
+    automate,
     logger: loopLog,
   })
   loopLog.info(

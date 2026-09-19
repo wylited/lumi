@@ -274,6 +274,8 @@ export function createLoop(deps: LoopDeps, config: LoopConfig = DEFAULT_LOOP_CON
               sessionId,
               action: intervention.action,
               observationId: 'pending',
+              target: offGoalTarget(window),
+              message: intervention.message || 'Changed something your goal allows.',
             })
           } catch (error) {
             deps.logger.error({ sessionId, error }, 'loop.automate_failed')
@@ -337,4 +339,12 @@ export function createLoop(deps: LoopDeps, config: LoopConfig = DEFAULT_LOOP_CON
     },
     summarize: buildSummary,
   }
+}
+
+/** What the window was off the goal on, for tier 4 to act on: the top off-goal site, else app. */
+export function offGoalTarget(window: SignalWindow): string | null {
+  const site = window.topSites.filter((s) => !s.onTask).sort((a, b) => b.seconds - a.seconds)[0]
+  if (site) return site.title
+  const app = window.topApps.filter((a) => !a.onTask).sort((a, b) => b.seconds - a.seconds)[0]
+  return app?.app ?? null
 }

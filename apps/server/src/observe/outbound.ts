@@ -1,4 +1,4 @@
-import { ApiAudioOut, ApiNudge } from '@heli/contracts'
+import { ApiAudioOut, ApiNudge, Automation, type ApiAutomation } from '@heli/contracts'
 
 /**
  * The loop's outbound half.
@@ -158,4 +158,30 @@ export const noopSenders: LoopSenders = {
   sendToSession: () => false,
   sendBinaryToSession: () => false,
   sendNotification: () => false,
+}
+
+/**
+ * Tier 4 goes to the desktop: it is the only surface that can change the machine, and it shows the
+ * person what changed, with undo. No desktop attached means nothing changes, and the loop logs it.
+ */
+export function createDesktopAutomate(desk: DeskSocketLookup) {
+  return async (input: {
+    sessionId: string
+    action: string
+    target: string | null
+    message: string
+  }): Promise<boolean> => {
+    const action = Automation.safeParse(input.action)
+    if (!action.success) return false
+    const socket = desk(input.sessionId)
+    if (!socket) return false
+    const payload: ApiAutomation = {
+      t: 'automation',
+      observationId: null,
+      action: action.data,
+      target: input.target,
+      message: input.message.slice(0, 220),
+    }
+    return socket.send(payload)
+  }
 }

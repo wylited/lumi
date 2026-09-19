@@ -122,6 +122,9 @@ export interface LoopDeps {
     sessionId: string
     action: string
     observationId: string
+    /** The site, else the app, the window spent most off-goal time on; null when none. */
+    target: string | null
+    message: string
   }) => Promise<boolean>
   logger: {
     info(obj: unknown, msg?: string): void
