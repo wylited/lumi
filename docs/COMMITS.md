@@ -253,15 +253,17 @@ the specification. `071` and `072` unblock it. Full `Do` and `Done when` in
 |---|----|--------|---------|---|-------|
 | ☐ | HELI-071 | `fix(server): per-source frames, and the assess step sees both` | 041 | **no** | 2 · server |
 | ☐ | HELI-072 | `feat(server): drafting the goal from a sentence` | 004, 020 | yes | 2 · server |
-| ☐ | HELI-073 | `feat(server): the loop's line reaches the desktop` | 044, 048 | **no** | 1 · the loop |
+| ☑ | HELI-073 | `feat(server): the loop's line reaches the desktop` | 044, 048 | **no** | 1 · the loop |
 | ☐ | HELI-074 | `feat(desktop): the live monitor, split` | 071, 032 | yes | 3 · desktop + web |
 | ☐ | HELI-075 | `feat(desktop): the focused element, and a consent screen that matches reality` | 033, 046 | yes, after 046 | 3 · desktop + web |
 | ☐ | HELI-076 | `chore(desktop): preflight and demo reset` | 046 | yes, after 046 | 3 · desktop + web |
 
-`047` and `048` belong to P4 and are on `main` now. **`073` is the row that makes the loop audible**:
-until it lands, `index.ts` answers every lookup with null and the loop records each line as
-undelivered — the assessment runs, the person never hears it. **`071` is the gap worth knowing
-about**: the drafted frame intake ignored
+`047` and `048` belong to P4 and are on `main` now — merged in `a8170fb` and `53d12d3` after sitting
+ticked on their branches. **`073` landed in `345ea06`**: `ws/live-desktop.ts` indexes a desktop by the
+session its `hello` names and `index.ts` answers the loop's lookup with it instead of null, so a
+decided nudge and a spoken line are delivered; the test opens a real `/ws/desktop` and receives the
+`nudge`, the `audio.out` header and the tagged PCM in order — **28 server tests pass**. **`071` is
+the gap worth knowing about**: the drafted frame intake ignored
 `x-heli-source`, so a screen frame and a camera frame collide in “the newest frame” and the model can
 be shown a screenshot believing it is the page. The assess step will read both once `071` lands — the
 contracts already model `kind: 'desk' | 'screen'`.
