@@ -5,6 +5,7 @@ import { TitleBar } from './components/shell/TitleBar'
 import { useDataSource } from './lib/api'
 import { derive, useLive } from './lib/live'
 import { setTray } from './lib/tray'
+import { GoalRoute } from './routes/goal'
 import { LiveRoute } from './routes/live'
 import { Placeholder } from './routes/placeholder'
 
@@ -84,7 +85,13 @@ export function App() {
       <main className="flex min-w-0 flex-1 flex-col">
         <TitleBar title={current.label} />
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {route === 'live' ? <LiveRoute /> : <Placeholder title={current.label} />}
+          {route === 'live' ? (
+            <LiveRoute />
+          ) : route === 'goal' ? (
+            <GoalRoute />
+          ) : (
+            <Placeholder title={current.label} />
+          )}
         </div>
       </main>
     </div>
