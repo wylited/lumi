@@ -732,9 +732,8 @@ function computeWindow(sessionId: string, now: number): SignalWindowContract | n
    * observed was off the goal, and `focusedSeconds + offTaskSeconds = 0` is the
    * honest signal that this window holds no judgement at all.
    *
-   * (The seeded fixtures compute the ratio against the whole window instead.
-   * That reads idle as drift, which is the fastest way to nag someone who went
-   * to make tea; flagged in the row's report rather than copied here.)
+   * Computing it against the whole window instead would read idle as drift,
+   * which is the fastest way to nag someone who went to make tea.
    */
   const judged = focused + offTask
   const onTaskRatio = judged > 0 ? clamp01(focused / judged) : 1

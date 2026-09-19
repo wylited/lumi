@@ -13,7 +13,7 @@ import { registerRoutes } from './plugins/routes.js'
 import { applyZod } from './plugins/zod.js'
 
 /**
- * Builds the server without listening, so tests and the dev mocks can drive it.
+ * Builds the server without listening, so tests can drive it.
  *
  * The zod compilers and the error handler are installed on the root instance
  * rather than from inside a plugin: a fastify plugin gets its own encapsulation

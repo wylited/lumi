@@ -38,11 +38,9 @@ import {
 /**
  * `from` and `to` are **optional**.
  *
- * Neither client sends a query string at all, and both parse the body through
- * `@heli/contracts` and fall back to fixtures on any error — so requiring a
- * window would not fail loudly anywhere, it would just make the dashboard show
- * invented numbers forever. Absent means *all time*, which is what makes the
- * seeded session appear on first load.
+ * The desktop sends no query string at all and reads an error as an empty
+ * dashboard — so requiring a window would not fail loudly anywhere, it would
+ * just make the dashboard empty forever. Absent means *all time*.
  *
  * When they are given they are inclusive bounds on the observation's `ts` (and
  * on an intervention's `firedAt`), and they are optional individually: `?from=`

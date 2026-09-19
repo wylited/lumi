@@ -17,16 +17,16 @@ import {
 } from '@heli/contracts'
 
 import { createLoop } from '../src/observe/index.js'
-import { createSpeechProvider } from '../src/voice/speech.js'
 import { inMemoryTransport, type InMemoryTransport } from '../src/voice/transport.js'
 import type {
   ObservationWriter,
   SessionReader,
+  SpeechProvider,
   VisionProvider,
 } from '../src/observe/types.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const fixtures = join(here, '..', 'fixtures')
+const fixtures = join(here, 'fixtures')
 
 interface Expectation {
   onTrack: boolean
@@ -249,6 +249,22 @@ interface Harness {
   clock: { now: () => number }
 }
 
+/** The voice is not under test: a line comes back as 200 ms of silence. */
+function silentSpeech(): SpeechProvider {
+  return {
+    name: 'elevenlabs',
+    async synthesize() {
+      return {
+        provider: 'elevenlabs',
+        sampleRate: 16_000,
+        channels: 1,
+        durationMs: 200,
+        pcmBase64: Buffer.alloc(6_400).toString('base64'),
+      }
+    },
+  }
+}
+
 function harness(budgetMs = 4000): Harness {
   const clock = { now: () => Date.now() }
   const events: LiveEvent[] = []
@@ -261,7 +277,7 @@ function harness(budgetMs = 4000): Harness {
       clock,
       bus: { publish: (_s, event) => events.push(event) },
       transport,
-      speech: createSpeechProvider({} as NodeJS.ProcessEnv),
+      speech: silentSpeech(),
       vision: scriptedVision(),
       reader,
       writer,
@@ -412,7 +428,7 @@ test('the loop falls to silence when the vision call exceeds the budget', async 
       clock: { now: () => Date.now() },
       bus: { publish() {} },
       transport: inMemoryTransport(),
-      speech: createSpeechProvider({} as NodeJS.ProcessEnv),
+      speech: silentSpeech(),
       vision: slow,
       reader: h.reader,
       writer: h.writer,

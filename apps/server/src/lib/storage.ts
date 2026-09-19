@@ -34,8 +34,7 @@ export interface PutObjectInput {
 /**
  * S3 when there is a bucket to write to and media is switched on, memory
  * otherwise. The memory backend is what makes the whole media path work on a
- * laptop with no MinIO running — which is the normal case for the desktop and
- * web teams, who develop against fixtures.
+ * laptop with no MinIO running.
  */
 export const storageBackend = (): StorageBackend =>
   mediaEnabled() && (env.S3_BUCKET ?? '').length > 0 ? 's3' : 'memory'

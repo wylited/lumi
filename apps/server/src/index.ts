@@ -2,7 +2,6 @@ import { env } from './env.js'
 import { publish } from './lib/bus.js'
 import { prisma } from './lib/prisma.js'
 import { childLogger, logger } from './logger.js'
-import { visionProviderName } from './models/provider.js'
 import type { DeskSocketLookup } from './observe/outbound.js'
 import {
   createLoopRuntime,
@@ -42,8 +41,8 @@ const activeSessions = async (): Promise<string[]> => {
  * The loop, started.
  *
  * It is built inside a `try`: the vision adapter, the speech adapter and the
- * prisma-backed loop all resolve at boot, and a box with no model key and no
- * database must still serve HTTP. A failure here is logged and the server keeps
+ * prisma-backed loop all resolve at boot. A missing key is an error naming it,
+ * and the server still serves HTTP. A failure here is logged and the server keeps
  * running — the rig's uploads matter more than the assessment cadence.
  */
 let runtime: LoopRuntime | null = null
@@ -57,12 +56,9 @@ try {
     logger: loopLog,
   })
   loopLog.info(
-    { vision: visionProviderName(env), speech: env.SPEECH_PROVIDER, intervalMs: DEFAULT_ASSESS_INTERVAL_MS },
+    { vision: 'deepseek', speech: 'elevenlabs', intervalMs: DEFAULT_ASSESS_INTERVAL_MS },
     'observe loop: runtime built',
   )
-  if (visionProviderName(env) === 'local') {
-    loopLog.warn('observe loop: no vision key, the offline assessor is deciding')
-  }
 } catch (error) {
   loopLog.error({ err: error }, 'observe loop: could not be built; serving without it')
 }

@@ -160,8 +160,7 @@ export function parseDraftContent(content: unknown): ModelDraftBody | null {
  */
 async function fromModel(sentence: string): Promise<GoalDraftBody | null> {
   // `DEEPSEEK_API_KEY=` in a `.env` is an empty string, not an absent key, and
-  // an empty bearer token is not a key. `VISION_PROVIDER=local` on this box is
-  // the same statement said the other way.
+  // an empty bearer token is not a key.
   const apiKey = env.DEEPSEEK_API_KEY?.trim()
   if (!apiKey) {
     log.info('goal draft: no deepseek key, drafting with the local rules')

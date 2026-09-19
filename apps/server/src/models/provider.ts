@@ -1,16 +1,11 @@
-import type { VisionProviderName } from '@heli/contracts'
-
 import type { VisionProvider } from '../observe/types.js'
 import { DEEPSEEK_DEFAULT_MODEL, createDeepSeekVisionProvider } from './deepseek.js'
-import { createLocalVisionProvider } from './local.js'
 
 /**
- * The only place a vision provider is chosen. It is deliberately key-driven:
- * a configured key means the real adapter, anything else means the offline
- * stub. The loop must boot and run with no credentials at all.
+ * The only place a vision provider is chosen. There is no offline assessor: a
+ * missing key is an error that names the variable, and the loop does not run.
  */
 export interface VisionEnv {
-  VISION_PROVIDER?: string
   DEEPSEEK_API_KEY?: string
   DEEPSEEK_MODEL?: string
 }
@@ -28,25 +23,15 @@ export const noopProviderLogger: ProviderLogger = {
   error: () => {},
 }
 
-/** Which adapter the environment resolves to. Key presence wins, never a default. */
-export function visionProviderName(env: VisionEnv): VisionProviderName {
-  if (env.DEEPSEEK_API_KEY && env.DEEPSEEK_API_KEY.trim().length > 0) {
-    return 'deepseek'
-  }
-  return 'local'
-}
-
-/** Build the vision provider for this environment. Never throws on a missing key. */
+/** Build the vision provider for this environment. Throws, naming the key, when there is none. */
 export function createVisionProvider(env: VisionEnv, logger?: ProviderLogger): VisionProvider {
-  const name = visionProviderName(env)
-
-  if (name === 'deepseek') {
-    return createDeepSeekVisionProvider({
-      apiKey: (env.DEEPSEEK_API_KEY ?? '').trim(),
-      model: env.DEEPSEEK_MODEL?.trim() || DEEPSEEK_DEFAULT_MODEL,
-      logger,
-    })
+  const apiKey = env.DEEPSEEK_API_KEY?.trim()
+  if (!apiKey) {
+    throw new Error('DEEPSEEK_API_KEY is not set: Lumi cannot see without it (apps/server/.env)')
   }
-
-  return createLocalVisionProvider()
+  return createDeepSeekVisionProvider({
+    apiKey,
+    model: env.DEEPSEEK_MODEL?.trim() || DEEPSEEK_DEFAULT_MODEL,
+    logger,
+  })
 }

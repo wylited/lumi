@@ -130,7 +130,7 @@ export function toApiSession(row: SessionRow, rollup: Rollup): ApiSession {
 
 /* ---- the roll-up --------------------------------------------------------- */
 
-/** One decimal, as `packages/fixtures` and `services/analytics.ts` both round. */
+/** One decimal, as `services/analytics.ts` rounds. */
 const round = (value: number, places: number): number => {
   const factor = 10 ** places
   return Math.round(value * factor) / factor
@@ -168,14 +168,7 @@ const goalNoun = (goal: ApiGoal): string =>
  * The contract's `SessionSummary`, folded out of the session's own windows and
  * observations.
  *
- * This mirrors `packages/fixtures/src/build.ts#summarise` line for line, on
- * purpose. The demo data and a live session are rendered by the same components
- * (`apps/web/app/(app)/sessions/[id]/page.tsx` reads `message`, `topDistraction`,
- * `worked`), and a live session that answered with a differently-worded summary
- * than the demo one would look like two different products. The duplication is
- * real and the cost of it is that these two must move together; the alternative
- * — a shared helper in `packages/fixtures`, which is a client-side package — is
- * worse, because then the server would depend on fixture data.
+ * The desktop's history reads `message`, `topDistraction` and `worked` from it.
  */
 function summarise(observations: ApiObservation[], goal: ApiGoal): SessionSummary {
   let focusedSeconds = 0
@@ -201,8 +194,7 @@ function summarise(observations: ApiObservation[], goal: ApiGoal): SessionSummar
     if (assessment && !assessment.onTask) {
       // What was in the way, named the way the person would name it: the site if
       // the window had one, else the phone if the model called it that, else the
-      // app. Same precedence as the fixtures, so "mostly youtube.com" means the
-      // same thing in both.
+      // app.
       const key =
         signals.topSites[0]?.title ??
         (assessment.kind === 'phone' ? 'Phone' : (signals.topApps[0]?.app ?? 'Unknown'))
@@ -361,8 +353,7 @@ export async function listSessions(): Promise<ApiSession[]> {
 
 /**
  * One session with its goal, its observations and its interventions, or `null`
- * when there is no such row — the caller answers that as a 404, which both
- * merged clients treat as "ask the fixtures instead" rather than as an error.
+ * when there is no such row — the caller answers that as a 404.
  */
 export async function getSessionDetail(id: string): Promise<SessionDetail | null> {
   const row = await prisma.session.findUnique({ where: { id }, include: { goal: true } })

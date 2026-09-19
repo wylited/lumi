@@ -41,9 +41,9 @@ const log = childLogger({ module: 'analytics' })
  *
  * Both bounds absent means *all time*, which is the case that matters. Neither
  * client sends a query string at all — `apps/web/lib/api.ts` and
- * `apps/desktop/src/lib/api.ts` call `/analytics/summary` bare — and both fall
- * back to fixture data on any non-2xx, so a route that demanded a window would
- * leave the dashboard quietly showing demo numbers.
+ * `apps/desktop/src/lib/api.ts` call `/analytics/summary` bare — and a non-2xx
+ * reads as empty, so a route that demanded a window would leave the dashboard
+ * quietly empty.
  */
 export interface AnalyticsWindow {
   from?: Date
@@ -97,7 +97,7 @@ async function loadObservations(window: AnalyticsWindow): Promise<ApiObservation
   return toApiObservations(rows)
 }
 
-/** Two decimals is what `packages/fixtures` rounds to; a dashboard wants a figure, not a float. */
+/** Two decimals: a dashboard wants a figure, not a float. */
 function round(value: number, places: number): number {
   const factor = 10 ** places
   return Math.round(value * factor) / factor
@@ -160,8 +160,7 @@ function longestRunSeconds(observations: ApiObservation[]): number {
  * multiplied by a nominal window length. A window is a minute of wall clock
  * today, but the seed and the policy both treat `windowMs` as data, and a
  * count-based minute would keep claiming 60 s per window after the first commit
- * that changes it. They are reported to one decimal, as `packages/fixtures`
- * does, so the live figure and the demo figure are formatted alike.
+ * that changes it. They are reported to one decimal, as the session summary is.
  *
  * The histogram is counted over the same rows the minutes come from, so its
  * total always equals the number of observations those minutes describe. Keys
@@ -253,10 +252,8 @@ export async function analyticsTiers(window: AnalyticsWindow = {}): Promise<Anal
 /**
  * Time per app, ranked by seconds descending.
  *
- * Only `signals.topApps` is read. The demo fixtures fold `topSites` in as
- * pseudo-apps when a window has any, which is how "youtube.com" ends up looking
- * like an application on the fallback dashboard; an app is an app, and a site is
- * already carried by `topSites`.
+ * Only `signals.topApps` is read: an app is an app, and a site is already
+ * carried by `topSites`.
  *
  * Rows are keyed by app *and* on-task, because the same application is both: the
  * seed's Safari is on-task on a problem set and off-task on YouTube, and merging
@@ -287,12 +284,9 @@ export async function analyticsApps(window: AnalyticsWindow = {}): Promise<Analy
  * **Bucketed by the server process's local timezone** (`Date#getHours`), not by
  * UTC. A heatmap answers "when in my day am I sharpest", so the bucket has to be
  * the hour on the wall clock the person was sitting at. The deployment is one
- * person, one desk, one box (AGENTS.md: seeded, single-user) and both shipped
- * clients bucket the same way — `packages/fixtures/src/analytics.ts` uses
- * `new Date(o.ts).getHours()` and the desktop's `derive()` sums a live snapshot
- * in local time. Bucketing in UTC here would move the seeded evening session to
- * the early hours of the next day in the dashboard while the demo data showed it
- * where the person lived.
+ * person, one desk, one box (AGENTS.md: single-user), and the desktop's
+ * `derive()` sums a live snapshot in local time. Bucketing in UTC here would
+ * move an evening session to the early hours of the next day.
  *
  * The gap this leaves: a server running in a different timezone from the person
  * reports *its* hours. `@heli/contracts` has no user timezone to fix that with,
@@ -301,8 +295,7 @@ export async function analyticsApps(window: AnalyticsWindow = {}): Promise<Analy
  * Each cell is the mean of the windows' own `onTaskRatio` — a seconds-based
  * measure of how much of that window was on task — rather than the fraction of
  * windows judged on task, which would weigh a one-second glance like a full
- * minute of work. Windows assessed as a `break` are left out, matching the
- * fixtures: a break is not focus, and counting one as a low ratio would drag an
+ * minute of work. Windows assessed as a `break` are left out: a break is not focus, and counting one as a low ratio would drag an
  * hour down for an action the person was told to take.
  *
  * **An hour with no observations is absent from the array, not zero.** The web's

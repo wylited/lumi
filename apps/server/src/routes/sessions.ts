@@ -120,11 +120,8 @@ const sessions: FastifyPluginAsync = async (app) => {
     async (request): Promise<SessionDetailBody> => {
       const detail = await getSessionDetail(request.params.id)
       /**
-       * A 404, not an empty session and not a 500. Both merged clients handle
-       * 404 by falling back to the fixtures — `apps/desktop/src/lib/api.ts`
-       * parses with `SessionDetailResponse.nullable()` and the web's `read()`
-       * returns the fixture session on a 404 — so the honest answer for an
-       * unknown id is the one they already know how to take.
+       * A 404, not an empty session and not a 500: the desktop reads it as
+       * "no such session" (`apps/desktop/src/lib/api.ts`).
        */
       if (detail === null) {
         throw Object.assign(new Error(`No session ${request.params.id}.`), { statusCode: 404 })
