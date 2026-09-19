@@ -44,8 +44,12 @@ const EnvSchema = z.object({
   GEMINI_LOCATION: z.string().optional(),
 
   // Speech out. Same story: local works offline, ElevenLabs is key-gated.
+  // The voice id is required next to the key by the adapter, so it is declared
+  // here: this schema strips what it does not name, and a stripped voice id is
+  // a provider that throws at the first spoken line.
   SPEECH_PROVIDER: z.enum(['local', 'elevenlabs']).default('local'),
   ELEVENLABS_API_KEY: z.string().optional(),
+  ELEVENLABS_VOICE_ID: z.string().optional(),
 
   MEDIA_ENABLED: booleanish(true),
   S3_ENDPOINT: z.string().optional(),

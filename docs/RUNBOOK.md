@@ -112,7 +112,7 @@ What to look for in the logs:
 - the assess step logs **latency and token usage** on every call
   (`apps/server/src/observe/assess.ts`, `apps/server/src/models/deepseek.ts`);
 - provider **429 / rate-limit** errors from the DeepSeek adapter;
-- the orchestrator logs `latencyMs` per window and emits silence if the loop exceeds its 4 s budget.
+- the orchestrator logs `latencyMs` per window and emits silence if the loop exceeds its 6 s budget.
 
 Fall back to the keyless stub by setting, in `apps/server/.env`:
 
@@ -121,7 +121,24 @@ VISION_PROVIDER=local
 ```
 
 `local` is deterministic and needs no key, so the whole loop still runs. Restart the server after
-changing it. The recorded replay used by the demo lives in `apps/server/src/dev/replay.ts`.
+changing it. The recorded replay used by the demo lands with **HELI-061**
+(`apps/server/src/dev/replay.ts`), which is not in the tree yet.
+
+---
+
+## Speech
+
+The same shape as the model. `SPEECH_PROVIDER=local` needs no key and speaks in a deliberately
+unintelligible tone motif, so the whole path runs offline. `SPEECH_PROVIDER=elevenlabs` needs both
+`ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` — the id, not the name. On a free plan only some
+voices are allowed: Sarah (`EXAVITQu4vr4xnSDxMaL`), Adam (`pNInz6obpgDQGcFmaJgB`) and Antoni
+(`ErXwobaYiN019PkySvjV`) answered; library voices return `paid_plan_required`. The verified key has
+no `voices_read` scope, so voices cannot be listed over the API — that is a key scope, not a plan.
+
+Synthesis is a cloud call **after** the assessment, so it does not consume the loop's budget and a
+failure is recorded as `delivered: false` rather than spoken. It is not instant: **~4.5 s per line**
+from this network on the free plan, so a tier-3 line lands several seconds after the window it
+describes. Keep `local` one edit away on demo day.
 
 ---
 
