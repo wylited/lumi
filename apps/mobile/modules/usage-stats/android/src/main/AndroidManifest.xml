@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+  <!--
+    PACKAGE_USAGE_STATS is an app-op, not a runtime permission: declaring it only
+    makes this app eligible, and the person grants it in Settings → Special app
+    access → Usage access. The settings screen below opens that page directly.
+  -->
+  <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+</manifest>
