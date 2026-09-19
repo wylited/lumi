@@ -66,7 +66,7 @@ of that chain.
 | ☑ | HELI-014 | `feat(server): media intake and object store` | 010 | yes | 2 · server |
 | ☑ | HELI-015 | `feat(server): desktop signal ingestion` | 010 | yes | 2 · server |
 | ☑ | HELI-016 | `feat(server): SSE live channel` | 010 | yes | 2 · server |
-| ☐ | HELI-017 | `feat(server): mock device and mock desktop` | 012, 015 | yes | — |
+| ☑ | HELI-017 | `feat(server): mock device and mock desktop` | 012, 015 | yes | 2 · server |
 | ☑ | HELI-018 | `feat(server): analytics queries` | — | yes | 2 · server |
 | ☑ | HELI-019 | `feat(server): register websocket route files by folder` | 010 | yes | 2 · server |
 | ☑ | HELI-027 | `fix(server): make the zod type provider reach route generics` | 010 | **no** | 2 · server |
