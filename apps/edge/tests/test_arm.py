@@ -647,3 +647,116 @@ def test_serial_reports_a_bridge_that_died(tmp_path):
         arm.pose()
     assert 'bridge is gone' in str(caught.value)
     assert 'exit 3' in str(caught.value)
+
+
+# A bridge that dies once and then stays up: the marker file is what tells the two runs of
+# the same script apart, so the rig's second attempt is a bridge that answers for good.
+BRIDGE_THAT_DIES_ONCE = '''
+import json
+import pathlib
+import sys
+
+MARKER = $MARKER
+dying = not pathlib.Path(MARKER).exists()
+pathlib.Path(MARKER).write_text("died", encoding="utf-8")
+
+measured = {"shoulder_pan": 1.0, "wrist_flex": 2.0}
+state = {
+    "mode": "pose", "armed": True, "flags": [], "hz": 100.0,
+    "measured": measured, "goals": dict(measured), "park": {}, "window": {},
+    "gimbal": {"park_done": False}, "info": {"backend": "lerobot", "port": $PORT},
+}
+
+
+def emit(obj):
+    sys.stdout.write(json.dumps(obj) + "\\n")
+    sys.stdout.flush()
+
+
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    message = json.loads(line)
+    emit({"id": message.get("id"), "ok": True, "result": {"state": state}})
+    if dying:
+        sys.exit(7)
+'''
+
+# A bridge that dies every time it is started, without answering anything: the shape of a bus
+# that is gone for good (the console took the serial port, the arm is unplugged), and the case
+# the rig must stop restarting rather than retry for the rest of the afternoon.
+BRIDGE_THAT_ALWAYS_DIES = '''
+import sys
+
+for line in sys.stdin:
+    sys.exit(7)      # a command arrives, the process goes: no reply, ever
+'''
+
+
+def _write_bridge(tmp_path, source: str, name: str = 'bridge.py') -> str:
+    where = tmp_path / name
+    where.write_text(
+        source.replace('$MARKER', repr(str(tmp_path / 'died-once.marker'))).replace('$PORT', repr(PORT)),
+        encoding='utf-8',
+    )
+    return str(where)
+
+
+def test_the_rig_starts_a_bridge_that_died_again_by_itself(tmp_path, caplog, monkeypatch):
+    """A bridge that died used to stay dead: every call after the death raised "the bridge is
+    gone" and nothing started it again, so a thirteen-minute outage ended only when a person
+    restarted the rig. The rig supervises its own bridge — after a bounded wait, by itself.
+    """
+    monkeypatch.setattr('heli_rig.arm.serial_arm.BRIDGE_RESTART_DELAYS_S', (0.05, 0.1, 0.2))
+    arm = _serial(_write_bridge(tmp_path, BRIDGE_THAT_DIES_ONCE), tmp_path)
+    try:
+        arm.connect()                       # the first bridge answers, then exits 7
+
+        with pytest.raises(ArmUnavailable) as caught:
+            arm.pose()
+        assert 'bridge is gone' in str(caught.value)
+        assert 'exit 7' in str(caught.value)
+        assert 'starting it again in 0.05 s' in str(caught.value), 'the caller is told what is being done'
+
+        time.sleep(0.08)                    # the backoff, waited out — the rig's own clock
+        with caplog.at_level(logging.INFO, logger='heli_rig.arm'):
+            pose = arm.pose()               # ...and the rig started it again without being asked
+
+        assert pose.pan == 1.0
+        assert 'the bridge is answering again' in caplog.text
+    finally:
+        arm.close()
+
+
+def test_a_bridge_that_keeps_dying_is_given_up_on_with_one_line(tmp_path, caplog, monkeypatch):
+    """The reasons a bridge cannot open the bus do not go away between attempts, so the rig
+    gives up — after a bounded number of tries, in one line, and without ever going quiet
+    about it. Retrying forever is how a rig ends up spawning a process a second all night.
+    """
+    monkeypatch.setattr('heli_rig.arm.serial_arm.BRIDGE_RESTART_DELAYS_S', (0.01, 0.01, 0.01))
+    arm = _serial(_write_bridge(tmp_path, BRIDGE_THAT_ALWAYS_DIES), tmp_path)
+    try:
+        with caplog.at_level(logging.WARNING, logger='heli_rig.arm'):
+            with pytest.raises(ArmUnavailable):
+                arm.connect()
+            for _ in range(4):              # each attempt: wait out the backoff, ask again
+                time.sleep(0.02)
+                with pytest.raises(ArmUnavailable) as caught:
+                    arm.pose()
+
+            gave_up = str(caught.value)
+            assert 'died 3 times in a row' in gave_up and 'will not be started again' in gave_up
+
+            before = len(caplog.records)
+            for _ in range(5):              # and a caller that keeps asking gets the same words
+                with pytest.raises(ArmUnavailable) as again:
+                    arm.pose()
+                assert str(again.value) == gave_up
+            assert len(caplog.records) == before, 'a rig that has given up does not keep logging'
+
+        deaths = [record for record in caplog.records if 'the bridge died' in record.getMessage()]
+        assert len(deaths) == 3, f'one line per death, not one per call: {len(deaths)}'
+        assert sum('not starting it again' in record.getMessage() for record in caplog.records) == 1
+    finally:
+        arm.close()

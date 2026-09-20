@@ -44,6 +44,18 @@ BRIDGE_REAP_TIMEOUT_S = 1.0     # how long to wait for the exit code of a bridge
 STDERR_KEEP = 5                 # lines of the child's own words to quote when it dies
 CONSOLE_HOLDS_ARM = 'console holds the arm'
 
+#: How a dead bridge is started again: doubling, from half a second, and then no more.
+#:
+#: The rig supervises its own bridge, and a bridge that died used to stay dead — every call
+#: after the death raised "the bridge is gone" and nothing ever started it again, so a
+#: thirteen-minute outage ended only when a person restarted the rig. The delays are the
+#: part that matters: a bridge that cannot open the bus (the console has it, the arm is
+#: unplugged, the port moved) fails in milliseconds, and a tight loop would spawn it five
+#: times a second and fill the log with the same death. The table's own length is where that
+#: ends: the reasons do not go away between attempts, so after the last delay the rig says
+#: so once, in a line that names what died and what it said, and stops.
+BRIDGE_RESTART_DELAYS_S = (0.5, 1.0, 2.0, 4.0, 8.0)
+
 
 class SerialArm(BridgeArm):
     """The bridge as a child process, spoken to over its stdin and stdout."""
@@ -84,6 +96,12 @@ class SerialArm(BridgeArm):
         self._stderr: collections.deque[str] = collections.deque(maxlen=STDERR_KEEP)
         self._next_id = 1
         self._pumps: list[threading.Thread] = []
+        # Supervision: consecutive deaths, when the next attempt may run, and why it stopped.
+        self._deaths = 0
+        self._next_try_at = 0.0
+        self._retry_in_s = 0.0
+        self._gone_note: str | None = None
+        self._refused: str | None = None
 
     # ------------------------------------------------------------ transport
     def _start(self) -> None:
@@ -164,14 +182,14 @@ class SerialArm(BridgeArm):
 
     def _send(self, method: str, params: dict | None = None, timeout_s: float | None = None) -> dict:
         budget = timeout_s if timeout_s is not None else self._request_timeout_s
-        proc = self._proc
-        if proc is None:
-            self._start()
+        self._reap()
+        if self._proc is None:
+            self._supervise()
             proc = self._proc
             assert proc is not None
             budget = max(budget, BRIDGE_START_TIMEOUT_S)
-        elif proc.poll() is not None:
-            raise ArmUnavailable(self._exit_note())
+        else:
+            proc = self._proc
         ident = self._next_id
         self._next_id += 1
         line = json.dumps({'id': ident, 'method': method, 'params': dict(params or {})})
@@ -180,7 +198,10 @@ class SerialArm(BridgeArm):
             proc.stdin.write(line + '\n')
             proc.stdin.flush()
         except (BrokenPipeError, OSError, ValueError) as exc:
-            raise ArmUnavailable(f'{self._exit_note()}: {exc}') from exc
+            # The pipe is gone, so the child is: the same accounting as an exit, or a rig
+            # would report a dead bridge for ever without ever starting it again.
+            self._reap_dead()
+            raise ArmUnavailable(f'{self._gone_message()}: {exc}') from exc
         deadline = time.monotonic() + budget
         while True:
             remaining = deadline - time.monotonic()
@@ -193,7 +214,9 @@ class SerialArm(BridgeArm):
             except queue.Empty:
                 continue    # round again, and let the deadline above name the reason
             if reply_line is None:
-                raise ArmUnavailable(self._exit_note())
+                # stdout closed: the child is over, whatever the OS has done about it yet.
+                self._reap_dead()
+                raise ArmUnavailable(self._gone_message())
             if not reply_line.strip():
                 continue
             try:
@@ -206,10 +229,120 @@ class SerialArm(BridgeArm):
                     self.log.debug('bridge: %s', reply.get('msg'))
                 continue
             if reply.get('id') == ident:
+                self._answered()
                 return reply
             # A reply for another id can only be a late answer to a command that already timed
             # out (this driver holds its lock for a whole operation).
             self.log.debug('the bridge answered an older command: %s', reply_line[:200])
+
+    # ------------------------------------------------------------ supervision
+    def _reap(self) -> None:
+        """Notice a child that has exited, once per death, keeping its own last words."""
+        proc = self._proc
+        if proc is None or proc.poll() is None:
+            return
+        self._reap_dead()
+
+    def _reap_dead(self) -> None:
+        """The child is over: its exit code, its last words, and one death counted.
+
+        Called both from the poll above and from the reader that saw its stdout close —
+        that close *is* the obituary, and it arrives before the OS has necessarily reaped
+        the process, so the poll alone would miss the first call after the death and the
+        rig would report "the bridge is gone" without ever saying what it was doing about it.
+        """
+        proc = self._proc
+        if proc is None:
+            return
+        note = self._exit_note()
+        for stream in (proc.stdin, proc.stdout, proc.stderr):
+            try:
+                if stream is not None:
+                    stream.close()
+            except OSError:
+                pass
+        self._proc = None
+        self._died(note)
+
+    def _died(self, note: str) -> None:
+        """One death: count it, name it once, and pace the next attempt."""
+        self._gone_note = note
+        self._deaths += 1
+        allowed = len(BRIDGE_RESTART_DELAYS_S)
+        self._retry_in_s = BRIDGE_RESTART_DELAYS_S[min(self._deaths, allowed) - 1]
+        self._next_try_at = time.monotonic() + self._retry_in_s
+        if self._deaths >= allowed:
+            self.log.error(
+                'the bridge died %d times in a row; not starting it again: %s',
+                self._deaths,
+                note,
+            )
+            return
+        self.log.warning(
+            'the bridge died (%d of %d): %s; starting it again in %g s',
+            self._deaths,
+            allowed,
+            note,
+            self._retry_in_s,
+        )
+
+    def _gone_message(self) -> str:
+        """What a caller is told when the bridge is not there, and what happens next.
+
+        The wait it quotes is the delay that was *scheduled*, not the time left on it: a
+        caller that asks ten times a second must read the same sentence back ten times, or
+        every one of those calls is a new line in its own log.
+        """
+        allowed = len(BRIDGE_RESTART_DELAYS_S)
+        if self._deaths >= allowed:
+            return (
+                f'{self._gone_note} - the bridge died {self._deaths} times in a row and will not '
+                f'be started again (restart the rig, or whatever supervises the arm)'
+            )
+        return (
+            f'{self._gone_note} - starting it again in {self._retry_in_s:g} s'
+            f' (death {self._deaths} of {allowed})'
+        )
+
+    def _supervise(self) -> None:
+        """Start the bridge when it is time to, and refuse until then.
+
+        The refusal is not silence: it carries the death's own note (the child's exit code
+        and the lines it printed before it went), how many deaths in a row this is, and how
+        long until the rig tries again — so the one line a client sees names the failure and
+        what is being done about it.
+        """
+        if self._refused is not None:
+            # Not a death but a decision: the console holds the bus, or the rig was never
+            # pointed at a bridge. Neither changes by being tried again.
+            raise ArmUnavailable(f'{self._refused} (the bridge will not be started again)')
+        if self._deaths >= len(BRIDGE_RESTART_DELAYS_S):
+            raise ArmUnavailable(self._gone_message())
+        if self._deaths > 0 and time.monotonic() < self._next_try_at:
+            raise ArmUnavailable(self._gone_message())
+        try:
+            self._start()
+        except ArmUnavailable as exc:
+            note = str(exc)
+            if CONSOLE_HOLDS_ARM in note or 'not configured' in note or 'not a directory' in note:
+                # A reason that will not change between attempts: say it once, stop.
+                self._refused = note
+                self.log.warning('the bridge will not be started: %s', note)
+                raise
+            self._died(note)
+            raise
+
+    def _answered(self) -> None:
+        """A reply came back: the bridge is alive, and its deaths are no longer consecutive."""
+        if self._deaths > 0:
+            self.log.info(
+                'the bridge is answering again (after %d death%s)',
+                self._deaths,
+                's' if self._deaths > 1 else '',
+            )
+        self._deaths = 0
+        self._next_try_at = 0.0
+        self._gone_note = None
 
     # ------------------------------------------------------------ lifecycle
     def is_connected(self) -> bool:

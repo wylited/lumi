@@ -32,17 +32,22 @@ class FakeArm:
     """An arm that records what it was told, and can be told to refuse.
 
     It speaks the three calls the follow loop makes and nothing else, so a test fails
-    on the first call the loop invents.
+    on the first call the loop invents. `fails` takes one call name or several: a dead
+    bridge refuses the joints read *and* the jog, and that pair is the case the log had
+    to survive.
     """
 
-    def __init__(self, *, fails: str | None = None) -> None:
+    def __init__(self, *, fails: str | tuple[str, ...] | None = None) -> None:
         self.jogs: list[dict] = []
         self.modes: list[str] = []
         self.measured = {joint: 0.0 for joint in JOINTS}
         self.fails = fails
 
     def _maybe_fail(self, doing: str) -> None:
-        if self.fails == doing:
+        failing = self.fails
+        if isinstance(failing, str):
+            failing = (failing,)
+        if failing is not None and doing in failing:
             raise RuntimeError(f"the arm refused {doing}")
 
     def mode(self, name: str) -> None:
@@ -384,6 +389,58 @@ async def test_a_model_that_will_not_load_is_reported_and_not_retried(caplog, tm
 
         assert tracker.state()["error"] is not None
         assert "cannot load its model" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_two_alternating_arm_failures_do_not_race_each_other_into_the_log(caplog):
+    """The live incident, as a test: a bridge that died refuses the joints read *and* the jog.
+
+    Those two lines used to share one slot in the loop, so each call overwrote the other's
+    memory of having spoken, and the rig wrote both of them at its tick rate — twenty lines a
+    second for thirteen minutes on the live rig, which is the wall the stalled camera hid
+    behind. A failure is news once; the repetition of both of them is not news at all.
+    """
+    arm = FakeArm(fails=("joints", "jog"))
+    tracker = Tracker(cfg(HELI_TRACK_FPS="50"), arm, gimbal_for(arm), log)
+    tracker._detector = StubDetector(0.2, 0.5)
+    tracker.set_on(True)
+
+    async with Running(tracker):
+        with caplog.at_level(logging.WARNING):
+            tracker.observe(frame())
+            await settle(0.4)          # ~20 ticks, and two failures on every one of them
+
+    assert caplog.text.count("would not report its joints") == 1
+    assert caplog.text.count("would not take a jog") == 1
+
+
+@pytest.mark.asyncio
+async def test_an_arm_that_stopped_answering_is_not_a_rig_that_is_following(caplog):
+    """`desk.health.following` is a claim about an arm that is moving.
+
+    A bridge that dies leaves the loop ticking and the law holding on purpose — the camera
+    must not go with it — but the switch in the app must not stay on over an arm that is
+    not moving. It says so while the arm is gone, and says the opposite once it answers
+    again, and both of those are one line.
+    """
+    arm = FakeArm(fails=("joints", "jog"))
+    tracker = Tracker(cfg(HELI_TRACK_FPS="50"), arm, gimbal_for(arm), log)
+    tracker.set_on(True)
+
+    async with Running(tracker):
+        with caplog.at_level(logging.INFO):
+            await settle(0.2)
+            assert tracker.following is False, "a rig with a dead arm is not following anyone"
+            assert tracker.state()["arm"] is False
+            assert tracker.state()["on"] is True, "it is still the loop that was asked for"
+
+            arm.fails = None
+            await settle(0.2)
+            assert tracker.following is True, "the arm answered, and the rig is following again"
+            assert tracker.state()["arm"] is True
+
+    assert "the arm is reporting its joints again" in caplog.text
+    assert "the arm is taking a jog again" in caplog.text
 
 
 @pytest.mark.asyncio

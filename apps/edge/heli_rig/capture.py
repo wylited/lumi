@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import time
 
 from .camera import CameraUnavailable, Frame, FrameSource
 from .config import Config
@@ -19,6 +20,26 @@ from .upload import UploadOutcome, Uploader
 CAMERA_RETRY_S = 5.0  # an unplugged camera is a state to retry, not an exit
 PAUSED_POLL_S = 0.2  # how often a stopped cadence checks on an upload already in flight
 SESSION_BACKOFF = 5  # a 409 means nobody is watching: a fifth of the cadence, not silence
+#: How long one `open`/`grab` may take before the camera is called stalled.
+#:
+#: `cv2.VideoCapture.read` blocks until the device answers, and a device that has been taken
+#: away underneath it — another process opened the same UVC camera, which is exactly what the
+#: vision console does — can stop answering without ever failing. The tick awaits that call,
+#: so a read that never returns is a capture loop that never returns: thirteen minutes with
+#: no frame while the health line went on quoting the configured rate. The arm is *not* the
+#: cause of that — a probe of the real rig with its bridge killed keeps delivering frames,
+#: which is how this was narrowed to the device — and a bound turns a device that will not
+#: answer into the camera failure the loop already rides out: a line, the retry pace, and a
+#: reopen that releases the stuck handle.
+CAMERA_GRAB_TIMEOUT_S = 5.0
+#: A rig that has not delivered a frame for this many cadence intervals reports 0 fps.
+#:
+#: `desk.health.fps` is read as the rate the rig is *delivering* ("capture fps · last frame
+#: …" in the desk panel), so a stalled loop must not keep quoting the cadence it was asked
+#: for. Three intervals is long enough that an ordinary late frame does not read as a stall,
+#: and the floor covers a fast cadence whose stall would otherwise be under a second.
+FRAME_STALL_INTERVALS = 3.0
+FRAME_STALL_FLOOR_S = 1.5
 
 
 class CaptureLoop:
@@ -52,6 +73,10 @@ class CaptureLoop:
         self._camera_down = False
         self._no_session = False
         self._streak: str | None = None
+        #: When the last frame arrived, on the monotonic clock. `state()['fps']` is measured
+        #: against this rather than against the cadence the loop was handed: a rig whose
+        #: frames have stopped must not keep quoting the rate it is not delivering.
+        self._delivered_at: float | None = None
 
     @property
     def source(self) -> FrameSource:
@@ -172,9 +197,17 @@ class CaptureLoop:
         `frames` counts frames taken and `framesSent` the frames the server
         accepted minus the ones it refused, which is the health field of the
         same name: the difference between them is the rig's own failure count.
+
+        `fps` is the cadence *while it is being delivered*, and zero once it is
+        not: a rig whose camera stopped answering reported ten frames a second for
+        the thirteen minutes it delivered none, and the panel that reads this field
+        prints it as "capture fps". A rig that has not taken its first frame yet is
+        the one case that reports the cadence it was asked for — there is no
+        delivery to measure against, and the doctor reads this field to tell "the
+        camera answers" from "the camera is gone".
         """
         return {
-            "fps": self._effective_fps(),
+            "fps": 0.0 if self._stalled() else self._effective_fps(),
             "lastFrameAt": self._last_frame_at,
             "lastSeq": self._seq,
             "frames": self._frames,
@@ -184,17 +217,42 @@ class CaptureLoop:
             "framesSent": max(0, self._accepted - self._rejected),
         }
 
+    def _stalled(self) -> bool:
+        """Whether the cadence has stopped delivering, so health can say so.
+
+        Three cadence intervals, and never less than `FRAME_STALL_FLOOR_S`: a slow cadence
+        whose interval is seconds would otherwise call every ordinary frame late.
+        """
+        if self._delivered_at is None:
+            return False
+        quiet_for = time.monotonic() - self._delivered_at
+        fps = self._effective_fps()
+        intervals = FRAME_STALL_INTERVALS / fps if fps > 0 else float("inf")
+        return quiet_for > max(FRAME_STALL_FLOOR_S, intervals)
+
     async def _take(self) -> Frame | None:
         """One frame, reopening the source if the camera went away.
 
         Reopening is how the rig comes back after an unplug and after a console
         restart. A failure is a state, logged once, and `run()` paces the retry.
+
+        Both halves are bounded: a device whose `read` has stopped returning is
+        the failure this loop cannot see any other way. The abandoned call keeps
+        its thread until the handle is released, which the next attempt does
+        (`open()` closes first), and the loop is paced at `CAMERA_RETRY_S` while
+        the camera is down rather than spending a thread per tick.
         """
         was_down = self._camera_down
         try:
             if was_down or not await self._source.is_open():
-                await self._source.open()
-            frame = await self._source.grab()
+                await asyncio.wait_for(self._source.open(), CAMERA_GRAB_TIMEOUT_S)
+            frame = await asyncio.wait_for(self._source.grab(), CAMERA_GRAB_TIMEOUT_S)
+        except TimeoutError:
+            self._camera_failure(
+                CameraUnavailable(f"the camera did not answer within {CAMERA_GRAB_TIMEOUT_S:g} s"),
+                was_down,
+            )
+            return None
         except Exception as exc:
             # A source may also fail in ways it did not name — a console URL the
             # URL parser rejects, a JPEG OpenCV will not decode — and all of them
@@ -205,6 +263,7 @@ class CaptureLoop:
             self._log.info("camera is back: %s", self._camera_label())
         self._camera_down = False
         self._frames += 1
+        self._delivered_at = time.monotonic()
         self._last_frame_at = frame.captured_at
         if self._on_frame is not None:
             try:

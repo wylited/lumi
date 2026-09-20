@@ -31,6 +31,7 @@ class FakeSource:
         self.opens = 0
         self.opened = True
         self.unplugged = False
+        self.stalled = False
 
     async def open(self) -> None:
         self.opens += 1
@@ -43,6 +44,10 @@ class FakeSource:
         return {"model": "Fake camera", "maxWidth": 640, "maxHeight": 480, "zoom": False}
 
     async def grab(self) -> Frame:
+        if self.stalled:
+            # What `cv2.VideoCapture.read` does when the device stopped answering: it never
+            # returns. Not an exception, not a slow frame — the call the tick is waiting on.
+            await asyncio.sleep(3600)
         if self.unplugged:
             raise CameraUnavailable("the camera is not plugged in")
         self.taken += 1
@@ -165,6 +170,65 @@ async def test_capture_now_works_while_the_cadence_is_stopped(config):
     assert len(uploader.uploaded) == 1, "the capture action uploads its own frame before it returns"
     assert loop.state()["lastSeq"] == 1
     assert loop.state()["fps"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_a_camera_that_stops_answering_does_not_take_the_loop_with_it(config, caplog, monkeypatch):
+    """The live incident: a `read` that never returns, and a capture loop that went quiet with it.
+
+    The console opened the same UVC camera underneath the rig, `cv2` stopped returning,
+    and because the tick awaits that call the rig delivered no frame for thirteen minutes —
+    while `desk.health` went on reporting the configured cadence. A bounded grab turns that
+    into the camera failure the loop already survives: one line, the retry pace, and a
+    reopen that releases the stuck handle.
+    """
+    monkeypatch.setattr(capture, "CAMERA_GRAB_TIMEOUT_S", 0.05)
+    monkeypatch.setattr(capture, "CAMERA_RETRY_S", 0.05)
+    source = FakeSource()
+    uploader = FakeUploader()
+    loop = CaptureLoop(source, uploader, config, LOG)
+
+    with caplog.at_level(logging.WARNING, logger="test.capture"):
+        first = await loop.tick()
+        assert first is not None, "the loop was fine until the camera stopped answering"
+        await settle()  # its upload is a task: the next tick must not be a skipped one
+
+        source.stalled = True
+        assert await loop.tick() is None, "a stalled grab must end the tick, not the loop"
+        assert caplog.text.count("did not answer within") == 1, "one line for the stall, not one per tick"
+
+        # And the rig is still a rig: the tick after the stall is an ordinary tick, so the
+        # camera coming back ends the outage without anyone restarting anything.
+        source.stalled = False
+        second = await loop.tick()
+
+    assert second is not None, "the loop never took another frame"
+    assert second.captured_at != first.captured_at
+
+
+@pytest.mark.asyncio
+async def test_health_stops_claiming_a_rate_the_camera_is_not_delivering(config, monkeypatch):
+    """`desk.health.fps` is read as the rate the rig is delivering ("capture fps"), so it
+    must not keep quoting the cadence once frames have stopped. The desk panel showing
+    "10 fps" over a frozen picture is the lie this field exists to be able to avoid."""
+    monkeypatch.setattr(capture, "FRAME_STALL_FLOOR_S", 0.05)
+    # Both halves of the rule, so the test measures the rule rather than the constants: at
+    # this cadence three intervals would be a second and a half, and waiting that long for
+    # an assertion is how a suite stops being run.
+    monkeypatch.setattr(capture, "FRAME_STALL_INTERVALS", 0.0)
+    source = FakeSource()
+    uploader = FakeUploader()
+    loop = CaptureLoop(source, uploader, config, LOG)
+
+    assert loop.state()["fps"] == config.fps, "a rig that has taken its first frame reports its cadence"
+    await loop.tick()
+    assert loop.state()["fps"] == config.fps, "and keeps reporting it while frames are arriving"
+
+    await asyncio.sleep(0.08)
+    assert loop.state()["fps"] == 0.0, "no frames for a while is zero frames a second, not two"
+
+    await loop.tick()
+    assert loop.state()["fps"] == config.fps, "one frame later it is delivering again"
 
 
 @pytest.mark.asyncio

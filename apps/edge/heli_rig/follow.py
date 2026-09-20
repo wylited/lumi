@@ -55,6 +55,41 @@ if TYPE_CHECKING:
 IDLE_HZ = 4.0
 
 
+class _Failures:
+    """One log line per failure, per source, and one when that source answers again.
+
+    The loop's failures used to share a single slot, and two of them alternating — an arm
+    that will not report its joints and an arm that will not take a jog, every tick —
+    overwrote each other, so the rig logged at its tick rate. The live rig wrote those two
+    lines twenty times a second for thirteen minutes, and the wall of them is what hid the
+    stalled camera beside them. A failure is news once; its repetition is not.
+    """
+
+    def __init__(self, log: logging.Logger) -> None:
+        self._log = log
+        self._seen: dict[str, str] = {}
+
+    def note(self, source: str, message: str) -> None:
+        """Report a failure, unless this source is already failing exactly like this."""
+        if self._seen.get(source) == message:
+            return
+        self._seen[source] = message
+        self._log.warning("%s", message)
+
+    def recovered(self, source: str, message: str) -> None:
+        """The same source answered: one line, and its failure is news again next time."""
+        if self._seen.pop(source, None) is not None:
+            self._log.info("%s", message)
+
+    def failed(self, *sources: str) -> bool:
+        return any(source in self._seen for source in sources)
+
+    @property
+    def error(self) -> str | None:
+        """The most recent failure, for `state()` and the doctor."""
+        return next(reversed(self._seen.values()), None) if self._seen else None
+
+
 @dataclass(frozen=True)
 class _Slot:
     """The newest frame the capture loop handed over, and what it is."""
@@ -94,7 +129,7 @@ class Tracker:
         self._seen: bytes | None = None
         self._previous: tuple[float, float] | None = None
         self._previous_at = 0.0
-        self._error: str | None = None
+        self._failures = _Failures(log)
         self._fps = 0.0
         self._ticks = 0
         self._rate_at = 0.0
@@ -193,8 +228,23 @@ class Tracker:
             "frozen": self._frozen > 0,
             "fps": round(self._fps, 1),
             "targets": self._targets,
-            "error": self._error,
+            "error": self._failures.error,
+            # Whether the arm is still the arm: a bridge that died leaves the loop ticking
+            # and the law holding, and the rig says so rather than reporting a follow that
+            # is not happening.
+            "arm": self.arm_answering,
         }
+
+    @property
+    def arm_answering(self) -> bool:
+        """Whether the arm took the last joints read and jog it was given.
+
+        A bridge that dies mid-session leaves this false: the law holds the arm where it is,
+        the loop keeps ticking and the camera keeps running, and `desk.health.following` says
+        the rig is not following — which is true, and is the difference between a switch that
+        is on and an arm that is moving.
+        """
+        return not self._failures.failed("joints", "jog")
 
     @property
     def following(self) -> bool:
@@ -204,9 +254,10 @@ class Tracker:
         that acked `failed` and a heartbeat that says `true` are two claims about one rig,
         and a person reading the app sees a switch that is on over an arm that is not
         moving. Frozen does not count against it — a `nod` pausing the loop for a second is
-        still a rig that is following.
+        still a rig that is following. Neither does an arm that stopped answering: a rig
+        whose arm is gone is a rig that is not following anyone.
         """
-        return self._on and self._engaged
+        return self._on and self._engaged and self.arm_answering
 
     # ---- the frame the capture loop hands over -----------------------------
 
@@ -277,6 +328,15 @@ class Tracker:
         # turns "the target stopped arriving" into zero rates, and it can only do that
         # if it is asked.
         gimbal.step(1.0 / self._cfg.track_fps, self._measured(arm), now)
+        if self._frozen > 0 or not self._on:
+            # Something took the arm while this tick was in flight — an `arm.aim`, a
+            # `home`, or the loop being switched off. The decision at the top of `run()`
+            # was made before that, and the joints read above is where the tick spent its
+            # time, so the check has to be made again here: the last thing the transport
+            # hears must be a zero, or the rig drives the arm underneath the action that
+            # asked for it — armd keeps applying a jog for a further 250 ms.
+            self._hold()
+            return
         self._jog(arm, dict(gimbal.rates))
 
     async def _detect(self, slot: _Slot) -> None:
@@ -288,12 +348,12 @@ class Tracker:
         # loop's cadence and the socket's acks wait behind it.
         bgr = await asyncio.to_thread(_decode, slot.jpeg)
         if bgr is None:
-            self._once("the camera's frames are not decodable; is it a JPEG?")
+            self._failures.note("frames", "the camera's frames are not decodable; is it a JPEG?")
             return
         detections = await asyncio.to_thread(detector.detect, bgr)  # type: ignore[attr-defined]
         target = self._tracker.update(detections, (slot.width, slot.height), slot.at)
         self._targets = len(detections)
-        self._error = None
+        self._failures.recovered("frames", "the camera's frames are decoding again")
         if not target.valid:
             # No lock this frame. The law is handed nothing and lets the target age out,
             # which is what holds the arm instead of steering on a memory.
@@ -311,7 +371,7 @@ class Tracker:
 
             self._detector = PoseDetector(path, self._log)
         except Exception as exc:
-            self._once(f"tracking cannot load its model ({path}): {exc}")
+            self._failures.note("model", f"tracking cannot load its model ({path}): {exc}")
             return None
         return self._detector
 
@@ -324,17 +384,21 @@ class Tracker:
         stopped answering.
         """
         try:
-            return dict(arm.joints())
+            joints = dict(arm.joints())
         except Exception as exc:
-            self._once(f"the arm would not report its joints: {exc}")
+            self._failures.note("joints", f"the arm would not report its joints: {exc}")
             return {}
+        self._failures.recovered("joints", "the arm is reporting its joints again")
+        return joints
 
     def _jog(self, arm: ArmDriver, rates: dict[str, float]) -> None:
         """Tell the arm the rate of each joint. A refusal is logged once, not per tick."""
         try:
             arm.jog(rates)
         except Exception as exc:
-            self._once(f"the arm would not take a jog: {exc}")
+            self._failures.note("jog", f"the arm would not take a jog: {exc}")
+            return
+        self._failures.recovered("jog", "the arm is taking a jog again")
 
     def _hold(self) -> None:
         """Ask the arm for zero on both steered joints, so no jog is left standing."""
@@ -376,14 +440,8 @@ class Tracker:
             self._ticks = 0
             self._rate_at = now
 
-    def _once(self, message: str) -> None:
-        """One log line per distinct failure: a broken arm is one line, not one per tick."""
-        if message != self._error:
-            self._error = message
-            self._log.warning("%s", message)
-
     def _fail(self, exc: Exception) -> None:
-        self._once(f"tracking stopped this tick: {exc}")
+        self._failures.note("tick", f"tracking stopped this tick: {exc}")
 
 
 def _decode(jpeg: bytes) -> np.ndarray | None:
