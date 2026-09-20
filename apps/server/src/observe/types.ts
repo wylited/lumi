@@ -1,5 +1,7 @@
 import type {
   Assessment,
+  ClutterReading,
+  DeskActionRecord,
   Goal,
   LiveEvent,
   Observation,
@@ -58,9 +60,18 @@ export interface AssessInput {
   frames: AssessFrame[]
 }
 
+/** One sweep of the desk: the frames are in sweep order, left of the desk first. */
+export interface SurveyInput {
+  window: SignalWindow
+  goal: Goal
+  frames: AssessFrame[]
+}
+
 export interface VisionProvider {
   readonly name: VisionProviderName
   assess(input: AssessInput): Promise<Assessment>
+  /** The rarer reading: how cluttered the desk is, judged on the surface alone. */
+  survey(input: SurveyInput): Promise<ClutterReading>
 }
 
 export interface SpeechProvider {
@@ -72,8 +83,16 @@ export interface SpeechProvider {
 export interface SessionReader {
   window(sessionId: string): Promise<SignalWindow | null>
   frames(sessionId: string): Promise<AssessFrame[]>
+  /**
+   * The frames of one sweep, in sweep order. The seqs come from the rig's own
+   * ack, so this reads exactly the frames that sweep named rather than whatever
+   * the `survey` ring holds now — a later sweep must not be able to mix into it.
+   */
+  surveyFrames(sessionId: string, seqs: number[]): Promise<AssessFrame[]>
   goalFor(sessionId: string): Promise<Goal | null>
   policyFor(sessionId: string): Promise<Policy>
+  /** When the session began, for the survey's start delay. Null when the row is gone. */
+  sessionStartedAt(sessionId: string): Promise<number | null>
 }
 
 /** Writes back what happened. Implemented over Prisma in P1. */
@@ -89,6 +108,8 @@ export interface ObservationWriter {
     confidence: number | null
     reason: string | null
     latencyMs: number
+    /** The desk survey's reading, on a survey row; null on every window row. */
+    survey?: ClutterReading | null
   }): Promise<Observation>
   /** The previous intervention's verdict, written when the next window judges it. */
   markOutcome(observationId: string, outcome: Outcome): Promise<void>
@@ -109,6 +130,24 @@ export interface ObservationWriter {
   consecutiveOffGoal(sessionId: string): Promise<number>
 }
 
+/**
+ * The desk, as the survey pass needs it: which one is there, and how to make it
+ * move.
+ *
+ * `theDesk` is a call rather than a value because the rig registers itself and
+ * reconnects, and a sweep is rare enough that asking each time is cheaper than
+ * keeping an answer fresh. `issue` returns the action **record** rather than the
+ * sweep's poses, so the pass holds the same ack the panel and the action log do —
+ * including the `error` when the rig refused.
+ */
+export interface DeskIssuer {
+  theDesk(): Promise<{ id: string; connected: boolean; hasArm: boolean } | null>
+  issue(
+    deskId: string,
+    request: { type: string; payload: Record<string, unknown> },
+  ): Promise<DeskActionRecord>
+}
+
 export interface LoopDeps {
   clock: Clock
   bus: Bus
@@ -117,6 +156,8 @@ export interface LoopDeps {
   speech: SpeechProvider
   reader: SessionReader
   writer: ObservationWriter
+  /** The rig, for the desk survey and the point that follows one. Absent in a test. */
+  desk?: DeskIssuer
   /** Tier 4. Returns whether the action was applied. Reversible by contract. */
   automate?: (input: {
     sessionId: string

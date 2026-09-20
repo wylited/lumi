@@ -2,6 +2,7 @@ import { env } from './env.js'
 import { publish } from './lib/bus.js'
 import { prisma } from './lib/prisma.js'
 import { childLogger, logger } from './logger.js'
+import { attachLoop } from './observe/live.js'
 import { createDesktopAutomate, type DeskSocketLookup } from './observe/outbound.js'
 import {
   createLoopRuntime,
@@ -73,9 +74,19 @@ try {
   loopLog.error({ err: error }, 'observe loop: could not be built; serving without it')
 }
 
+/**
+ * The loop is reachable from HTTP through exactly this handle: the manual survey
+ * route asks the same object the scheduler ticks. `null` here is a real state —
+ * no key, no loop — and the route answers 503 for it instead of pretending.
+ */
+attachLoop(runtime?.loop ?? null)
+
 const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
   app.log.info({ signal }, 'shutting down')
   try {
+    // Detached first: a request arriving during shutdown must not start a sweep
+    // through a loop whose scheduler has already stopped.
+    attachLoop(null)
     runtime?.scheduler.stop()
     await app.close()
     process.exit(0)

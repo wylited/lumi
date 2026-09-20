@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs'
 
-import { Assessment } from '@heli/contracts'
+import { Assessment, ClutterLabel, ClutterReading } from '@heli/contracts'
+import type { Goal, SignalWindow } from '@heli/contracts'
 
-import type { AssessFrame, AssessInput, VisionProvider } from '../observe/types.js'
+import type { AssessFrame, AssessInput, SurveyInput, VisionProvider } from '../observe/types.js'
 import { noopProviderLogger, type ProviderLogger } from './provider.js'
 
 export const DEEPSEEK_DEFAULT_MODEL = 'deepseek-flash'
@@ -26,6 +27,47 @@ export const ASSESSMENT_JSON_SCHEMA = {
     activity: { type: 'string' },
     kind: { type: ['string', 'null'] },
     driftSeconds: { type: 'integer', minimum: 0 },
+    evidence: { type: 'array', items: { type: 'string', maxLength: 140 }, maxItems: 5 },
+    confidence: { type: 'number', minimum: 0, maximum: 1 },
+    because: { type: 'string', maxLength: 200 },
+  },
+} as const
+
+/**
+ * The ClutterReading JSON Schema. Hand-written for the same reason as the
+ * assessment one. The label list is read off the contract rather than retyped:
+ * it is the one part of this shape the prompt quotes, so a second copy could
+ * drift from the vocabulary the policy switches on.
+ */
+export const CLUTTER_JSON_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['score', 'hotspots', 'evidence', 'confidence', 'because'],
+  properties: {
+    score: { type: 'number', minimum: 0, maximum: 1 },
+    hotspots: {
+      type: 'array',
+      maxItems: 3,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['poseIndex', 'label', 'severity', 'at'],
+        properties: {
+          poseIndex: { type: 'integer', minimum: 0 },
+          label: { type: 'string', enum: [...ClutterLabel.options] },
+          severity: { type: 'number', minimum: 0, maximum: 1 },
+          at: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['x', 'y'],
+            properties: {
+              x: { type: 'number', minimum: 0, maximum: 1 },
+              y: { type: 'number', minimum: 0, maximum: 1 },
+            },
+          },
+        },
+      },
+    },
     evidence: { type: 'array', items: { type: 'string', maxLength: 140 }, maxItems: 5 },
     confidence: { type: 'number', minimum: 0, maximum: 1 },
     because: { type: 'string', maxLength: 200 },
@@ -89,7 +131,8 @@ function isTextDense(frame: AssessFrame, input: AssessInput): boolean {
   return frame.kind === 'screen' || input.window.topSites.length > 0
 }
 
-type ContentPart =
+/** One part of the single user turn: the text, or one image. */
+export type ContentPart =
   | { type: 'text'; text: string }
   | { type: 'image_url'; image_url: { url: string; detail: 'high' } }
 
@@ -125,7 +168,13 @@ const FALLBACK_SYSTEM_PROMPT =
   'Return only JSON matching the Assessment schema. When evidence is weak, prefer ' +
   'onTask true with low confidence. `because` is for the operator and is never spoken.'
 
+const FALLBACK_CLUTTER_PROMPT =
+  'You are the eyes of an observer. Once in a while the camera is aimed across one person’s desk ' +
+  'and you are asked one question: how cluttered is this desk? Return only JSON matching the ' +
+  'ClutterReading schema. `because` is for the operator and is never spoken.'
+
 let cachedSystemPrompt: string | null = null
+let cachedClutterPrompt: string | null = null
 
 function systemPrompt(): string {
   const base = cachedSystemPrompt ?? readPrompt()
@@ -147,6 +196,25 @@ function readPrompt(): string {
   return cachedSystemPrompt
 }
 
+function clutterSystemPrompt(): string {
+  // Same reason as `systemPrompt`: JSON mode, no schema enforcement, so the
+  // schema travels as text and zod is the final judge.
+  return `${readClutterPrompt()}\n\nReturn only a JSON object matching this JSON Schema exactly, with no prose and no markdown fences:\n${JSON.stringify(CLUTTER_JSON_SCHEMA)}`
+}
+
+function readClutterPrompt(): string {
+  if (cachedClutterPrompt !== null) return cachedClutterPrompt
+  try {
+    cachedClutterPrompt = readFileSync(
+      new URL('../observe/prompts/clutter.md', import.meta.url),
+      'utf8',
+    )
+  } catch {
+    cachedClutterPrompt = FALLBACK_CLUTTER_PROMPT
+  }
+  return cachedClutterPrompt
+}
+
 function imagePart(bytes: Buffer, mediaType: string): ContentPart {
   return {
     type: 'image_url',
@@ -154,14 +222,15 @@ function imagePart(bytes: Buffer, mediaType: string): ContentPart {
   }
 }
 
-function buildUserText(input: AssessInput, imageCount: number, tiled: boolean): string {
+/** The goal and the window, in the same words both readings receive. */
+function contextLines(input: { goal: Goal; window: SignalWindow }): string[] {
   const w = input.window
   const seconds = Math.round(w.windowMs / 1000)
   const goal = input.goal
   const apps = w.topApps.map((a) => `${a.app} ${Math.round(a.seconds)}s (${a.onTask ? 'on' : 'off'})`)
   const sites = w.topSites.map((s) => `${s.title} ${Math.round(s.seconds)}s (${s.onTask ? 'on' : 'off'})`)
 
-  const lines = [
+  return [
     `Goal: ${goal.objective} (${goal.kind}).`,
     `Success: ${goal.successCriteria ?? 'not stated'}.`,
     `Window: ${seconds}s · on-task ${Math.round(w.onTaskRatio * 100)}% · focused ${Math.round(
@@ -173,36 +242,60 @@ function buildUserText(input: AssessInput, imageCount: number, tiled: boolean): 
     }.`,
     `Top apps: ${apps.length > 0 ? apps.join(', ') : 'none'}.`,
     `Top sites: ${sites.length > 0 ? sites.join(', ') : 'none'}.`,
+  ]
+}
+
+function buildUserText(input: AssessInput, imageCount: number, tiled: boolean): string {
+  const images =
     imageCount === 0
       ? 'No frame was available for this window; judge from the metrics alone.'
       : tiled
         ? `${imageCount} images follow. They are overlapping tiles of ${imageCount} frame(s); extract per tile, then reconcile into one Assessment.`
-        : `${imageCount} frame(s) follow. The desk frame is the camera; the screen frame is the display.`,
-    'Return one Assessment.',
-  ]
+        : `${imageCount} frame(s) follow. The desk frame is the camera; the screen frame is the display.`
 
-  return lines.join('\n')
+  return [...contextLines(input), images, 'Return one Assessment.'].join('\n')
 }
 
-interface BuiltRequest {
+function buildSurveyUserText(input: SurveyInput, imageCount: number): string {
+  const images =
+    imageCount === 0
+      ? 'No frame was available; there is nothing to read.'
+      : `${imageCount} images follow, left to right across the desk. Return one clutter reading.`
+
+  return [...contextLines(input), images].join('\n')
+}
+
+/** One assembled request: the messages to post, and what they carry. */
+export interface BuiltRequest {
   messages: ChatMessage[]
   tiled: boolean
   approximated: boolean
   imageCount: number
 }
 
-/** Assemble the request. Images are only ever appended to the single user turn. */
-export function buildMessages(input: AssessInput): BuiltRequest {
-  const content: ContentPart[] = []
+interface ImageParts {
+  parts: ContentPart[]
+  tiled: boolean
+  approximated: boolean
+  imageCount: number
+}
+
+/**
+ * One image part per frame that has bytes, in the order they arrived. The caller
+ * says which frames are text-dense; the survey path says none of them, because a
+ * desk frame carries no small text and a tile would make the model judge half a
+ * desk twice.
+ */
+function imageParts(frames: AssessFrame[], isDense: (frame: AssessFrame) => boolean): ImageParts {
+  const parts: ContentPart[] = []
   let tiled = false
   let approximated = false
   let imageCount = 0
 
-  for (const frame of input.frames) {
+  for (const frame of frames) {
     if (!frame.bytes) continue
 
-    const shouldTile =
-      frame.width !== null && frame.width > TILE_MIN_WIDTH && isTextDense(frame, input)
+    const shouldTile = frame.width !== null && frame.width > TILE_MIN_WIDTH && isDense(frame)
     const crops = shouldTile
       ? tileJpeg(frame.bytes, frame.width, frame.height)
       : [{ x: 0, y: 0, width: frame.width ?? 0, height: frame.height ?? 0, bytes: frame.bytes }]
@@ -212,26 +305,58 @@ export function buildMessages(input: AssessInput): BuiltRequest {
       // Real tiling path. Unreachable while no JPEG encoder is available.
       tiled = true
       for (const crop of encodable) {
-        content.push(imagePart(crop.bytes, frame.mediaType))
+        parts.push(imagePart(crop.bytes, frame.mediaType))
         imageCount += 1
       }
     } else {
       if (shouldTile) approximated = true
-      content.push(imagePart(frame.bytes, frame.mediaType))
+      parts.push(imagePart(frame.bytes, frame.mediaType))
       imageCount += 1
     }
   }
 
-  content.unshift({ type: 'text', text: buildUserText(input, imageCount, tiled) })
+  return { parts, tiled, approximated, imageCount }
+}
+
+/** Assemble the request. Images are only ever appended to the single user turn. */
+export function buildMessages(input: AssessInput): BuiltRequest {
+  const images = imageParts(input.frames, (frame) => isTextDense(frame, input))
 
   return {
     messages: [
       { role: 'system', content: systemPrompt() },
-      { role: 'user', content },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: buildUserText(input, images.imageCount, images.tiled) },
+          ...images.parts,
+        ],
+      },
     ],
-    tiled,
-    approximated,
-    imageCount,
+    tiled: images.tiled,
+    approximated: images.approximated,
+    imageCount: images.imageCount,
+  }
+}
+
+/** The survey request: the clutter prompt, and every desk frame whole. */
+export function buildSurveyMessages(input: SurveyInput): BuiltRequest {
+  const images = imageParts(input.frames, () => false)
+
+  return {
+    messages: [
+      { role: 'system', content: clutterSystemPrompt() },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: buildSurveyUserText(input, images.imageCount) },
+          ...images.parts,
+        ],
+      },
+    ],
+    tiled: images.tiled,
+    approximated: images.approximated,
+    imageCount: images.imageCount,
   }
 }
 
@@ -286,6 +411,19 @@ export function parseAssessmentContent(content: unknown): Assessment | null {
     return null
   }
   const parsed = Assessment.safeParse(raw)
+  return parsed.success ? parsed.data : null
+}
+
+/** The same defensive parse, for the model's second and rarer reading. */
+export function parseClutterContent(content: unknown): ClutterReading | null {
+  if (typeof content !== 'string' || content.trim().length === 0) return null
+  let raw: unknown
+  try {
+    raw = JSON.parse(stripFences(content))
+  } catch {
+    return null
+  }
+  const parsed = ClutterReading.safeParse(raw)
   return parsed.success ? parsed.data : null
 }
 
@@ -370,6 +508,65 @@ export function createDeepSeekVisionProvider(
       )
 
       return assessment
+    },
+    async survey(input: SurveyInput): Promise<ClutterReading> {
+      const started = Date.now()
+      const built = buildSurveyMessages(input)
+      let lastFailure = 'unknown error'
+
+      const attempt = async (): Promise<ClutterReading | null> => {
+        const result = await callDeepSeek(
+          {
+            model,
+            messages: built.messages,
+            temperature: 0,
+            stream: false,
+            response_format: { type: 'json_object' } satisfies ResponseFormat,
+          },
+          apiKey,
+          timeoutMs,
+        )
+        if (!result.ok) {
+          lastFailure =
+            result.data?.error?.message ??
+            (result.raw || (result.status ? `HTTP ${result.status}` : 'network error'))
+          return null
+        }
+        const parsed = parseClutterContent(result.data?.choices?.[0]?.message?.content)
+        if (!parsed) lastFailure = 'response was not schema-valid ClutterReading JSON'
+        return parsed
+      }
+
+      // Same JSON mode as `assess`, and the same single retry: a reading that
+      // will not parse becomes silence at the caller, never a guess.
+      let reading = await attempt()
+
+      if (!reading) {
+        logger.warn(
+          { provider: 'deepseek', model, reason: lastFailure },
+          'deepseek clutter parse failed, retrying once',
+        )
+        reading = await attempt()
+      }
+
+      if (!reading) {
+        throw new Error(`deepseek survey failed: ${lastFailure}`)
+      }
+
+      logger.info(
+        {
+          provider: 'deepseek',
+          model,
+          latencyMs: Date.now() - started,
+          imageCount: built.imageCount,
+          score: reading.score,
+          hotspots: reading.hotspots.length,
+          confidence: reading.confidence,
+        },
+        'vision.survey',
+      )
+
+      return reading
     },
   }
 }

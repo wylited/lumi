@@ -6,6 +6,11 @@ import type { Loop } from './index.js'
  *
  * Kept separate from the orchestrator so a test can step it by hand, and so the
  * server can wire it to whatever "the active sessions" means after a restart.
+ *
+ * Each session gets both passes: the window, awaited; and the desk survey, fired
+ * without waiting. `runSurvey` never rejects and guards its own overlap, so a
+ * sweep that takes twenty seconds cannot stretch this tick or delay the session
+ * behind it.
  */
 export interface SchedulerDeps {
   loop: Loop
@@ -40,6 +45,11 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       for (const sessionId of sessions) {
         try {
           await deps.loop.runWindow(sessionId)
+          // The sweep is asked for and left to land: a survey takes seconds of arm
+          // time plus a model call, so awaiting it would stretch this tick and
+          // delay every session behind it. `runSurvey` never rejects and guards
+          // its own overlap, which is what makes firing it bare safe.
+          void deps.loop.runSurvey(sessionId)
         } catch (error) {
           // One broken session never stops the others.
           deps.logger.error({ sessionId, err: error }, 'observe.scheduler: session tick failed')

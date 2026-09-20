@@ -6,6 +6,7 @@ import { test } from 'node:test'
 
 import {
   Assessment,
+  ClutterReading,
   DEFAULT_POLICY,
   Goal,
   Observation,
@@ -78,6 +79,10 @@ function scriptedVision(): VisionProvider {
         because: `fixture ${id}`,
       })
     },
+    // The window harness never sweeps: the survey pass has its own test.
+    async survey(): Promise<ClutterReading> {
+      throw new Error('the window harness does not sweep the desk')
+    },
   }
 }
 
@@ -88,7 +93,18 @@ interface SeedRow {
   at: number
   /** Defaults to false: a seeded intervention implies the window was off task. */
   onTask?: boolean
+  /** A seeded desk reading: the row carries it and **no** assessment at all. */
+  survey?: ClutterReading | null
 }
+
+/** The one reading the history test seeds: a cluttered desk, read once. */
+const READING = ClutterReading.parse({
+  score: 0.8,
+  hotspots: [{ poseIndex: 0, label: 'papers', severity: 0.9, at: { x: 0.5, y: 0.5 } }],
+  evidence: ['a stack of paper across the middle'],
+  confidence: 0.9,
+  because: 'paper across the middle',
+})
 
 class FakeWriter implements ObservationWriter {
   rows: (Observation & { kind: string | null; at: number })[] = []
@@ -119,15 +135,20 @@ class FakeWriter implements ObservationWriter {
             lastFrameRef: null,
             lastScreenRef: null,
           },
-          assessment: Assessment.parse({
-            onTask: row.onTask ?? false,
-            activity: 'idle',
-            kind: row.kind,
-            driftSeconds: 60,
-            evidence: ['seed'],
-            confidence: 0.8,
-            because: 'seed',
-          }),
+          // A survey row carries a reading and no assessment: that is what makes
+          // it a reading rather than a window.
+          assessment: row.survey
+            ? null
+            : Assessment.parse({
+                onTask: row.onTask ?? false,
+                activity: 'idle',
+                kind: row.kind,
+                driftSeconds: 60,
+                evidence: ['seed'],
+                confidence: 0.8,
+                because: 'seed',
+              }),
+          survey: row.survey ?? null,
           tier: row.tier,
           action: null,
           outcome: row.outcome,
@@ -150,6 +171,7 @@ class FakeWriter implements ObservationWriter {
       ts: new Date(at).toISOString(),
       signals: input.window,
       assessment: input.assessment,
+      survey: input.survey ?? null,
       tier: input.tier,
       action: input.action as Intervention | null,
       outcome: input.outcome,
@@ -168,7 +190,7 @@ class FakeWriter implements ObservationWriter {
 
   async recentOutcomes(_sessionId: string, limit: number) {
     return this.rows
-      .filter((r) => r.tier > 0)
+      .filter((r) => r.tier > 0 && r.survey === null)
       .slice(-limit)
       .reverse()
       .map((r) => ({ tier: r.tier, kind: r.kind, outcome: r.outcome ?? 'unknown' }))
@@ -187,7 +209,11 @@ class FakeWriter implements ObservationWriter {
   async consecutiveOffGoal(): Promise<number> {
     let count = 0
     for (const row of [...this.rows].reverse()) {
-      if (row.assessment && row.assessment.onTask === false) count += 1
+      // A row with no assessment is not a window — a survey row is a reading, and
+      // a timed-out window is silence — so the ladder counts past it rather than
+      // resetting on it. This mirrors `createPrismaWriter`.
+      if (!row.assessment) continue
+      if (row.assessment.onTask === false) count += 1
       else break
     }
     return count
@@ -215,11 +241,18 @@ function makeReader(): Reader {
     async frames() {
       return []
     },
+    // The window harness never sweeps: the survey pass has its own test.
+    async surveyFrames() {
+      return []
+    },
     async goalFor() {
       return state.goal
     },
     async policyFor() {
       return state.goal?.policy ?? DEFAULT_POLICY
+    },
+    async sessionStartedAt() {
+      return state.window ? Date.parse(state.window.from) : null
     },
   } as Reader
 }
@@ -421,6 +454,9 @@ test('the loop falls to silence when the vision call exceeds the budget', async 
           500,
         ),
       ),
+    async survey(): Promise<ClutterReading> {
+      throw new Error('the budget harness does not sweep the desk')
+    },
   }
 
   const loop = createLoop(
@@ -441,4 +477,22 @@ test('the loop falls to silence when the vision call exceeds the budget', async 
   assert.ok(result)
   assert.equal(result.tier, 0, 'a late assessment is forced to silence')
   assert.equal(result.reason, 'tier0:budget_exceeded')
+})
+
+test('a survey row in the history does not break the drift ladder', async () => {
+  const h = harness()
+  const now = Date.now()
+  // Two off-goal windows with a desk reading written between them: the ladder
+  // counts windows, not rows, so the reading is stepped over rather than
+  // resetting it.
+  h.writer.seed([
+    { tier: 0, kind: 'social', outcome: 'unknown', at: now - 300_000, onTask: false },
+    { tier: 0, kind: null, outcome: 'unknown', at: now - 200_000, survey: READING },
+    { tier: 0, kind: 'social', outcome: 'unknown', at: now - 100_000, onTask: false },
+  ])
+  assert.equal(await h.writer.consecutiveOffGoal('sess'), 2)
+
+  // And a reading at the head of the history is not an off-goal window either.
+  h.writer.seed([{ tier: 0, kind: null, outcome: 'unknown', at: now, survey: READING }])
+  assert.equal(await h.writer.consecutiveOffGoal('sess'), 2)
 })

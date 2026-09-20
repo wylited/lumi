@@ -52,6 +52,17 @@ export interface DeskSocketLike {
  */
 export const ACK_TIMEOUT_MS = 10_000
 
+/**
+ * How long a **sweep** may sit unacked before it is a failure.
+ *
+ * `desk.survey` is the one action the rig performs over seconds: it moves the arm
+ * to up to four poses, settles at each and uploads a frame. The rig's own hard cap
+ * for that is 20 s, so a 10 s wait would fail every honest sweep and record
+ * `ack_timeout` for an arm that was working. It is the only action with its own
+ * number, and it is still never retried (see `RETRYABLE`).
+ */
+export const SURVEY_ACK_TIMEOUT_MS = 25_000
+
 /** Auth for `/ws/desk`. Re-exported so the socket imports one module, not two. */
 export { verifyDeskToken }
 
@@ -398,9 +409,10 @@ function attempt(deskId: string, action: DeskAction, timeoutMs: number): Promise
  *
  * The lifecycle the phase doc asks for, in order: persist it as queued, refuse
  * immediately when there is no rig rather than making the caller wait out a
- * timeout, dispatch, wait 10 s for the ack, retry **once** when the action is
- * safe to repeat, and otherwise fail with `ack_timeout`. Every terminal state is
- * on the row, so the log tells the truth about what happened after the fact.
+ * timeout, dispatch, wait 10 s for the ack (25 s for a `desk.survey`), retry
+ * **once** when the action is safe to repeat, and otherwise fail with
+ * `ack_timeout`. Every terminal state is on the row, so the log tells the truth
+ * about what happened after the fact.
  */
 export async function issueAction(
   deskId: string,
@@ -427,11 +439,15 @@ export async function issueAction(
 
   await prisma.deskAction.updateMany({ where: { id: action.id }, data: { status: 'dispatched' } })
 
-  let failure = await attempt(deskId, action, ACK_TIMEOUT_MS)
+  // One action has its own wait: a sweep moves the arm across the desk and takes
+  // a frame at each pose, which does not fit the 10 s every other action gets.
+  const timeoutMs = action.type === 'desk.survey' ? SURVEY_ACK_TIMEOUT_MS : ACK_TIMEOUT_MS
+
+  let failure = await attempt(deskId, action, timeoutMs)
 
   if (failure !== null && RETRYABLE.has(action.type)) {
     log.info({ deskId, actionId: action.id, type: action.type }, 'retrying an idempotent action once')
-    failure = await attempt(deskId, action, ACK_TIMEOUT_MS)
+    failure = await attempt(deskId, action, timeoutMs)
   }
 
   if (failure !== null) await settle(action.id, 'failed', null, failure)

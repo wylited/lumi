@@ -2,12 +2,14 @@ import type { LiveEvent } from '@heli/contracts'
 
 import type { Env } from '../env.js'
 import { createVisionProvider } from '../models/provider.js'
+import { buildAction, getTheDesk, isDeskConnected, issueAction } from '../services/desk.js'
 import { createSpeechProvider } from '../voice/speech.js'
 import { createTransport } from '../voice/transport.js'
 import { createPrismaLoop, type PrismaLoopInput } from './persistence.js'
 import { createDeskSenders, type DeskSocketLookup, type LoopSenders } from './outbound.js'
 import { createScheduler, type Scheduler } from './scheduler.js'
 import type { Loop } from './index.js'
+import type { DeskIssuer } from './types.js'
 
 /**
  * Assembles the loop from the things only the server can provide: the sockets,
@@ -36,6 +38,11 @@ export interface LoopRuntimeInput {
   /** The SSE fan-out. */
   publish: (sessionId: string, event: LiveEvent) => void
   automate?: PrismaLoopInput['automate']
+  /**
+   * How the loop reaches the rig. Give this and the sweep path is drivable
+   * without a socket; leave it and the real one is built from `services/desk.js`.
+   */
+  deskIssuer?: DeskIssuer
   frameBytes?: PrismaLoopInput['frameBytes']
   prisma?: PrismaLoopInput['prisma']
   intervalMs?: number
@@ -77,6 +84,19 @@ export function createLoopRuntime(input: LoopRuntimeInput): LoopRuntime {
     speech,
     logger: input.logger,
     automate: input.automate,
+    // The one desk the server knows, as the survey pass asks for it: asked for
+    // each time because a rig reconnects, and `hasArm` because a sweep with no
+    // arm is a single frame from where the camera already is.
+    desk:
+      input.deskIssuer ?? {
+        theDesk: async () => {
+          const desk = await getTheDesk()
+          return desk === null
+            ? null
+            : { id: desk.id, connected: isDeskConnected(desk.id), hasArm: desk.arm !== null }
+        },
+        issue: (deskId, request) => issueAction(deskId, buildAction(request)),
+      },
     frameBytes: input.frameBytes,
   })
 

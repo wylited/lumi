@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { DEFAULT_POLICY, Goal } from '@heli/contracts'
-import type { Assessment, Goal as GoalType, SignalWindow } from '@heli/contracts'
+import { ClutterReading, DEFAULT_POLICY, Goal } from '@heli/contracts'
+import type { Assessment, Goal as GoalType, Intervention, SignalWindow } from '@heli/contracts'
 
-import { decide, type PolicyInput } from '../src/observe/policy.ts'
+import { decide, surveyDue, type PolicyInput, type SurveyDueInput } from '../src/observe/policy.ts'
 
 const NOW = 1_800_000_000_000
 
@@ -278,4 +278,189 @@ test('a goal that may not speak still climbs from the nudge', () => {
   const result = decide(makeInput({ goal }))
   assert.equal(result?.tier, 2)
   assert.equal(result?.channel, 'notification')
+})
+
+/* ---- the desk survey ----------------------------------------------------- */
+
+function makeReading(overrides: Partial<ClutterReading> = {}): ClutterReading {
+  return ClutterReading.parse({
+    score: 0.8,
+    hotspots: [{ poseIndex: 0, label: 'papers', severity: 0.9, at: { x: 0.5, y: 0.5 } }],
+    evidence: ['a stack of paper across the left half'],
+    confidence: 0.9,
+    because: 'paper and a cable nest',
+    ...overrides,
+  })
+}
+
+function makeClutter(
+  overrides: Partial<NonNullable<PolicyInput['clutter']>> = {},
+): NonNullable<PolicyInput['clutter']> {
+  return {
+    reading: makeReading(),
+    at: NOW - 5_000,
+    poses: [{ aim: null }],
+    lastSpokenAt: null,
+    lastSpokenScore: null,
+    pointedThisSession: false,
+    ...overrides,
+  }
+}
+
+/** A goal that may speak, which is what every desk-line case below needs. */
+function speakingGoal(permissions: GoalType['permissions'] = ['nudge', 'speak']): GoalType {
+  return makeGoal({ permissions, policy: { ...DEFAULT_POLICY, maxTier: 3 } })
+}
+
+/** The desk line's entry point: an on-task window with a reading stashed. */
+function withClutter(
+  clutter: NonNullable<PolicyInput['clutter']>,
+  goal: GoalType = speakingGoal(),
+): Intervention | null {
+  return decide(
+    makeInput({
+      assessment: makeAssessment({ onTask: true, driftSeconds: 0 }),
+      goal,
+      clutter,
+    }),
+  )
+}
+
+const surveyBase: SurveyDueInput = {
+  now: NOW,
+  idleSeconds: 0,
+  sessionStartedAt: NOW - 600_000,
+  lastSurveyAt: null,
+  lastSurveyAway: false,
+  deskConnected: true,
+  policy: DEFAULT_POLICY,
+}
+
+test('no desk, no sweep', () => {
+  assert.equal(surveyDue({ ...surveyBase, deskConnected: false }), null)
+})
+
+test('the gap wins over every other reason, including the floor', () => {
+  assert.equal(surveyDue({ ...surveyBase, lastSurveyAt: NOW - 60_000 }), null)
+  assert.equal(
+    surveyDue({ ...surveyBase, lastSurveyAt: NOW - 60_000, idleSeconds: 3_600 }),
+    null,
+  )
+})
+
+test('a young session sweeps nothing, unless the desk is empty', () => {
+  const young = { ...surveyBase, sessionStartedAt: NOW - 60_000 }
+  assert.equal(surveyDue(young), null)
+  // An empty desk is the one reading worth taking early: it costs no arm time.
+  assert.equal(surveyDue({ ...young, idleSeconds: 300 }), 'away')
+})
+
+test('the first reading after the start delay is the start one', () => {
+  assert.equal(surveyDue(surveyBase), 'start')
+  assert.equal(surveyDue({ ...surveyBase, idleSeconds: 300 }), 'start')
+})
+
+test('one sweep per absence, then the floor is the slow heartbeat', () => {
+  // Just past the gap, and they are gone: this is the away sweep.
+  assert.equal(surveyDue({ ...surveyBase, lastSurveyAt: NOW - 400_000, idleSeconds: 300 }), 'away')
+  // The same absence continues: no second sweep for it.
+  assert.equal(
+    surveyDue({
+      ...surveyBase,
+      lastSurveyAt: NOW - 400_000,
+      lastSurveyAway: true,
+      idleSeconds: 300,
+    }),
+    null,
+  )
+  // Present, past the gap, and the floor has not come round yet.
+  assert.equal(surveyDue({ ...surveyBase, lastSurveyAt: NOW - 400_000 }), null)
+  // Present, and the floor has come round.
+  assert.equal(surveyDue({ ...surveyBase, lastSurveyAt: NOW - 1_300_000 }), 'floor')
+})
+
+test('a fresh cluttered reading on an on-task window is the desk line', () => {
+  const result = withClutter(makeClutter())
+  assert.equal(result?.tier, 3)
+  assert.equal(result?.channel, 'speech')
+  assert.equal(result?.message, 'Paper has taken over the desk. Clear the pile and get back to it.')
+  assert.equal(result?.reason, 'tier3:speak:clutter:papers')
+  assert.equal(result?.point, null)
+  assert.equal(result?.reversible, false)
+})
+
+test('the desk line points at the worst hotspot only when the goal grants it', () => {
+  const reading = makeReading({
+    hotspots: [{ poseIndex: 1, label: 'cups', severity: 0.8, at: { x: 0.2, y: 0.3 } }],
+    evidence: ['four cups along the back edge'],
+  })
+  const poses = [{ aim: null }, { aim: { x: 120, y: 60 } }]
+  const granting = speakingGoal(['nudge', 'speak', 'automate'])
+
+  const pointed = withClutter(makeClutter({ reading, poses }), granting)
+  assert.equal(pointed?.tier, 3)
+  assert.deepEqual(pointed?.point, { x: 120, y: 60 })
+  assert.equal(pointed?.message, 'The cups have piled up. Take them out and settle back in.')
+  assert.equal(pointed?.reason, 'tier3:speak:clutter:cups')
+
+  // A session that has already gestured at the desk speaks without pointing again.
+  const already = withClutter(makeClutter({ reading, poses, pointedThisSession: true }), granting)
+  assert.equal(already?.tier, 3)
+  assert.equal(already?.point, null)
+
+  // No calibration: the sweep has no desk millimetres to aim at.
+  const uncalibrated = withClutter(
+    makeClutter({ reading, poses: [{ aim: null }, { aim: null }] }),
+    granting,
+  )
+  assert.equal(uncalibrated?.point, null)
+
+  // The goal does not grant the gesture, so the line is spoken and nothing moves.
+  const denied = withClutter(makeClutter({ reading, poses }))
+  assert.equal(denied?.tier, 3)
+  assert.equal(denied?.point, null)
+})
+
+test('a reading with no hotspot still gets the plain line', () => {
+  const result = withClutter(makeClutter({ reading: makeReading({ hotspots: [] }), poses: [] }))
+  assert.equal(result?.message, 'The desk has filled up. Clear it and get back to it.')
+  assert.equal(result?.reason, 'tier3:speak:clutter')
+  assert.equal(result?.point, null)
+})
+
+test('doubt, age, a low score and no rise are all silence', () => {
+  assert.equal(withClutter(makeClutter({ reading: makeReading({ confidence: 0.5 }) })), null)
+  assert.equal(withClutter(makeClutter({ at: NOW - 700_000 })), null)
+  assert.equal(withClutter(makeClutter({ reading: makeReading({ score: 0.4 }) })), null)
+  // 0.85 is not 0.25 worse than the 0.7 it last spoke about — and 0.85 is a real
+  // reading of the same desk, not a guess: the bar clears the spread measured on
+  // the bench (0.32 and 0.45 for one unchanged desk), so only a real change speaks.
+  assert.equal(withClutter(makeClutter({ reading: makeReading({ score: 0.85 }), lastSpokenScore: 0.7 })), null)
+  const risen = withClutter(makeClutter({ reading: makeReading({ score: 0.95 }), lastSpokenScore: 0.7 }))
+  assert.equal(risen?.tier, 3)
+  assert.equal(risen?.reason, 'tier3:speak:clutter:papers')
+})
+
+test('a goal that may not speak is never given a desk line', () => {
+  assert.equal(
+    withClutter(makeClutter(), makeGoal({ permissions: ['nudge'] satisfies GoalType['permissions'] })),
+    null,
+  )
+  assert.equal(
+    withClutter(makeClutter(), makeGoal({ policy: { ...DEFAULT_POLICY, maxTier: 2 } })),
+    null,
+  )
+})
+
+test('the speech gap and the slower desk gap both hold a desk line back', () => {
+  // Inside the speech channel's own gap.
+  assert.equal(withClutter(makeClutter({ lastSpokenAt: NOW - 10_000 })), null)
+  // Past the speech gap, risen above the last line, and still inside the desk gap.
+  assert.equal(
+    withClutter(makeClutter({ lastSpokenScore: 0.5, lastSpokenAt: NOW - 200_000 })),
+    null,
+  )
+  // Past both gaps, and risen: the line comes out.
+  const due = withClutter(makeClutter({ lastSpokenScore: 0.5, lastSpokenAt: NOW - 2_800_000 }))
+  assert.equal(due?.tier, 3)
 })

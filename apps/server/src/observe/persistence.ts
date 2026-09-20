@@ -9,12 +9,13 @@ import {
   type Policy,
   type SignalWindow,
 } from '@heli/contracts'
+import { Prisma } from '@prisma/client'
 
 import { prisma as defaultPrisma } from '../lib/prisma.js'
 import type { ObjectRef } from '../lib/storage.js'
 import { getWindow } from '../services/signals.js'
 import {
-  FRAME_SOURCES,
+  ASSESS_SOURCES,
   KIND_OF_SOURCE,
   getFrame,
   listFrames,
@@ -93,7 +94,7 @@ export function createPrismaReader(
       // fixes: a screenshot presented as the page the person is looking at.
       const frames: AssessFrame[] = []
 
-      for (const source of FRAME_SOURCES) {
+      for (const source of ASSESS_SOURCES) {
         // Resolved from the frame **store**: the signal window's `lastFrameRef` is
         // only a hint, and the in-memory mirror is empty after a restart, so
         // neither can be the truth on its own.
@@ -120,11 +121,50 @@ export function createPrismaReader(
       return frames
     },
 
+    /**
+     * The frames of one sweep, in sweep order.
+     *
+     * The seqs come from the rig's own ack, so this reads exactly the frames that
+     * sweep named rather than the newest thing tagged `survey`: a later sweep
+     * must not be able to mix its frames into this reading. The ring is already
+     * in arrival order, which is the order the poses were walked.
+     */
+    async surveyFrames(sessionId: string, seqs: number[]): Promise<AssessFrame[]> {
+      const wanted = new Set(seqs)
+      const frames: AssessFrame[] = []
+
+      for (const meta of listFrames(sessionId, 'survey')) {
+        if (!wanted.has(meta.seq)) continue
+
+        const bytes = frameBytes ? await frameBytes(meta.ref) : await getFrame(meta.ref)
+        frames.push({
+          // Every sweep frame is the desk, whatever the sweep was aimed at.
+          kind: 'desk',
+          ref: typeof meta.ref === 'string' ? meta.ref : meta.ref.key,
+          mediaType: 'image/jpeg',
+          bytes: bytes ? Buffer.from(bytes) : null,
+          width: meta.width,
+          height: meta.height,
+        })
+      }
+
+      return frames
+    },
+
     goalFor,
 
     async policyFor(sessionId: string): Promise<Policy> {
       const goal = await goalFor(sessionId)
       return goal?.policy ?? DEFAULT_POLICY
+    },
+
+    /** When the session began. The survey's start delay is measured from here. */
+    async sessionStartedAt(sessionId: string): Promise<number | null> {
+      const row = await prisma.session.findUnique({
+        where: { id: sessionId },
+        select: { startedAt: true },
+      })
+      return row === null ? null : row.startedAt.getTime()
     },
   }
 }
@@ -138,6 +178,10 @@ export function createPrismaWriter(prisma: PrismaLike = defaultPrisma): Observat
           sessionId: input.sessionId,
           signals: input.window,
           assessment: (input.assessment ?? null) as never,
+          // A survey row carries the reading here and `assessment: null` above;
+          // a window row carries null here. That is the whole difference between
+          // the two kinds of row, and the reason the live view can filter on it.
+          survey: (input.survey ?? null) as never,
           tier: input.tier,
           action: (action ?? null) as never,
           outcome: input.outcome,
@@ -168,6 +212,7 @@ export function createPrismaWriter(prisma: PrismaLike = defaultPrisma): Observat
         ts: row.ts.toISOString(),
         signals: input.window,
         assessment: input.assessment,
+        survey: input.survey ?? null,
         tier: row.tier,
         action,
         outcome: (row.outcome as Outcome | null) ?? null,
@@ -194,7 +239,15 @@ export function createPrismaWriter(prisma: PrismaLike = defaultPrisma): Observat
 
     async recentOutcomes(sessionId: string, limit: number) {
       const rows = await prisma.observation.findMany({
-        where: { sessionId, tier: { gt: 0 } },
+        where: {
+          sessionId,
+          tier: { gt: 0 },
+          // A survey row is a reading, not a window: it is never an escalation of
+          // a drift `kind`, and the ladder must not read one as an ignored nudge.
+          // `AnyNull` because the writer's "no reading" is a null column, however
+          // the driver spells it.
+          survey: { equals: Prisma.AnyNull },
+        },
         orderBy: { ts: 'desc' },
         take: limit,
       })
@@ -233,7 +286,12 @@ export function createPrismaWriter(prisma: PrismaLike = defaultPrisma): Observat
       let count = 0
       for (const row of rows) {
         const assessment = Assessment.safeParse(row.assessment)
-        if (assessment.success && assessment.data.onTask === false) count += 1
+        // A row with no readable assessment is not an off-goal window and not a
+        // window at all: a survey row is a desk reading, and a timed-out or failed
+        // window is silence. Skipping past them counts windows rather than rows —
+        // breaking here would reset the ladder every time the budget ran out.
+        if (!assessment.success) continue
+        if (assessment.data.onTask === false) count += 1
         else break
       }
       return count
@@ -249,6 +307,8 @@ export interface PrismaLoopInput {
   speech: SpeechProvider
   logger: LoopDeps['logger']
   automate?: LoopDeps['automate']
+  /** The rig, for the desk survey. The runtime builds the real one. */
+  desk?: LoopDeps['desk']
   frameBytes?: FrameBytesReader
   config?: LoopConfig
 }
@@ -267,6 +327,7 @@ export function createPrismaLoop(input: PrismaLoopInput): Loop {
       reader: createPrismaReader(prisma, input.frameBytes),
       writer: createPrismaWriter(prisma),
       automate: input.automate,
+      desk: input.desk,
       logger: input.logger,
     },
     input.config ?? DEFAULT_LOOP_CONFIG,

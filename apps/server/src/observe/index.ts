@@ -1,5 +1,7 @@
 import type {
   Assessment,
+  ClutterReading,
+  DeskSurveyPose,
   Goal,
   Intervention,
   Observation,
@@ -7,7 +9,8 @@ import type {
   SignalWindow,
 } from '@heli/contracts'
 import { assess } from './assess.js'
-import { decide } from './policy.js'
+import { SURVEY, decide, surveyDue, type SurveyTrigger } from './policy.js'
+import { surveyDesk, type SurveyAttempt } from './survey.js'
 import { buildSummary } from './summary.js'
 import type { LoopDeps } from './types.js'
 import { deliverIntervention } from '../voice/push.js'
@@ -49,6 +52,15 @@ export interface WindowResult {
 export interface Loop {
   /** Assess one session's newest window. Idempotent per window; overlapping calls skip. */
   runWindow(sessionId: string): Promise<WindowResult | null>
+  /**
+   * Sweep the desk and read the clutter, or explain why not.
+   *
+   * It **never rejects**, so the scheduler can fire it without waiting and the
+   * manual route can answer with it, and it refuses its own overlap. `trigger`
+   * overrides the due table when a route asks by hand (`'manual'`); the gap still
+   * applies to that, because the gap is what keeps one sweep from becoming three.
+   */
+  runSurvey(sessionId: string, trigger?: SurveyTrigger | 'manual'): Promise<SurveyAttempt>
   /** Forget a session's in-memory counters, for example when it closes. */
   reset(sessionId?: string): void
   /** The tier-5 artifact. P1 persists it; the loop only knows how to build it. */
@@ -61,6 +73,25 @@ interface SessionState {
   lastWindowTo: string | null
   pending: { observationId: string; tier: number; kind: string | null } | null
   inFlight: boolean
+  /** `runSurvey` guards its own overlap: one sweep at a time per session. */
+  surveyInFlight: boolean
+  lastSurveyAt: number | null
+  /** Whether that sweep was the away one, so one absence earns one sweep. */
+  lastSurveyAway: boolean
+  /** Whether a desk line has already come with a physical point this session. */
+  pointedThisSession: boolean
+  /** Set when a sweep found the desk, so the point has an address without a second query. */
+  deskId: string | null
+  /** The newest reading, until a newer sweep replaces it. */
+  clutter: { reading: ClutterReading; at: number; poses: DeskSurveyPose[] } | null
+  /**
+   * The last desk **line**: the score the next one has to beat, and the time both
+   * of its gaps run from. It lives beside the reading it spoke about rather than
+   * in the rows, because it is the same lifetime: the rule compares against a
+   * reading the session still holds, and after a restart there is no `clutter`, so
+   * a memory that outlived it would guard nothing.
+   */
+  clutterSpoken: { at: number; score: number } | null
 }
 
 function freshState(): SessionState {
@@ -70,6 +101,13 @@ function freshState(): SessionState {
     lastWindowTo: null,
     pending: null,
     inFlight: false,
+    surveyInFlight: false,
+    lastSurveyAt: null,
+    lastSurveyAway: false,
+    pointedThisSession: false,
+    deskId: null,
+    clutter: null,
+    clutterSpoken: null,
   }
 }
 
@@ -129,6 +167,12 @@ export function createLoop(deps: LoopDeps, config: LoopConfig = DEFAULT_LOOP_CON
         return null
       }
 
+      // One absence earns one sweep, so the latch has to clear as soon as the
+      // window finds the person back: without this the *first* absence of a
+      // session spends the latch and a second one, later in the same session,
+      // never earns a sweep of its own.
+      if (window.idleSeconds < SURVEY.awayIdleSeconds) current.lastSurveyAway = false
+
       const goal = await deps.reader.goalFor(sessionId)
       if (!goal) {
         deps.logger.warn({ sessionId }, 'loop.skip: no goal')
@@ -166,6 +210,12 @@ export function createLoop(deps: LoopDeps, config: LoopConfig = DEFAULT_LOOP_CON
       const prior = await deps.writer.consecutiveOffGoal(sessionId)
       current.consecutiveOffGoal = offGoal ? prior + 1 : 0
 
+      // The desk's newest reading, if a sweep has landed one. The two speech
+      // values come from the last desk **line** rather than the last line of any
+      // kind: the clutter gap and the "worse than last time" rule are about what
+      // we already said about the desk, and the loop remembers that itself.
+      const stashed = current.clutter
+
       const intervention = assessment
         ? decide({
             assessment,
@@ -177,6 +227,16 @@ export function createLoop(deps: LoopDeps, config: LoopConfig = DEFAULT_LOOP_CON
             consecutiveOffGoal: current.consecutiveOffGoal,
             automationsThisSession: current.automationsThisSession,
             recentOutcomes: await deps.writer.recentOutcomes(sessionId, config.historyLimit),
+            clutter: stashed
+              ? {
+                  reading: stashed.reading,
+                  at: stashed.at,
+                  poses: stashed.poses.map((pose) => ({ aim: pose.aim })),
+                  lastSpokenAt: current.clutterSpoken?.at ?? null,
+                  lastSpokenScore: current.clutterSpoken?.score ?? null,
+                  pointedThisSession: current.pointedThisSession,
+                }
+              : null,
           })
         : null
 
@@ -202,6 +262,44 @@ export function createLoop(deps: LoopDeps, config: LoopConfig = DEFAULT_LOOP_CON
       })
 
       current.lastWindowTo = window.to
+
+      // The desk line has just gone out, so the next one has to beat it. Its
+      // identity is its **reason**: the drift ladder can also speak at tier 3, so
+      // the tier and the channel cannot tell the two apart, and the vocabulary
+      // `clutterDecision` emits is the one thing that can. Stamped next to the
+      // reading it spoke about, which is what the rule compares against.
+      if (finalIntervention?.reason?.startsWith('tier3:speak:clutter') && stashed) {
+        current.clutterSpoken = { at: deps.clock.now(), score: stashed.reading.score }
+      }
+
+      // A desk line that came with a place to point at. The line has already been
+      // delivered and the row written, so the gesture is issued **detached**: a
+      // sweep that fails to move the arm is a log line, never a lost
+      // intervention, and the window never waits on the rig.
+      const point = finalIntervention?.point ?? null
+      if (point) {
+        current.pointedThisSession = true
+        const desk = deps.desk
+        const deskId = current.deskId
+        if (desk && deskId !== null) {
+          void desk
+            .issue(deskId, { type: 'arm.point', payload: point })
+            .then((record) => {
+              deps.logger.info(
+                { sessionId, deskId, status: record.status, error: record.error },
+                'loop.point',
+              )
+            })
+            .catch((error: unknown) => {
+              deps.logger.warn({ sessionId, deskId, error }, 'loop.point_failed')
+            })
+        } else {
+          // No desk lookup was cached, so there is nowhere to send the gesture.
+          // The line stands; only the point is lost, and it is said out loud.
+          deps.logger.warn({ sessionId }, 'loop.point_skipped: no desk to point with')
+        }
+      }
+
       if (finalIntervention && finalIntervention.tier >= 2) {
         current.pending = {
           observationId: observation.id,
@@ -228,6 +326,157 @@ export function createLoop(deps: LoopDeps, config: LoopConfig = DEFAULT_LOOP_CON
       }
     } finally {
       current.inFlight = false
+    }
+  }
+
+  /**
+   * The desk survey, asked for by the tick or by a hand.
+   *
+   * The loop's job here is *whether*: the desk has to be there, the sweep has to
+   * be due (or asked for), and the gap applies to every caller — a person
+   * pressing the button three times must not move the arm three times. The pass
+   * itself (`surveyDesk`) owns the rest.
+   *
+   * It never rejects: an unexpected throw becomes an `assess_failed` attempt and
+   * a log line, which is what lets the scheduler fire it without awaiting it.
+   */
+  async function runSurvey(
+    sessionId: string,
+    requested?: SurveyTrigger | 'manual',
+  ): Promise<SurveyAttempt> {
+    const current = state(sessionId)
+    if (current.surveyInFlight) {
+      deps.logger.info({ sessionId }, 'survey.skip: a sweep is already in flight')
+      return { ok: false, reason: 'busy' }
+    }
+    current.surveyInFlight = true
+    const started = deps.clock.now()
+
+    try {
+      const window = await deps.reader.window(sessionId)
+      if (!window) {
+        // No window means no signals yet, and a sweep would have nothing to write
+        // its reading onto.
+        deps.logger.info({ sessionId }, 'survey.skip: no window yet')
+        return { ok: false, reason: 'no_frames' }
+      }
+
+      const issuer = deps.desk
+      const desk = await issuer?.theDesk()
+      if (!issuer || !desk || !desk.connected) {
+        deps.logger.info({ sessionId, requested }, 'survey.skip: no desk')
+        return { ok: false, reason: 'no_desk' }
+      }
+      // Cached now rather than looked up again when a point has to be sent: the
+      // desk that answered this sweep is the desk the gesture belongs to.
+      current.deskId = desk.id
+
+      const policy = await deps.reader.policyFor(sessionId)
+
+      let trigger: SurveyTrigger | 'manual'
+      if (requested !== undefined) {
+        // A caller that knows why wins over the due table.
+        trigger = requested
+      } else {
+        const sessionStartedAt = await deps.reader.sessionStartedAt(sessionId)
+        if (sessionStartedAt === null) {
+          deps.logger.warn({ sessionId }, 'survey.skip: no session start')
+          return { ok: false, reason: 'gap' }
+        }
+        const due = surveyDue({
+          now: started,
+          idleSeconds: window.idleSeconds,
+          sessionStartedAt,
+          lastSurveyAt: current.lastSurveyAt,
+          lastSurveyAway: current.lastSurveyAway,
+          deskConnected: desk.connected,
+          policy,
+        })
+        if (due === null) {
+          // "Not due" is the normal answer on a tick, so it is not logged — one
+          // line every ten seconds per session would be noise. The caller hears
+          // the same word the gap gives, because it means the same thing: not
+          // now.
+          return { ok: false, reason: 'gap' }
+        }
+        trigger = due
+      }
+
+      // The gap is the loop's rule, not the rig's, and it binds the hand as well
+      // as the tick: one sweep per `surveyGapMs`, whoever asked. `surveyDue`
+      // already refuses inside it, so the line that lands here is a person
+      // pressing the button a minute after the last sweep.
+      if (current.lastSurveyAt !== null && started - current.lastSurveyAt < policy.surveyGapMs) {
+        deps.logger.info(
+          { sessionId, sinceLastMs: started - current.lastSurveyAt, gapMs: policy.surveyGapMs },
+          'survey.skip: gap',
+        )
+        return { ok: false, reason: 'gap' }
+      }
+
+      const goal = await deps.reader.goalFor(sessionId)
+      if (!goal) {
+        deps.logger.warn({ sessionId }, 'survey.skip: no goal')
+        return { ok: false, reason: 'no_frames' }
+      }
+
+      // The start reading is one frame from where the camera already points:
+      // moving the arm across the desk two minutes after someone sat down is a
+      // gesture nobody asked for. Away, floor and hand all get the sweep, and a
+      // rig with no arm takes a single frame whatever the reason.
+      const poses = trigger === 'start' ? 1 : desk.hasArm ? 3 : 1
+
+      const attempt = await surveyDesk({
+        sessionId,
+        trigger,
+        goal,
+        window,
+        desk: issuer,
+        reader: deps.reader,
+        writer: deps.writer,
+        vision: deps.vision,
+        bus: deps.bus,
+        clock: deps.clock,
+        logger: deps.logger,
+        poses,
+      })
+
+      const finished = deps.clock.now()
+      // The gap binds attempts, not successes. Keyed on a reading, a rig that
+      // refuses every sweep — offline, no frames, a model that will not answer —
+      // leaves `lastSurveyAt` untouched, and `surveyDue` then reads a session that
+      // has never been read as due for a `start` sweep on *every* window: 20 s of
+      // arm time and a model call per tick, forever. A refused sweep was still a
+      // sweep that was asked for.
+      current.lastSurveyAt = started
+
+      if (attempt.ok) {
+        current.clutter = { reading: attempt.reading, at: finished, poses: attempt.poses }
+        // One sweep per absence means one sweep that happened: a refusal is not
+        // one, so the next away window may try again — inside the gap.
+        current.lastSurveyAway = trigger === 'away'
+        deps.logger.info(
+          {
+            sessionId,
+            trigger,
+            poses: attempt.poses.length,
+            score: attempt.reading.score,
+            hotspots: attempt.reading.hotspots.length,
+            confidence: attempt.reading.confidence,
+            latencyMs: finished - started,
+          },
+          'observe.survey',
+        )
+      }
+
+      return attempt
+    } catch (error) {
+      // Never reject: the scheduler fires this without awaiting it, and the
+      // manual route answers with whatever it returns.
+      deps.logger.error({ sessionId, error }, 'survey.failed: unexpected error')
+      return { ok: false, reason: 'assess_failed' }
+    } finally {
+      current.surveyInFlight = false
     }
   }
 
@@ -333,6 +582,7 @@ export function createLoop(deps: LoopDeps, config: LoopConfig = DEFAULT_LOOP_CON
 
   return {
     runWindow,
+    runSurvey,
     reset(sessionId?: string) {
       if (sessionId) sessions.delete(sessionId)
       else sessions.clear()

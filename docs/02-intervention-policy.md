@@ -12,12 +12,17 @@ unless this file says it may.
 | 0 | silent | log only | the default, most windows |
 | 1 | ambient | tray colour, LED state | drift detected, but no reason to interrupt |
 | 2 | nudge | native notification **with an action** | sustained off-goal past `driftSeconds` |
-| 3 | speak | one sentence, interruptible | the nudge was unresolved and drift continues |
+| 3 | speak | one sentence, interruptible | the nudge was unresolved and drift continues — or the desk survey read a cluttered desk |
 | 4 | automate | block, redirect, pause, open, break | the goal grants it and the drift is confirmed |
 | 5 | summary | end-of-session recap | session close |
 
 Tier 4 is never the first thing that happens, and it is never invisible: every automations is
 shown, one-click reversible, and recorded with its outcome.
+
+Tier 3 is usually the drift line. It is also the **desk line**: a periodic sweep of the desk, read
+once and kept on the session, can be worth one sentence even to a person who is on task — a desk
+with no room left to work on it is its own reason to speak. Both are the same channel and the same
+tier, so they share its gap and its outcome machinery.
 
 ---
 
@@ -49,6 +54,41 @@ signal, suppresses everything except tier 0.
 **Silence is a result.** A quiet session is written to `Observation` exactly like a loud one, so
 the analytics never flatter the system.
 
+### The clutter rule
+
+The desk survey is the one reading that may interrupt a person who is **on task**, and it is the
+only thing that does: whenever the window is off goal, the drift ladder above owns the airtime. It
+attaches where the drift rule would otherwise return silence — an on-task window — and it fires
+only when **all** hold:
+
+1. `reading.confidence ≥ policy.minConfidence` (default **0.7**) — the same doubt-is-silence rule
+2. the reading is **fresh**: written less than 10 minutes ago, because a reading is a picture of a
+   desk the person has been moving things on since
+3. `reading.score ≥ policy.clutterSpeakScore` (default **0.6**) — a desk in use is not clutter
+4. it is **worse** than the last desk line: `score ≥ lastSpokenScore + policy.clutterRiseDelta`
+   (default **0.25**), so the line does not repeat itself — and so the reading's own noise cannot
+   speak: three frames of an unchanged desk scored 0.32 and 0.45 a minute apart on the bench, and a
+   bar inside that spread would let the model's variance be the reason the desk line goes out
+5. the goal permits `speak` and `maxTier ≥ 3`
+6. the speech channel's adapted gap has passed since the last desk line, **and**
+   `policy.clutterGapMs` (default **45 min**) has passed — clutter returns slower than drift
+7. the window's `activity` is not `away`: nothing is ever said to an empty desk, however cluttered
+
+The line is a **template** chosen from the worst hotspot's label — the model returns a reading, never
+words — and a reading with no hotspots still gets the plain one. When the goal grants `automate`, the
+sweep went through a calibration so the worst hotspot has desk millimetres, and the session has not
+already pointed, the line also comes with a physical `arm.point` at that place. That gesture is
+recorded as `reversible: false`: it is a gesture, not a change to the machine, and there is nothing
+left to undo — the tracker re-acquires the person as soon as the move ends.
+
+**When a sweep happens** is separate from when it speaks, and it is deliberately sparing: for the
+first two minutes of a session nothing sweeps unless the person has already left, and the first
+reading after that is a single frame from where the camera already points. An away reading is the one
+sweep that costs nobody anything — no tracking to interrupt and an unobstructed desk — but it still
+walks the arm across the desk (three poses on a rig with an arm, one without). Only the `start`
+reading is the single frame, and the rig is asked at most once per `policy.surveyGapMs` (**5 min**),
+with at most one model call per sweep, whatever the reason.
+
 ---
 
 ## 3. What "worked" means
@@ -61,6 +101,14 @@ Every intervention records an **outcome**, judged in the next one or two windows
 - **unknown** — no next window (session ended) — never counted as a win
 
 `GET /v1/analytics/tiers` is a `GROUP BY tier, outcome`. That query is the product's self-critique.
+
+A desk line is judged by exactly the same machinery as a drift line: it is a tier-3 row, so the next
+window decides whether it was resolved or ignored, and the answer feeds the speech channel's
+adaptation and the ladder above. Its own two brakes are not read back from the rows, though: the last
+desk line is remembered in the session's own state, with the same lifetime as the reading it spoke
+about, because the rule can only compare against a reading it still holds. A survey row itself is
+never judged — it carries no assessment, it is a reading, and it is filtered out of every query that
+reads windows (the escalation ladder, the recent outcomes).
 
 ---
 
@@ -111,8 +159,18 @@ export const DEFAULT_POLICY = {
   revertWindowMs: 60_000,
   maxAutomationsPerSession: 6,
   assumeSilentOnDoubt: true,
+  surveyFloorMs: 1_200_000,
+  surveyGapMs: 300_000,
+  clutterSpeakScore: 0.6,
+  clutterRiseDelta: 0.25,
+  clutterGapMs: 2_700_000,
 }
 ```
+
+The last five are the desk survey's: the **floor** is the slowest it will sweep (20 min), the **gap**
+the fastest (5 min), and the three clutter values are the rule in §2 — speak at `clutterSpeakScore`
+and above, only when the reading has risen by `clutterRiseDelta`, and no two desk lines within
+`clutterGapMs` (45 min).
 
 Every value is per goal, editable, and shown in plain teaching language in the desktop app — never
 as a field name.

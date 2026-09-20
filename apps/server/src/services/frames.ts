@@ -21,16 +21,32 @@ export const MAX_FRAME_BYTES = 2 * 1024 * 1024
 export const MAX_FRAME_DIMENSION = 1600
 
 /**
- * The two lenses a frame can come from, as `x-heli-source` and the URL spell it.
+ * Every lens a frame can come from, as `x-heli-source` and the URL spell it.
  *
- * The rig does not send the header at all — it only has a camera — so `camera` is
- * the default. The desktop's screen capture sends `screen`.
+ * The rig sends `camera` for its live frames and `survey` for a sweep, so `camera`
+ * is only the default for a caller that sends no header at all. The desktop's
+ * screen capture sends `screen`. `survey` is the rig's sweep: those frames are
+ * a deliberate reading of the desk across a few poses, kept apart from the live
+ * lens so a sweep never becomes "the newest frame" the way a still would.
  */
-export const FRAME_SOURCES = ['camera', 'screen'] as const
+export const FRAME_SOURCES = ['camera', 'screen', 'survey'] as const
 export type FrameSource = (typeof FRAME_SOURCES)[number]
 
 export const isFrameSource = (value: unknown): value is FrameSource =>
   typeof value === 'string' && (FRAME_SOURCES as readonly string[]).includes(value)
+
+/**
+ * The sources the per-tick assessment reads.
+ *
+ * The assessment gets the two lenses of the moment — the desk camera and the
+ * screen — and nothing else. A survey frame is a separate, deliberate reading
+ * taken once in a while across a sweep; feeding those into every window would
+ * hand the model a stale sweep frame as if it were the live desk, which is the
+ * same confusion between sources that HELI-071 fixes. So the store accepts
+ * `survey` (`FRAME_SOURCES`) while the assessment stays on these two
+ * (`ASSESS_SOURCES`).
+ */
+export const ASSESS_SOURCES = ['camera', 'screen'] as const
 
 /**
  * What the assess step calls each source.
@@ -39,7 +55,7 @@ export const isFrameSource = (value: unknown): value is FrameSource =>
  * "desk", because from the model's point of view the camera is looking at the
  * desk. The mapping lives here, once, so no caller invents its own.
  */
-export const KIND_OF_SOURCE: Record<FrameSource, 'desk' | 'screen'> = {
+export const KIND_OF_SOURCE: Record<(typeof ASSESS_SOURCES)[number], 'desk' | 'screen'> = {
   camera: 'desk',
   screen: 'screen',
 }
@@ -197,9 +213,12 @@ export interface VideoFrameInput {
   seq: number
   ts?: string
   /**
-   * Which lens this came from. The rig's camera is the default because the rig
-   * does not send the header at all; the desktop's screen capture sends
-   * `x-heli-source: screen`.
+   * Which lens this came from. The rig sends `camera` for its live frames and
+   * `survey` for a sweep, so `camera` is only the default for a caller that
+   * sends no header at all; the desktop's screen capture sends
+   * `x-heli-source: screen`; and a rig sweep uploads its frames as
+   * `x-heli-source: survey`, so a sweep frame is never mistaken for the live
+   * desk.
    *
    * This is the field whose absence was a bug: without it a screenshot and a
    * photograph of the desk shared one "newest frame", so the model could be shown

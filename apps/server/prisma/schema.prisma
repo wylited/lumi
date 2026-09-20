@@ -101,6 +101,8 @@ model Observation {
 
   signals    Json
   assessment Json?
+  /// The desk survey's reading, on its own row: a survey row carries `assessment: null`.
+  survey     Json?
   tier       Int
   action     Json?
   outcome    String?

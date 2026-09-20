@@ -8,15 +8,18 @@ import {
   DeskActionRequest,
   DeskRegistration,
   DeskRegisterResponse,
+  DeskSurveyResponse,
 } from '@heli/contracts'
 import type {
   DeskFrameResponse as DeskFrameBody,
   DeskRegisterResponse as DeskRegisterBody,
   DeskStatus as DeskStatusBody,
+  DeskSurveyResponse as DeskSurveyBody,
 } from '@heli/contracts'
 
 import { requireUser } from '../lib/jwt.js'
 import { prisma } from '../lib/prisma.js'
+import { theLoop } from '../observe/live.js'
 import {
   buildAction,
   deskHealthOf,
@@ -104,11 +107,12 @@ const FRAME_BODY_LIMIT = 8 * 1024 * 1024
 /**
  * `x-heli-source` on the way in, `?source=` on the way out.
  *
- * Absent means the camera, because the rig does not send the header at all — it
- * has one lens. An unknown value is **refused** rather than folded into the
- * default: a typo'd source that quietly became `camera` would drop a screenshot
- * into the desk pane and nothing would ever say so, which is the same class of
- * bug this row exists to fix. The rejected value is deliberately not echoed.
+ * Absent means the camera: the rig tags its sweep frames `survey` and the
+ * desktop tags a screenshot `screen`, so an untagged upload is the rig's live
+ * lens. An unknown value is **refused** rather than folded into the default: a
+ * typo'd source that quietly became `camera` would drop a screenshot into the
+ * desk pane and nothing would ever say so, which is the same class of bug this
+ * row exists to fix. The rejected value is deliberately not echoed.
  */
 const frameSourceOf = (value: unknown): FrameSource | null => {
   const raw = Array.isArray(value) ? value[0] : value
@@ -390,6 +394,54 @@ const deskRoutes: FastifyPluginAsync = async (app) => {
       const { id } = request.params
       if (!(await deskRowExists(id))) return reply.code(404).send({ error: `No desk ${id}.` })
       return listActions(id)
+    },
+  )
+
+  /**
+   * `POST /v1/desks/:id/survey` — sweep the desk now and answer the reading.
+   *
+   * An HTTP error is for the caller's own mistake: an unknown desk (404) and no
+   * open session to attribute a sweep to (409), or a server with no loop to ask
+   * (503). Everything the **desk** did or did not do comes back `200` with
+   * `reading: null`, `poses: 0` and the reason — `gap` when a sweep is already
+   * inside the loop's five minutes, `no_desk`, `no_frames`, `assess_failed`, or the
+   * rig's own code (`survey_unavailable`, `no_frame`, `survey_timeout`,
+   * `desk_offline`) when the rig is what refused. Never a reading from an earlier
+   * sweep, because a panel that shows last week's clutter as this minute's is worse
+   * than a panel that says nothing.
+   */
+  app.post(
+    '/desks/:id/survey',
+    {
+      preHandler: requireUser,
+      schema: {
+        params: z.object({ id: z.string().min(1) }),
+        response: { 200: DeskSurveyResponse, 404: NotFound, 409: NotFound, 503: NotFound },
+      },
+    },
+    async (request, reply): Promise<DeskSurveyBody | undefined> => {
+      const { id } = request.params
+      if (!(await deskRowExists(id))) return reply.code(404).send({ error: `No desk ${id}.` })
+
+      // The same rule as the frame route: one open session, the newest, and a
+      // sweep with no session to write its row onto is refused rather than
+      // attributed to a session nobody is watching.
+      const session = await prisma.session.findFirst({
+        where: { endedAt: null },
+        orderBy: { startedAt: 'desc' },
+        select: { id: true },
+      })
+      if (session === null) return reply.code(409).send({ error: 'no_open_session' })
+
+      const loop = theLoop()
+      if (loop === null) return reply.code(503).send({ error: 'loop_unavailable' })
+
+      const attempt = await loop.runSurvey(session.id, 'manual')
+      return {
+        reading: attempt.ok ? attempt.reading : null,
+        poses: attempt.ok ? attempt.poses.length : 0,
+        reason: attempt.ok ? null : attempt.reason,
+      }
     },
   )
 }
