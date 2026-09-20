@@ -30,6 +30,65 @@ const BREAKS = {
   custom: 'Custom',
 } as const
 
+/**
+ * How fast it speaks up.
+ *
+ * The policy has five numbers that decide this (`driftSeconds`,
+ * `consecutiveOffGoal`, `minConfidence`, `minGapMs`, `nudgeGapMs`) and nobody
+ * should have to think in them, so the goal screen offers the three speeds those
+ * numbers describe and writes all five at once. **Calm is the defaults**, word
+ * for word from `DEFAULT_POLICY`; Eager is the demo setting — it speaks after
+ * five seconds of drift on one window rather than thirty on two.
+ *
+ * Eager also shortens `windowMs` to 30 s, and that is the number that decides
+ * what "fast" can possibly mean: the loop has nothing to judge until a full
+ * window of signals exists, so a 60 s window floors the first interruption at
+ * ~70 s no matter how eager everything else is. A deliberate demo wants it inside
+ * the first minute; Calm and Prompt keep the full minute of evidence.
+ *
+ * A stored policy that matches none of the three reads as Calm, and changing the
+ * pace is what makes it one of the three again: there is no hidden fourth state.
+ */
+const PACE_OPTIONS = [
+  { value: 'calm', label: 'Calm' },
+  { value: 'prompt', label: 'Prompt' },
+  { value: 'eager', label: 'Eager' },
+] as const
+
+type Pace = (typeof PACE_OPTIONS)[number]['value']
+
+const PACES: Record<Pace, Partial<Goal['policy']>> = {
+  calm: {
+    windowMs: 60_000,
+    driftSeconds: 30,
+    consecutiveOffGoal: 2,
+    minConfidence: 0.7,
+    minGapMs: 90_000,
+    nudgeGapMs: 180_000,
+  },
+  prompt: {
+    windowMs: 60_000,
+    driftSeconds: 10,
+    consecutiveOffGoal: 2,
+    minConfidence: 0.6,
+    minGapMs: 45_000,
+    nudgeGapMs: 90_000,
+  },
+  eager: {
+    windowMs: 30_000,
+    driftSeconds: 5,
+    consecutiveOffGoal: 1,
+    minConfidence: 0.5,
+    minGapMs: 20_000,
+    nudgeGapMs: 40_000,
+  },
+}
+
+function paceOf(policy: Goal['policy']): Pace {
+  const match = PACE_OPTIONS.find((o) => PACES[o.value].driftSeconds === policy.driftSeconds)
+  return match?.value ?? 'calm'
+}
+
 /** The fields a draft would change, as label → new value, for the suggestion panel. */
 function changes(form: GoalForm, d: Draft): Array<[string, string]> {
   const p = d.patch
@@ -269,8 +328,16 @@ export function GoalRoute() {
 
       <Group
         title="It may"
-        footer={`Silent by default. It acts only after ${p.driftSeconds} s off the goal, and only when it is at least ${Math.round(p.minConfidence * 100)}% sure.`}
+        footer={`Silent by default. It acts only after ${p.driftSeconds} s off the goal, on ${p.consecutiveOffGoal} window${p.consecutiveOffGoal === 1 ? '' : 's'} in a row, and only when it is at least ${Math.round(p.minConfidence * 100)}% sure. Each window is ${Math.round(p.windowMs / 1000)} s of signals.`}
       >
+        <Row label="Speaks up" detail="How much drift it takes before it says anything">
+          <Segmented
+            value={paceOf(p)}
+            options={[...PACE_OPTIONS]}
+            onChange={(v) => set('policy', { ...p, ...PACES[v] })}
+            label="How fast it speaks up"
+          />
+        </Row>
         <Row
           label="Nudge"
           detail={
