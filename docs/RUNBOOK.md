@@ -175,7 +175,10 @@ What to look for in the logs:
 - the assess step logs **latency and token usage** on every call
   (`apps/server/src/observe/assess.ts`, `apps/server/src/models/deepseek.ts`);
 - provider **429 / rate-limit** errors from the DeepSeek adapter;
-- the orchestrator logs `latencyMs` per window and emits silence if the loop exceeds its 6 s budget.
+- the orchestrator logs `latencyMs` per window and emits silence if the loop exceeds its 12 s budget
+  (`DEFAULT_LOOP_CONFIG.budgetMs` in `apps/server/src/observe/index.ts`). It was 6 s and that made
+  the cap the decision-maker: DeepSeek Flash answers these two-image windows in 3.4–7.8 s, so
+  windows were being thrown away for a policy that had nothing to do with the model.
 
 There is no offline assessor. A window whose assessment fails is recorded as silence, and the loop
 tries again on the next one.
@@ -196,6 +199,38 @@ Synthesis is a cloud call **after** the assessment, so it does not consume the l
 failure is recorded as `delivered: false` rather than spoken. It is not instant: **~5 s per line**
 from this network on the free plan, so a tier-3 line lands several seconds after the window it
 describes.
+
+**On demand.** The loop is not the only trigger. `POST /v1/sessions/:id/speak` says a line now,
+for a rehearsal or a demo beat that has to land on cue:
+
+```bash
+curl -X POST http://localhost:3001/v1/sessions/<sessionId>/speak \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"text":"Back to the problem set. Twelve problems, working written up."}'
+```
+
+It answers `{ accepted, reason, intervention }`; `accepted: false` carries the reason — no speech
+provider configured, or nothing attached that could carry it. The line is recorded as an
+`Intervention` with `reason: manual`.
+
+**Who plays it.** Speech follows the person: away from the desk it goes to the phone, otherwise the
+desktop app, and if the app is not attached **the rig plays it through the Mac's own speakers** —
+the same `afplay` path as its self-check. Nudges are the exception: the rig has no surface to show
+one, so a nudge is only ever the phone or the app. Both paths report back, which is how you tell a
+line was heard from a line that was merely sent: the server logs `the app started a spoken line`
+when the app says it began the audio, and the rig logs `played <momentId> for <ms> ms`.
+
+The rig warms the audio device at boot with 60 ms of silence. The first playback in a fresh process
+pays CoreAudio's start-up, and un-warmed that cost lands on whichever line is first — on the demo Mac
+the first line of a run was killed by its own timeout while the next one played fine. A player that
+still has not exited 3 s after the line's own length is written off with `player_timeout` in the
+log, and that line is lost.
+
+**How fast it goes.** No interruption can come before a full window of signals exists, so the pace
+control on the Goal screen is what decides the floor: **Calm** is the defaults (30 s of drift, two
+60 s windows), **Eager** is the demo setting (5 s of drift, one 30 s window) — about 40 s from
+pressing Start to the first spoken sentence instead of two and a half minutes. The policy is
+per-goal, so a rehearsal goal can be Eager while the real one stays Calm.
 
 ---
 
