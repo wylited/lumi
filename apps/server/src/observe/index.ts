@@ -30,11 +30,15 @@ export interface LoopConfig {
 }
 
 /**
- * `budgetMs` is the hard cap on one pass. It is 6 s rather than 4 s because a
- * hosted vision call that also reads an image lands around 4–6 s, and a late
- * interruption is worse than none — past the cap we record silence.
+ * `budgetMs` is the hard cap on one pass. It is 12 s, not 6 s, because the cap
+ * was measured against the real provider and lost: `deepseek-flash` with the two
+ * images (desk camera + screen) answers in 3.4–6.1 s, so a 6 s cap forced
+ * `loop.budget_exceeded` and recorded silence on 3 of 8 consecutive windows —
+ * decisions dropped by a stopwatch rather than by the policy. A hosted vision
+ * call is the slowest thing in the pass by an order of magnitude, and a late
+ * interruption is still better than none.
  */
-export const DEFAULT_LOOP_CONFIG: LoopConfig = { budgetMs: 6000, historyLimit: 20 }
+export const DEFAULT_LOOP_CONFIG: LoopConfig = { budgetMs: 12_000, historyLimit: 20 }
 
 export interface WindowResult {
   observationId: string
