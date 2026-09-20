@@ -219,3 +219,52 @@ test('tier 4 acts on the top off-goal site, else the top off-goal app', async ()
     'instagram.com',
   )
 })
+
+test('a line speaks through the rig when no app is attached', () => {
+  const desk: Sent = { payloads: [], binaries: [] }
+  const rig: Sent = { payloads: [], binaries: [] }
+  const senders = createDeskSenders({
+    desk: () => null,
+    rig: () => fakeSocket(rig),
+  })
+
+  assert.equal(senders.sendToSession('s1', audioOut), true)
+  assert.equal(senders.sendBinaryToSession?.('s1', Buffer.from([0x02, 9, 9])), true)
+
+  assert.equal(rig.payloads.length, 1, 'the header reached the rig')
+  assert.equal(rig.binaries.length, 1, 'and so did the PCM')
+  assert.equal(desk.payloads.length, 0)
+})
+
+test('the app speaks when both are attached, and the rig stays quiet', () => {
+  const desk: Sent = { payloads: [], binaries: [] }
+  const rig: Sent = { payloads: [], binaries: [] }
+  const senders = createDeskSenders({
+    desk: () => fakeSocket(desk),
+    rig: () => fakeSocket(rig),
+  })
+
+  assert.equal(senders.sendToSession('s1', audioOut), true)
+
+  assert.equal(desk.payloads.length, 1, 'the app is the surface the person is looking at')
+  assert.equal(rig.payloads.length, 0, 'one line, one speaker')
+})
+
+test('a rig that cannot carry audio still answers honestly rather than dropping the line', () => {
+  const rig: Sent = { payloads: [], binaries: [] }
+  const senders = createDeskSenders({
+    desk: () => null,
+    rig: () => fakeSocket(rig, false),
+  })
+
+  assert.equal(senders.sendToSession('s1', audioOut), true)
+  assert.equal(senders.sendBinaryToSession?.('s1', Buffer.from([0x02, 1])), false)
+})
+
+test('a nudge is never handed to the rig, which cannot show one', () => {
+  const rig: Sent = { payloads: [], binaries: [] }
+  const senders = createDeskSenders({ desk: () => null, rig: () => fakeSocket(rig) })
+
+  assert.equal(senders.sendNotification('s1', 'Back to the problem set.'), false)
+  assert.equal(rig.payloads.length, 0, 'the rig has no notification surface')
+})

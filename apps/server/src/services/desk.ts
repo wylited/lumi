@@ -217,6 +217,23 @@ export const deskHealthOf = (deskId: string): DeskHealth | null => live.get(desk
 /** The socket, so the action loop can write to it. Module-private by intent. */
 const socketOf = (deskId: string): DeskSocketLike | null => live.get(deskId)?.socket ?? null
 
+/**
+ * The rig's socket, as a surface the loop can speak through.
+ *
+ * Single desk, single user: there is at most one attached rig, so this needs no
+ * session and no desk id — the caller asks "is a rig there", not "which rig".
+ * A socket that is closing is reported as absent rather than handed over: a line
+ * written into a dying socket is a line nobody hears, and `false` (undelivered)
+ * is the honest answer that has the loop fall back or record the silence.
+ */
+export function attachedDeskSocket(): DeskSocketLike | null {
+  for (const entry of live.values()) {
+    const socket = entry.socket
+    if (socket.readyState === undefined || socket.readyState === 1) return socket
+  }
+  return null
+}
+
 /** `hello` is the rig saying what it is; it is worth persisting. */
 export async function recordDeskHello(deskId: string, hello: DeskHello): Promise<void> {
   await prisma.desk.updateMany({

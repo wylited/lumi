@@ -38,6 +38,14 @@ export interface SenderDeps {
   /** The desk the person is sitting at: the desktop app or the rig. */
   desk: DeskSocketLookup
   /**
+   * The rig. It is on the same Mac and its socket is always attached, so it is
+   * the surface that still speaks when the app is closed, minimised or not
+   * watching — a line dropped because the window was hidden is the one failure a
+   * demo cannot have. It is deliberately **last**: when both are attached the
+   * app speaks, because that is where the person is looking.
+   */
+  rig?: DeskSocketLookup
+  /**
    * The phone, when one is paired and connected. It is the surface that leaves
    * the room with the person, so a nudge prefers it and speech follows it when
    * motion says the desk was left — see `away`.
@@ -62,13 +70,15 @@ export interface SenderDeps {
  *
  * Where a line goes is a routing question, not a policy one: the policy decided
  * the tier, and this decides which surface carries it.
- *   - speech follows the person: away → the phone, otherwise the desk first;
+ *   - speech follows the person: away → the phone, otherwise the desk app, then
+ *     the rig on the same Mac (its own speaker), then the phone;
  *   - a nudge prefers the phone, because it is with them either way, and falls
- *     back to the desk.
+ *     back to the desk app — never the rig, which has no surface to show one.
  */
 export function createDeskSenders(deps: SenderDeps): LoopSenders {
   const log = deps.logger
   const phone = deps.phone ?? (() => null)
+  const rig = deps.rig ?? (() => null)
   const away = deps.away ?? (() => false)
 
   function homeFor(sessionId: string, intent: 'speech' | 'nudge'): DeskSocket | null {
@@ -76,8 +86,10 @@ export function createDeskSenders(deps: SenderDeps): LoopSenders {
     const deskSocket = safeLookup(deps.desk, sessionId)
 
     if (intent === 'nudge') return phoneSocket ?? deskSocket
-    if (away(sessionId)) return phoneSocket ?? deskSocket
-    return deskSocket ?? phoneSocket
+
+    const rigSocket = safeLookup(rig, sessionId)
+    if (away(sessionId)) return phoneSocket ?? deskSocket ?? rigSocket
+    return deskSocket ?? rigSocket ?? phoneSocket
   }
 
   function safeLookup(lookup: DeskSocketLookup, sessionId: string): DeskSocket | null {

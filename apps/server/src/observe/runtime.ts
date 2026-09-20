@@ -3,7 +3,7 @@ import type { LiveEvent } from '@heli/contracts'
 import type { Env } from '../env.js'
 import { createVisionProvider } from '../models/provider.js'
 import { createSpeechProvider } from '../voice/speech.js'
-import { createTransport } from '../voice/transport.js'
+import { createTransport, transportSenders } from '../voice/transport.js'
 import { createPrismaLoop, type PrismaLoopInput } from './persistence.js'
 import { createDeskSenders, type DeskSocketLookup, type LoopSenders } from './outbound.js'
 import { createScheduler, type Scheduler } from './scheduler.js'
@@ -62,12 +62,7 @@ export function createLoopRuntime(input: LoopRuntimeInput): LoopRuntime {
       logger: input.logger,
     })
 
-  const transport = createTransport({
-    sendToSession: (sessionId, payload) => senders.sendToSession(sessionId, payload),
-    sendBinaryToSession: (sessionId, bytes) =>
-      senders.sendBinaryToSession ? senders.sendBinaryToSession(sessionId, bytes) : false,
-    sendNotification: (sessionId, message) => senders.sendNotification(sessionId, message),
-  })
+  const transport = createTransport(transportSenders(senders))
 
   const loop = createPrismaLoop({
     prisma: input.prisma,

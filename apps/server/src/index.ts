@@ -2,16 +2,14 @@ import { env } from './env.js'
 import { publish } from './lib/bus.js'
 import { prisma } from './lib/prisma.js'
 import { childLogger, logger } from './logger.js'
-import { createDesktopAutomate, type DeskSocketLookup } from './observe/outbound.js'
+import { createDesktopAutomate } from './observe/outbound.js'
 import {
   createLoopRuntime,
   DEFAULT_ASSESS_INTERVAL_MS,
   type LoopRuntime,
 } from './observe/runtime.js'
 import { buildServer } from './server.js'
-import { desktopSocketFor } from './ws/live-desktop.js'
-import { mobileSocketFor } from './ws/live-mobile.js'
-import { phoneAway } from './services/mobile.js'
+import { createLoopSenders, desktopSurface } from './voice/surfaces.js'
 
 const app = await buildServer()
 
@@ -20,17 +18,17 @@ const loopLog = childLogger({ module: 'observe.runtime' })
 /**
  * Where a line goes.
  *
- * Two surfaces, one routing rule: the desk (`ws/live-desktop.ts`, or the rig —
- * the same lookup shape) is where the person sits, and the phone is what they
- * take with them. `observe/outbound.ts` decides per line: speech follows the
- * person when motion says they left, a nudge prefers the phone, and everything
- * falls back to the other surface. With nobody attached the lookup is `null`,
- * the sender answers `false`, and the line is recorded as undelivered — which
- * is the honest report: a spoken line nobody heard is not a delivery.
+ * Three surfaces, one routing rule, built in `voice/surfaces.ts` so the loop and
+ * the manual `POST /v1/sessions/:id/speak` cannot disagree about it: the desktop
+ * app is where the person sits and looks, the rig is on the same Mac and still
+ * speaks when the app is not watching, and the phone is what they take with them.
+ * `observe/outbound.ts` decides per line: speech follows the person when motion
+ * says they left, a nudge prefers the phone, and everything falls back. With
+ * nobody attached the lookup is `null`, the sender answers `false`, and the line
+ * is recorded as undelivered — which is the honest report: a spoken line nobody
+ * heard is not a delivery.
  */
-const desk: DeskSocketLookup = (sessionId) => desktopSocketFor(sessionId)
-const phone: DeskSocketLookup = (sessionId) => mobileSocketFor(sessionId)
-const away = (sessionId: string): boolean => phoneAway(sessionId)
+const senders = createLoopSenders()
 
 /** Every session being watched right now. The loop assesses only these. */
 const activeSessions = async (): Promise<string[]> => {
@@ -50,16 +48,14 @@ const activeSessions = async (): Promise<string[]> => {
  * and the server still serves HTTP. A failure here is logged and the server keeps
  * running — the rig's uploads matter more than the assessment cadence.
  */
-const automate = createDesktopAutomate(desk)
+const automate = createDesktopAutomate(desktopSurface)
 
 let runtime: LoopRuntime | null = null
 
 try {
   runtime = createLoopRuntime({
     env,
-    desk,
-    phone,
-    away,
+    senders,
     activeSessions,
     publish,
     automate,

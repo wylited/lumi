@@ -19,6 +19,27 @@ export interface TransportSenders {
   sendNotification(sessionId: string, message: string): boolean
 }
 
+/**
+ * The loop's senders, narrowed to what the transport requires.
+ *
+ * `LoopSenders.sendBinaryToSession` is optional — a surface that cannot carry
+ * audio is a real thing to build (`observe/outbound.ts` keeps that honest with a
+ * `false`) — while the transport needs the member to exist so it can ask. The
+ * absent one becomes "no", which is the same answer it would have given.
+ */
+export function transportSenders(senders: {
+  sendToSession(sessionId: string, payload: unknown): boolean
+  sendBinaryToSession?(sessionId: string, bytes: Buffer): boolean
+  sendNotification(sessionId: string, message: string): boolean
+}): TransportSenders {
+  return {
+    sendToSession: (sessionId, payload) => senders.sendToSession(sessionId, payload),
+    sendBinaryToSession: (sessionId, bytes) =>
+      senders.sendBinaryToSession ? senders.sendBinaryToSession(sessionId, bytes) : false,
+    sendNotification: (sessionId, message) => senders.sendNotification(sessionId, message),
+  }
+}
+
 const AUDIO_TAG = MEDIA_TAG.audio
 
 function taggedAudio(pcm: Buffer): Buffer {
