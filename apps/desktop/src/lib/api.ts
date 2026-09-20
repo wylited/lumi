@@ -38,6 +38,20 @@ const log = logger('api')
 const BASE = ((import.meta.env.VITE_HELI_API as string | undefined) ?? 'http://localhost:3001').replace(/\/$/, '')
 const TIMEOUT_MS = 2500
 
+/**
+ * The aggregate reads get room the live ones do not.
+ *
+ * `/v1/sessions` folds a roll-up out of every observation of every session it
+ * returns, and `/v1/analytics/*` walks every window in the range it was asked
+ * for — over a week of real data that is hundreds of rows and a second or more
+ * of server time, more when the observe loop is mid-assessment on the same box.
+ * A request that outruns `TIMEOUT_MS` does not fail loudly here: it renders as
+ * the empty fallback, so a week of work shows up as *zeros* on the History
+ * screen and the badge says the server is unreachable while it is answering.
+ * A slow screen is a worse-kept secret than a late one.
+ */
+const AGGREGATE_TIMEOUT_MS = 20_000
+
 export type Connection = 'online' | 'offline'
 
 /* ---- connection, observable -------------------------------------------- */
@@ -175,8 +189,10 @@ export const api = {
   createGoal: (goal: GoalCreateRequest) => call('POST', '/goals', GoalResponse, () => null as never, goal),
   updateGoal: (id: string, patch: GoalUpdateRequest) =>
     call('PUT', `/goals/${id}`, GoalResponse, () => null as never, patch),
-  sessions: () => call('GET', '/sessions', SessionListResponse, () => []),
-  session: (id: string) => call('GET', `/sessions/${id}`, SessionDetailResponse.nullable(), () => null),
+  sessions: () =>
+    call('GET', '/sessions', SessionListResponse, () => [], undefined, AGGREGATE_TIMEOUT_MS),
+  session: (id: string) =>
+    call('GET', `/sessions/${id}`, SessionDetailResponse.nullable(), () => null, undefined, AGGREGATE_TIMEOUT_MS),
   window: (sessionId: string) =>
     call('GET', `/sessions/${sessionId}/window`, SignalWindowResponse.nullable(), () => null),
   /** Unparsed on purpose: `lib/desk` checks it against the contract and tolerates older servers. */
@@ -210,10 +226,14 @@ export const api = {
   /** The paired phones, newest first. Empty when none, never invented. */
   phones: () => call('GET', '/mobile/phones', PhoneListResponse, () => []),
   analytics: {
-    summary: () => call('GET', '/analytics/summary', AnalyticsSummary, () => EMPTY_SUMMARY),
-    tiers: () => call('GET', '/analytics/tiers', AnalyticsTiersResponse, () => []),
-    apps: () => call('GET', '/analytics/apps', AnalyticsAppsResponse, () => []),
-    heatmap: () => call('GET', '/analytics/heatmap', AnalyticsHeatmapResponse, () => []),
+    summary: () =>
+      call('GET', '/analytics/summary', AnalyticsSummary, () => EMPTY_SUMMARY, undefined, AGGREGATE_TIMEOUT_MS),
+    tiers: () =>
+      call('GET', '/analytics/tiers', AnalyticsTiersResponse, () => [], undefined, AGGREGATE_TIMEOUT_MS),
+    apps: () =>
+      call('GET', '/analytics/apps', AnalyticsAppsResponse, () => [], undefined, AGGREGATE_TIMEOUT_MS),
+    heatmap: () =>
+      call('GET', '/analytics/heatmap', AnalyticsHeatmapResponse, () => [], undefined, AGGREGATE_TIMEOUT_MS),
   },
 }
 
