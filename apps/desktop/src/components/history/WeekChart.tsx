@@ -17,6 +17,18 @@ export function WeekChart({ days }: { days: Day[] }) {
   const active = days.filter((d) => d.sessions > 0)
   const avg = active.length ? active.reduce((s, d) => s + d.focused + d.off, 0) / active.length : 0
   const y = (m: number) => (m / top) * H
+  const avgY = avg > 0 ? y(avg) : null
+  /**
+   * The average rule lands wherever the week averages to, which is regularly
+   * within a text line of a tick — 53 minutes sits 7 px under the `1h` gridline.
+   * Both labels live in the same 8-wide column at the right, so they printed on
+   * top of each other.
+   *
+   * The crowded tick keeps its gridline and loses its label: the line still
+   * measures the axis, while the average is the one number in that band with
+   * something to say. Only the nearest tick can be inside the 16 px band.
+   */
+  const labelled = ticks.filter((t) => avgY === null || Math.abs(y(t) - avgY) >= 16)
 
   return (
     <div className="flex flex-col gap-2">
@@ -29,7 +41,7 @@ export function WeekChart({ days }: { days: Day[] }) {
           >
             <div className="h-px flex-1 bg-border" />
             <span className="tnum w-8 translate-y-0 text-right text-caption text-text-faint">
-              {t === 0 ? '' : t % 60 === 0 ? `${t / 60}h` : `${t}m`}
+              {t === 0 || !labelled.includes(t) ? '' : t % 60 === 0 ? `${t / 60}h` : `${t}m`}
             </span>
           </div>
         ))}
