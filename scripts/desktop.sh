@@ -53,6 +53,10 @@ if [ "${1:-}" != "--no-build" ]; then
 fi
 
 # 3. Sign with the stable identity, under the app's real bundle id.
+#    If this looks like it hung: macOS is asking for the key, usually behind your
+#    windows or on the lock screen ("codesign wants to use the key Lumi Dev").
+#    Click Always Allow once and the prompt is gone for good. There is no way to
+#    detect it from here, and no timeout that would not also kill a slow sign.
 say "Signing with '$IDENTITY'"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$BUILT/Contents/Info.plist"
 codesign --force --deep --sign "$IDENTITY" --identifier "$BUNDLE_ID" "$BUILT"
