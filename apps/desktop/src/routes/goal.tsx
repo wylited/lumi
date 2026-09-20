@@ -315,6 +315,10 @@ export function GoalRoute() {
               </Row>
             ))
           : null}
+        <Row
+          label="Look at the desk"
+          detail={`It checks how cluttered the desk is, at most once every ${Math.round(p.surveyFloorMs / 60000)} min, and only mentions it when it is worth it.`}
+        />
       </Group>
     </div>
   )

@@ -23,6 +23,7 @@ import {
   OpenSessionResponse,
   DeskActionRecord,
   DeskRegisterResponse,
+  DeskSurveyResponse,
   MobilePairCodeResponse,
   PhoneListResponse,
   type DeskActionRequest,
@@ -37,6 +38,13 @@ import { logger } from './log'
 const log = logger('api')
 const BASE = ((import.meta.env.VITE_HELI_API as string | undefined) ?? 'http://localhost:3001').replace(/\/$/, '')
 const TIMEOUT_MS = 2500
+
+/**
+ * The one call that is not a round trip: a survey waits 25 s for the rig to walk the desk and ack,
+ * then up to 20 s for the model to read the frames, so 30 s would abort a sweep the server is still
+ * honestly taking — the panel would report a failure for a reading that did arrive.
+ */
+const SURVEY_TIMEOUT_MS = 60_000
 
 export type Connection = 'online' | 'offline'
 
@@ -205,6 +213,16 @@ export const api = {
     call('POST', '/desks', DeskRegisterResponse.nullable(), () => null, body),
   deskAction: (deskId: string, body: DeskActionRequest) =>
     call('POST', `/desks/${encodeURIComponent(deskId)}/actions`, DeskActionRecord.nullable(), () => null, body),
+  /** Sweep the desk now: the rig moves, the model reads, and the reading comes back. Takes seconds. */
+  surveyDesk: (deskId: string) =>
+    call(
+      'POST',
+      `/desks/${encodeURIComponent(deskId)}/survey`,
+      DeskSurveyResponse.nullable(),
+      () => null,
+      undefined,
+      SURVEY_TIMEOUT_MS,
+    ),
   /** A fresh six-digit code for a phone. Single-use, five minutes, in server memory only. */
   pairCode: () => call('POST', '/mobile/pair/code', MobilePairCodeResponse.nullable(), () => null),
   /** The paired phones, newest first. Empty when none, never invented. */

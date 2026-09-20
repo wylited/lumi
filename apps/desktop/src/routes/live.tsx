@@ -146,18 +146,19 @@ export function LiveRoute() {
       <div className="grid gap-4 lg:grid-cols-[1.15fr_1fr]">
         <Thinking
           latest={d.latest}
+          latestSurvey={d.latestSurvey}
           since={snap.session?.startedAt ?? null}
           frames={frames}
           interruptions={interruptions}
         />
-        <Attention observations={snap.observations} goal={sessionGoal ?? goal} />
+        <Attention observations={d.windows} goal={sessionGoal ?? goal} />
       </div>
 
       <Phone sessionId={snap.session?.id ?? null} goal={sessionGoal ?? goal} />
 
       <section className="flex flex-col gap-3">
         <Ribbon
-          observations={snap.observations}
+          observations={d.windows}
           minutes={budget}
           breaks={breakMarks(sessionGoal, Math.max(budget ?? 0, d.minutes))}
         />
@@ -169,7 +170,7 @@ export function LiveRoute() {
           Interruptions
         </SectionTitle>
         <Actions
-          observations={snap.observations}
+          observations={d.windows}
           settled={(o) => settledOutcome(snap, o) !== null}
           empty="None. It stays quiet while you are on the goal."
         />

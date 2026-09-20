@@ -19,6 +19,16 @@ const TRACK_ERRORS: Record<string, string> = {
   desk_offline: 'Lumi One is not connected.',
 }
 
+/** Why a sweep took no reading. The same words the rig and the loop would use, said to a person. */
+const SURVEY_ERRORS: Record<string, string> = {
+  gap: 'it looked a moment ago — not again yet',
+  no_frame: 'The camera did not answer.',
+  survey_timeout: 'The sweep took too long; it stopped where it was.',
+  survey_unavailable: 'This rig has no camera to sweep with.',
+  desk_offline: 'Lumi One is not connected.',
+  loop_unavailable: 'The server is not watching this session.',
+}
+
 /** Lumi One in Settings: what the server knows about the desk, refreshed every few seconds. */
 export function DeskPanel() {
   const [desk, setDesk] = useState<DeskStatus | null | undefined>(undefined)
@@ -26,6 +36,9 @@ export function DeskPanel() {
   const [acked, setAcked] = useState<boolean | null>(null)
   const [switching, setSwitching] = useState(false)
   const [trackError, setTrackError] = useState<string | null>(null)
+  // The last answer to a sweep: what it read, or why it read nothing.
+  const [sweepNote, setSweepNote] = useState<string | null>(null)
+  const [sweeping, setSweeping] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -53,6 +66,28 @@ export function DeskPanel() {
       setTrackError(e instanceof Error ? e.message : String(e))
     } finally {
       setSwitching(false)
+    }
+  }
+
+  async function sweep() {
+    if (!d) return
+    setSweeping(true)
+    setSweepNote(null)
+    try {
+      const res = await api.surveyDesk(d.id)
+      if (!res) setSweepNote('The server is not reachable.')
+      else if (!res.reading)
+        setSweepNote(SURVEY_ERRORS[res.reason ?? ''] ?? `It took no reading: ${res.reason ?? 'no answer'}.`)
+      else {
+        // 0.6 is the default `clutterSpeakScore`: at or above it, the desk is worth mentioning.
+        const cluttered = res.reading.score >= 0.6
+        setSweepNote(`the desk is ${cluttered ? 'cluttered' : 'clear'} (${res.reading.score.toFixed(2)})`)
+      }
+    } catch (e) {
+      // A 404, 409 or 503 arrives as a throw, carrying the server's own words.
+      setSweepNote(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSweeping(false)
     }
   }
   return (
@@ -125,6 +160,20 @@ export function DeskPanel() {
               <span className="tnum text-small text-text-muted">
                 {h ? `${h.fps} fps · last frame ${ago(h.lastFrameAt)}` : '—'}
               </span>
+            </Row>
+            <Row
+              label={sweeping || h?.surveying ? 'Sweeping…' : 'Check the desk now'}
+              detail={sweepNote ?? 'It looks across the desk and says how cluttered it is.'}
+            >
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={sweeping}
+                disabled={sweeping || (h?.surveying ?? false)}
+                onClick={() => void sweep()}
+              >
+                Check the desk now
+              </Button>
             </Row>
           </Group>
         </div>

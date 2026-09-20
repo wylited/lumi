@@ -1,10 +1,16 @@
 import type { Observation } from '@heli/contracts'
 import { cn } from '@heli/ui'
 import { Dot } from '../kit'
-import { dur } from './format'
+import { dur, mm } from './format'
+
+/** How cluttered, in one word a person would use. */
+function word(score: number): 'clear' | 'busy' | 'cluttered' {
+  return score < 0.3 ? 'clear' : score < 0.6 ? 'busy' : 'cluttered'
+}
 
 /** The tier and its reason in one sentence — what it decided, and why, in words. */
 function decision(o: Observation): string {
+  if (o.survey) return `read the desk — ${word(o.survey.score)}`
   const drift = o.assessment ? dur(o.assessment.driftSeconds) : ''
   switch (o.tier) {
     case 0:
@@ -27,16 +33,21 @@ function decision(o: Observation): string {
 /** The newest reading, as a person would say it. */
 export function Thinking({
   latest,
+  latestSurvey,
   since,
   frames,
   interruptions,
 }: {
   latest: Observation | null
+  latestSurvey: Observation | null
   since: string | null
   frames: number
   interruptions: number
 }) {
   const a = latest?.assessment ?? null
+  // The reading travels on a row of its own, so it carries the moment it was taken.
+  const reading = latestSurvey?.survey ? { ...latestSurvey.survey, at: latestSurvey.ts } : null
+  const worst = reading?.hotspots[0] ?? null
   return (
     <section
       className="flex flex-col gap-4 rounded-md border border-border p-5"
@@ -85,6 +96,24 @@ export function Thinking({
           <p className="border-t border-border pt-3 text-body text-text">{decision(latest)}</p>
         </>
       )}
+      {reading ? (
+        <div className="flex flex-col gap-1 border-t border-border pt-3">
+          <span className="text-body text-text">
+            The desk looks {word(reading.score)} — {reading.score.toFixed(2)}
+          </span>
+          {worst ? <span className="text-small text-text-muted">Mostly {worst.label}.</span> : null}
+          <ul className="flex flex-col gap-1">
+            {reading.evidence.slice(0, 3).map((e) => (
+              <li key={e} className="text-small text-text-muted">
+                {e}
+              </li>
+            ))}
+          </ul>
+          <span className="tnum text-caption text-text-faint">
+            swept {mm(Math.max(0, (Date.now() - Date.parse(reading.at)) / 1000))} ago
+          </span>
+        </div>
+      ) : null}
       <p className="tnum text-caption text-text-faint">
         {since
           ? `watched since ${new Date(since).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
