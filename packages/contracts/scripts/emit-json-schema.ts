@@ -48,7 +48,11 @@ const topLevel: Record<string, ZodTypeAny> = {
   DeskFrameResponse: contracts.DeskFrameResponse,
   DeskStatus: contracts.DeskStatus,
   DeskActionRecord: contracts.DeskActionRecord,
+  DeskSurveyResult: contracts.DeskSurveyResult,
   FrameRejectionCode: contracts.FrameRejectionCode,
+  // The survey reading (HELI-091): the model's second output, written on the
+  // observation row and read by the app's live view.
+  ClutterReading: contracts.ClutterReading,
   // The phone. The app imports the package directly, but the schema is the
   // record of what crosses the socket, and the Python-side tools read this file.
   MobilePairCodeResponse: contracts.MobilePairCodeResponse,

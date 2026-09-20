@@ -1,6 +1,13 @@
 import type { ZodTypeAny, z } from 'zod'
 
-import { Assessment, Intervention, Outcome, SignalWindow, Tier } from '@heli/contracts'
+import {
+  Assessment,
+  ClutterReading,
+  Intervention,
+  Outcome,
+  SignalWindow,
+  Tier,
+} from '@heli/contracts'
 import type { Intervention as ApiIntervention, Observation as ApiObservation } from '@heli/contracts'
 import type { Intervention as InterventionRow, Observation as ObservationRow } from '@prisma/client'
 
@@ -100,6 +107,11 @@ export function toApiObservation(row: ObservationRow): ApiObservation | null {
       row.latencyMs !== null && Number.isInteger(row.latencyMs) && row.latencyMs >= 0
         ? row.latencyMs
         : null,
+    // The desk survey's reading. A survey row carries one and `assessment: null`;
+    // a window row carries `null` here. The contract keeps `default(null)` rather
+    // than `optional()` because the live view filters on `survey === null` to tell
+    // a survey row from a window, and `undefined` would slip through that filter.
+    survey: optionalField(ClutterReading, row.survey, { rowId: row.id, field: 'survey' }),
   }
 }
 

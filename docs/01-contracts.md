@@ -21,6 +21,7 @@ model Observation {
 
   signals     Json              // the folded window this was assessed from, see SignalWindow
   assessment  Json?             // see Assessment. null when the model was unreachable
+  survey      Json?             // see ClutterReading. the desk sweep's reading, or null
   tier        Int               // 0..5, the intervention that fired
   action      Json?             // see Intervention. null for tier 0
   outcome     String?           // resolved | ignored | reverted | unknown
@@ -33,6 +34,17 @@ model Observation {
 ```
 
 `tier == 0` is the common case and is not a failure. Most windows are silent.
+
+A survey row is an observation too, and it says so by its columns: it carries `assessment: null`
+and its `survey` reading, so a sweep of the desk is kept without pretending the person was off
+task. A drift row is the other way round — `survey: null`.
+
+**It is not a window.** A survey row carries the folded window it was taken on, so any read that
+folds observations into per-minute metrics — the analytics aggregates, the phone's timeline, the
+history ribbon — must exclude it or it counts that window's seconds twice and, having no
+`assessment`, breaks a focus run. In Prisma that is `survey: { equals: Prisma.AnyNull }`: the column
+is nullable JSON, where a bare `null` is ambiguous (JSON null or SQL NULL) and Prisma refuses it in a
+filter, so `AnyNull` — "this column is empty" — is the only form that says what it means.
 
 ---
 
@@ -110,7 +122,7 @@ export const Goal = z.object({
 
 ---
 
-## 4. Assessment (the model's only output)
+## 4. Assessment (the model's outputs)
 
 ```ts
 export const ActivityKind = z.string() // open vocabulary: working, reading, phone, away, talking, ...
@@ -129,6 +141,34 @@ export const Assessment = z.object({
 `because` is for the console. It is never spoken and never shown as an action. The policy writes
 what is shown.
 
+### The survey reading — the model's second output
+
+The assessment answers "is this person on task?" every window. A **survey** answers "how cluttered is
+the desk?" rarely, once per sweep of the desk, from two to four frames taken one after another across
+it. Same rules: a schema, a console line that is never spoken, and no free text for the person.
+
+```ts
+export const ClutterLabel = z.enum([
+  'papers', 'cups', 'dishes', 'food', 'cables', 'clothes', 'tools', 'boxes', 'bottles', 'other',
+])
+
+export const ClutterReading = z.object({
+  score: z.number().min(0).max(1),              // 0 is a clear surface with room to work
+  hotspots: z.array(z.object({
+    poseIndex: z.number().int().nonnegative(),  // which frame of the sweep saw it
+    label: ClutterLabel,
+    severity: z.number().min(0).max(1),
+    at: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).strict(),
+  }).strict()).max(3),
+  evidence: z.array(z.string().max(140)).max(5),
+  confidence: z.number().min(0).max(1),
+  because: z.string().max(200),                 // one tutor-facing line, NEVER spoken
+})
+```
+
+It rides on the observation row (`survey`), and the policy — not the model — decides whether it
+becomes a line, exactly as it does for a drift assessment.
+
 ---
 
 ## 5. Policy and intervention
@@ -146,6 +186,11 @@ export const DEFAULT_POLICY = z.object({
   resolveWindowMs: z.number().int().default(120_000),
   revertWindowMs: z.number().int().default(60_000),
   maxAutomationsPerSession: z.number().int().default(6),
+  surveyFloorMs: z.number().int().default(1_200_000),        // how often a sweep is worth taking
+  surveyGapMs: z.number().int().default(300_000),            // and how close two sweeps may be
+  clutterSpeakScore: z.number().min(0).max(1).default(0.6),  // above this, a desk line is earned
+  clutterRiseDelta: z.number().min(0).max(1).default(0.25),  // and only when it got worse
+  clutterGapMs: z.number().int().default(2_700_000),         // at most one desk line per 45 min
 })
 
 export const Tier = z.number().int().min(0).max(5)
@@ -158,6 +203,9 @@ export const Intervention = z.object({
   action: Automation.nullable(),
   reversible: z.boolean(),
   reason: z.string(),                           // machine readable, mirrors Observation.reason
+  point: z.object({ x: z.number(), y: z.number() }).strict().nullable().optional(),
+  // desk millimetres to point at when the line comes with a gesture (`arm.point`), absent on every
+  // line that has none: a clutter line on a calibrated desk points at the pile it is talking about
 })
 ```
 
@@ -212,6 +260,7 @@ Base `/v1`, bearer JWT.
 | `POST` | `/sessions/:id/speak` | a manual line, still passing the policy |
 | `GET` | `/sessions/:id/media-token` · `/video.mjpg` · `/media-state` | the media path |
 | `POST` | `/sessions/:id/sample` | force one sample through the loop |
+| `POST` | `/desks/:id/survey` | a sweep of the desk now: `DeskSurveyResponse`. The rest of the desk routes are in `docs/03-desk-capture.md` |
 
 Analytics shapes: `summary { focusedMinutes, offTaskMinutes, interventions, longestFocusRunSeconds,
 tierHistogram }` · `tiers { tier, outcome, count }[]` · `apps { app, seconds, onTask }[]` ·

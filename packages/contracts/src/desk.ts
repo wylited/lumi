@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { ClutterReading } from './clutter.js'
 import { AudioOut } from './media.js'
 
 /**
@@ -98,9 +99,47 @@ export const DeskAction = z.discriminatedUnion('type', [
    * after its ack. `on: false` stops it and leaves the arm where it is.
    */
   z.object({ ...ActionBase, id: z.string(), type: z.literal('arm.track'), payload: z.object({ on: z.boolean() }).strict() }).strict(),
+  /**
+   * Sweep the desk for the survey: up to four poses across it, one frame each.
+   *
+   * The rig brackets the whole sweep in its own freeze rather than the per-move
+   * one, so the follow loop is not fought pose by pose. The server waits longer
+   * for this ack than for any other action, and never retries it — a second
+   * sweep would move the arm and take frames again.
+   */
+  z.object({ ...ActionBase, id: z.string(), type: z.literal('desk.survey'), payload: z.object({ reason: z.string().nullable(), poses: z.number().int().min(1).max(4).default(3) }).strict() }).strict(),
 ])
 export type DeskAction = z.infer<typeof DeskAction>
 export type DeskActionType = DeskAction['type']
+
+/**
+ * One pose a sweep took: where it pointed, which frame landed, and the desk
+ * millimetres it aimed at when the rig had a calibration to go through.
+ *
+ * `pose` is null when the arm would not say where it was and `aim` is null on
+ * everything but a `'point'` target, so a sweep with no calibration still
+ * reports its frames.
+ */
+export const DeskSurveyPose = z
+  .object({
+    index: z.number().int().nonnegative(),
+    seq: z.number().int().nonnegative(),
+    pose: ArmPose.nullable(),
+    aim: z.object({ x: z.number(), y: z.number() }).strict().nullable(),
+  })
+  .strict()
+export type DeskSurveyPose = z.infer<typeof DeskSurveyPose>
+
+/** What `desk.survey` acks with: the reason it was asked, and the poses it took. */
+export const DeskSurveyResult = z
+  .object({
+    reason: z.string().nullable(),
+    startedAt: z.string(),
+    durationMs: z.number().int().nonnegative(),
+    poses: z.array(DeskSurveyPose).max(4),
+  })
+  .strict()
+export type DeskSurveyResult = z.infer<typeof DeskSurveyResult>
 
 /** Results are specific where it matters: an aim reports where it landed. */
 export const DeskActionResult = z
@@ -110,6 +149,8 @@ export const DeskActionResult = z
     zoom: z.number().positive().nullable().default(null),
     /** `audio.out`: how long the line took to play, in milliseconds. */
     durationMs: z.number().int().nonnegative().nullable().default(null),
+    /** `desk.survey`: the sweep's own report, null on every other action. */
+    survey: DeskSurveyResult.nullable().default(null),
   })
   .strict()
 export type DeskActionResult = z.infer<typeof DeskActionResult>
@@ -151,6 +192,8 @@ export const DeskHealth = z
     framesSent: z.number().int().nonnegative().default(0),
     /** Whether the rig is following the person (`arm.track`). Null from a rig that does not say. */
     following: z.boolean().nullable().default(null),
+    /** Whether the rig is mid-sweep (`desk.survey`), so the panel can say so on the row. */
+    surveying: z.boolean().default(false),
   })
   .strict()
 export type DeskHealth = z.infer<typeof DeskHealth>
@@ -231,3 +274,23 @@ export const DeskActionRequest = z
   })
   .strict()
 export type DeskActionRequest = z.infer<typeof DeskActionRequest>
+
+/**
+ * `POST /v1/desks/:id/survey` — a sweep asked for now, from the desk panel.
+ *
+ * It is honest about a sweep it did not take: `reading` is null and `poses` is
+ * 0 with the `reason` why — `gap` (inside the sweep gap), `busy` (a sweep is
+ * already in flight), `no_desk` (no connected desk), `no_frames` (the rig's ack
+ * carried no frames, or the store had none), `assess_failed` (the model's answer
+ * would not parse) — never a reading from an earlier sweep. "There is no open
+ * session" is not on this list because it is refused before the pass runs: the
+ * route answers 409 `no_open_session` and this body is never built.
+ */
+export const DeskSurveyResponse = z
+  .object({
+    reading: ClutterReading.nullable(),
+    poses: z.number().int().nonnegative(),
+    reason: z.string().nullable(),
+  })
+  .strict()
+export type DeskSurveyResponse = z.infer<typeof DeskSurveyResponse>
