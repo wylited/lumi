@@ -12,6 +12,8 @@ When the work drifts from the goal it intervenes in steps: a tray colour, a noti
 
 It tracks your progress over time and keeps you accountable for the work you did, and didn't do.
 
+<img width="1920" height="1080" alt="poster-history" src="https://github.com/user-attachments/assets/3906e26c-997f-497b-97b4-e0aea17f1f76" />
+
 ## How it works
 
 Lumi processes multiple data points, a camera view, your screen data, open apps & tabs, and your phone activity, through DeepSeek vision, to conduct behavioural analysis and tracking of your focus and lack thereof.
