@@ -289,8 +289,16 @@ const desktop: FastifyPluginAsync = async (app) => {
           }
 
           case 'playback': {
+            const wasPlaying = playback?.playing ?? false
             playback = { playing: parsed.data.playing, momentId: parsed.data.momentId }
-            log.debug({ deviceId, ...playback }, 'desktop playback state recorded')
+            // `delivered: true` only ever meant "a socket took the frame". This is
+            // the app saying the audio actually started, which is the half of the
+            // spoken path the server cannot see for itself. Once per line.
+            if (playback.playing) {
+              log.info({ deviceId, momentId: playback.momentId }, 'the app started a spoken line')
+            } else if (wasPlaying) {
+              log.debug({ deviceId, momentId: playback.momentId }, 'the app finished the line')
+            }
             return
           }
         }
