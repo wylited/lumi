@@ -1,4 +1,5 @@
-import type { Prisma } from '@prisma/client'
+// A value import: `Prisma.AnyNull` is read at runtime by `observationWhere`.
+import { Prisma } from '@prisma/client'
 
 import { Outcome, Tier } from '@heli/contracts'
 import type {
@@ -61,12 +62,27 @@ function tsBounds(window: AnalyticsWindow): Prisma.DateTimeFilter | undefined {
 /**
  * Which observations are in scope: by `ts`, the moment the window was assessed.
  *
+ * **A survey row is an `Observation`, but it is not a window** (HELI-095): the
+ * sweep writes one row per reading carrying the very `signals` the loop already
+ * wrote for the window it was taken on. Counting it here would double every
+ * second it shares with that window — `focusedSeconds` and `offTaskSeconds`
+ * twice, a phantom `tierHistogram['0']`, the same `topApps` seconds again, the
+ * same `onTaskRatio` sampled twice — and, because it has no `assessment`, it
+ * would also break a focus run and truncate `longestFocusRunSeconds`. So it is
+ * excluded here, once, for every aggregate in this file.
+ *
+ * `AnyNull` and not a bare `null`: `Observation.survey` is a nullable **Json**
+ * column, where `null` is ambiguous — JSON `null` or SQL NULL — and Prisma 6
+ * refuses it in a filter at all (`Type 'null' is not assignable to
+ * JsonNullableFilter`). `Prisma.AnyNull` is the explicit "this column is empty",
+ * whichever of the two spellings the writer's `?? null` produced.
+ *
  * An inverted window (`from` after `to`) is empty rather than an error, by the
  * same rule as a window that simply contains no observations.
  */
 function observationWhere(window: AnalyticsWindow): Prisma.ObservationWhereInput {
   const ts = tsBounds(window)
-  return ts ? { ts } : {}
+  return { ...(ts ? { ts } : {}), survey: { equals: Prisma.AnyNull } }
 }
 
 /**

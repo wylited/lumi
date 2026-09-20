@@ -2,6 +2,8 @@ import { randomInt, randomUUID } from 'node:crypto'
 
 import { PHONE_SIGNAL, PhoneMotion } from '@heli/contracts'
 import type { MobileBlocklist, MobileSession, PhoneSnapshot, Signal } from '@heli/contracts'
+// A value import: `Prisma.AnyNull` filters the survey rows out at runtime.
+import { Prisma } from '@prisma/client'
 
 import { childLogger } from '../logger.js'
 import { prisma } from '../lib/prisma.js'
@@ -350,6 +352,15 @@ export async function phoneSession(phoneId: string): Promise<MobileSession> {
       startedAt: true,
       goal: { select: { objective: true, timeBudgetMinutes: true } },
       observations: {
+        // A survey row is a reading, not a window: it has no `assessment` and its
+        // tier is 0. Left in, the newest observation for up to a window after
+        // every sweep would be the sweep — the headline would drop to 'Watching',
+        // `judgedAt` would name the survey rather than the last judgement, and the
+        // ring would gain a phantom `{on: null, tier: 0}` cell per sweep, which at
+        // `take: 240` starts displacing real windows. `AnyNull`, not a bare `null`:
+        // `survey` is a nullable Json column and Prisma will not take `null` in a
+        // filter for it, so the explicit "this column is empty" is the only form.
+        where: { survey: { equals: Prisma.AnyNull } },
         orderBy: { ts: 'desc' },
         take: 240,
         select: { ts: true, assessment: true, tier: true },

@@ -7,11 +7,13 @@ import type {
   SessionDetail,
   SessionSummary,
 } from '@heli/contracts'
-import type {
-  Intervention as InterventionRow,
-  Observation as ObservationRow,
+// `Prisma` is a value here, not only a type: `Prisma.AnyNull` is read at runtime
+// to keep a survey row out of the observation queries.
+import {
   Prisma,
-  Session as SessionRow,
+  type Intervention as InterventionRow,
+  type Observation as ObservationRow,
+  type Session as SessionRow,
 } from '@prisma/client'
 
 import { prisma } from '../lib/prisma.js'
@@ -270,7 +272,16 @@ async function childrenOf(sessionIds: string[]): Promise<Map<string, Children>> 
 
   const [observationRows, interventionRows] = await Promise.all([
     prisma.observation.findMany({
-      where: { sessionId: { in: sessionIds } },
+      where: {
+        sessionId: { in: sessionIds },
+        // A survey row is a reading, not a window. It carries the `signals` of the
+        // window it was taken on, so a ribbon that counted it would shift every
+        // later cell by one — and the desktop draws this list as a per-minute
+        // ribbon in the history list and again in the session sheet. `AnyNull`,
+        // not a bare `null`: `survey` is a nullable Json column, where `null` is
+        // ambiguous (JSON null or SQL NULL) and Prisma refuses it in a filter.
+        survey: { equals: Prisma.AnyNull },
+      },
       orderBy: { ts: 'asc' },
     }),
     prisma.intervention.findMany({
