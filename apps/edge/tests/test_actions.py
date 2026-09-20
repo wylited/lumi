@@ -15,6 +15,7 @@ import pytest
 from heli_rig.actions import Dispatcher
 from heli_rig.arm.driver import ArmPose, ArmUnavailable
 from heli_rig.camera import Frame
+from heli_rig.survey import SurveyPose, SurveyReport
 from heli_rig.upload import UploadOutcome
 from tests.fake_desk import FakeArm, FakeCapture, FakeSource, rig_config
 
@@ -30,13 +31,29 @@ def frame() -> Frame:
     return Frame(jpeg=b"\xff\xd8jpeg", width=640, height=480, captured_at="2026-09-19T14:02:11.482Z")
 
 
-def ack(action_id: str, status: str, *, pose=None, seq=None, zoom=None, duration_ms=None, error=None) -> dict:
+def ack(
+    action_id: str,
+    status: str,
+    *,
+    pose=None,
+    seq=None,
+    zoom=None,
+    duration_ms=None,
+    survey=None,
+    error=None,
+) -> dict:
     """The whole ack, spelled out: the contract's result carries every field."""
     return {
         "t": "action.ack",
         "actionId": action_id,
         "status": status,
-        "result": {"pose": pose, "seq": seq, "zoom": zoom, "durationMs": duration_ms},
+        "result": {
+            "pose": pose,
+            "seq": seq,
+            "zoom": zoom,
+            "durationMs": duration_ms,
+            "survey": survey,
+        },
         "error": error,
     }
 
@@ -45,11 +62,45 @@ def action(action_id: str, kind: str, **payload) -> dict:
     return {"t": "action", "id": action_id, "issuedAt": "2026-09-19T14:02:11.482Z", "type": kind, "payload": payload}
 
 
-def desk(cfg, *, frames=(), arm=None, caps: dict | None = None, outcome=None):
+class FakeSurveyor:
+    """A sweep whose report the test writes: what the ack has to carry, and no more.
+
+    `surveying` is a plain attribute here because the dispatcher only reads it, and the
+    real one owns it for the length of a sweep.
+    """
+
+    def __init__(self, report: SurveyReport | None = None, *, fails: BaseException | None = None) -> None:
+        self.report = report or SurveyReport(
+            reason=None, started_at="2026-09-20T10:00:00.000Z", duration_ms=4200, poses=[]
+        )
+        self.fails = fails
+        self.sweeps: list[tuple[int, str | None]] = []
+        self.surveying = False
+
+    async def sweep(self, count: int, reason: str | None) -> SurveyReport:
+        self.sweeps.append((count, reason))
+        if self.fails is not None:
+            raise self.fails
+        return self.report
+
+
+def report(
+    poses: list[SurveyPose], reason: str | None = "survey:manual", error: str | None = None
+) -> SurveyReport:
+    return SurveyReport(
+        reason=reason,
+        started_at="2026-09-20T10:00:00.000Z",
+        duration_ms=4200,
+        poses=poses,
+        error=error,
+    )
+
+
+def desk(cfg, *, frames=(), arm=None, caps: dict | None = None, outcome=None, surveyor=None):
     """A dispatcher with a camera, an arm and an idle cadence of their own."""
     capture = FakeCapture(frames, last_seq=6, outcome=outcome)
     capture.source = FakeSource(dict(CAMERA) if caps is None else caps)
-    return Dispatcher(capture, arm, None, cfg, log), capture
+    return Dispatcher(capture, arm, None, cfg, log, surveyor=surveyor), capture
 
 
 def config(tmp_path):
@@ -179,6 +230,98 @@ async def test_aim_point_and_home_ack_the_pose_the_arm_achieved(tmp_path):
     assert homed == ack("a-3", "done", pose=achieved)
     # The request reached the driver unchanged; only the answer is the achieved one.
     assert arm.calls == [("aim", 10.0, -3.0), ("point", 120.0, -40.0), ("home",)]
+
+
+@pytest.mark.asyncio
+async def test_a_sweep_acks_the_poses_and_the_frames_it_took(tmp_path):
+    """A `desk.survey` is answered with its own report, not with the arm's pose: the frames
+    it took are what the server reads the desk from."""
+    surveyor = FakeSurveyor(
+        report(
+            [
+                SurveyPose(index=0, seq=7, pose={"pan": -2.0, "tilt": -12.0}),
+                SurveyPose(index=1, seq=8, pose={"pan": 10.0, "tilt": -12.0}, aim={"x": 150.0, "y": 100.0}),
+            ],
+            reason="survey:manual",
+        )
+    )
+    # No arm: a sweep is not an arm action, and a rig that cannot aim still takes the frame
+    # the camera is already pointed at.
+    dispatcher, _ = desk(config(tmp_path), surveyor=surveyor)
+
+    answer = await dispatcher.handle(action("a-1", "desk.survey", reason="survey:manual"))
+
+    assert answer == ack(
+        "a-1",
+        "done",
+        survey={
+            "reason": "survey:manual",
+            "startedAt": "2026-09-20T10:00:00.000Z",
+            "durationMs": 4200,
+            "poses": [
+                {"index": 0, "seq": 7, "pose": {"pan": -2.0, "tilt": -12.0}, "aim": None},
+                {"index": 1, "seq": 8, "pose": {"pan": 10.0, "tilt": -12.0}, "aim": {"x": 150.0, "y": 100.0}},
+            ],
+        },
+    )
+    assert surveyor.sweeps == [(3, "survey:manual")], "three poses is the default the contract names"
+
+
+@pytest.mark.asyncio
+async def test_a_sweep_that_took_no_frame_is_acked_failed_with_its_report(tmp_path):
+    """`done` with an empty pose list would tell the server a reading exists when the
+    camera never answered; the report still goes back, so the server can say why."""
+    surveyor = FakeSurveyor(report([], error="no_frame"))
+    dispatcher, _ = desk(config(tmp_path), surveyor=surveyor)
+
+    answer = await dispatcher.handle(action("a-1", "desk.survey", poses=2, reason=None))
+
+    assert answer == ack(
+        "a-1",
+        "failed",
+        survey={
+            "reason": "survey:manual",
+            "startedAt": "2026-09-20T10:00:00.000Z",
+            "durationMs": 4200,
+            "poses": [],
+        },
+        error="no_frame",
+    )
+    assert surveyor.sweeps == [(2, None)], "the count the server asked for is the one swept"
+
+
+@pytest.mark.asyncio
+async def test_a_rig_with_no_surveyor_refuses_a_sweep_by_name(tmp_path):
+    dispatcher, _ = desk(config(tmp_path))
+
+    answer = await dispatcher.handle(action("a-1", "desk.survey", reason="survey:manual"))
+
+    assert answer == ack("a-1", "failed", error="survey_unavailable")
+
+
+@pytest.mark.asyncio
+async def test_an_unknown_desk_action_still_falls_through_to_unknown_action(tmp_path):
+    """`desk.survey` is one action, not a namespace: the rig answers what it knows and
+    refuses the rest rather than performing something it guessed at."""
+    dispatcher, _ = desk(config(tmp_path), surveyor=FakeSurveyor())
+
+    answer = await dispatcher.handle(action("a-1", "desk.resweep", reason="survey:manual"))
+
+    assert answer == ack("a-1", "failed", error="unknown_action")
+
+
+@pytest.mark.asyncio
+async def test_the_dispatcher_reports_whether_a_sweep_is_in_flight(tmp_path):
+    """`desk.health.surveying` is read off the dispatcher, and it is a claim about now."""
+    surveyor = FakeSurveyor()
+    dispatcher, _ = desk(config(tmp_path), surveyor=surveyor)
+
+    assert dispatcher.surveying is False
+    surveyor.surveying = True
+    assert dispatcher.surveying is True
+
+    plain, _ = desk(config(tmp_path))
+    assert plain.surveying is False, "a rig built without a sweep is never mid-sweep"
 
 
 @pytest.mark.asyncio

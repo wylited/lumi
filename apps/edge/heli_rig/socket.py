@@ -315,7 +315,17 @@ class DeskClient:
             # upload outcome never reaches this side.
             "framesSent": int(frames_sent) if isinstance(frames_sent, int) and frames_sent >= 0 else 0,
             "following": self._following(),
+            "surveying": self._surveying(),
         }
+
+    def _surveying(self) -> bool:
+        """Whether a sweep is in flight, read off the dispatcher that is running it.
+
+        Not nullable, unlike `following`: a sweep is something the rig either is doing now or
+        is not, and a rig with no surveyor is not mid-sweep. The app reads it to say so on the
+        row rather than offering a second sweep behind the first.
+        """
+        return bool(getattr(self._dispatcher, "surveying", False))
 
     def _following(self) -> bool | None:
         """Whether the rig is following someone, or None when it has no tracker at all.
@@ -502,7 +512,15 @@ class DeskClient:
                 "t": "action.ack",
                 "actionId": moment_id,
                 "status": "failed" if error else "done",
-                "result": {"pose": None, "seq": None, "zoom": None, "durationMs": duration_ms},
+                # The result carries every field the contract names, `survey` included: a
+                # line is not a sweep, and the server's ack schema is strict about it.
+                "result": {
+                    "pose": None,
+                    "seq": None,
+                    "zoom": None,
+                    "durationMs": duration_ms,
+                    "survey": None,
+                },
                 "error": error,
             }
         )

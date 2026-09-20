@@ -78,7 +78,7 @@ setup fields are typed in the desktop app; the rectangle is stored by the rig in
 POST /v1/sessions/:id/frames
 content-type: image/jpeg
 x-heli-captured-at: 2026-09-19T14:02:11.482Z
-x-heli-source: camera | screen
+x-heli-source: camera | screen | survey
 x-heli-seq: 17
 
 <the JPEG bytes>
@@ -90,6 +90,12 @@ the long edge, and it keeps **the newest frame per session**. Older frames are d
 a stale frame is worse than a missing one. A rejection is `422 { error, code }` with one of
 `frame_not_jpeg`, `frame_too_large`, `frame_too_wide`; `409 no_open_session` means nothing is being
 watched, so the rig backs off instead of spinning.
+
+`survey` is the third source and the one that is not live: a sweep's frames are taken across the desk
+on request, tagged `x-heli-source: survey`, and kept in their own set. The per-tick assessment reads
+`camera` and `screen` only — a deliberate reading of the desk must not become the frame the loop
+assesses — and the survey path reads the newest **set** of the last survey by `seq`, in the order the
+sweep took them, left to right across the desk.
 
 The loop reads the newest frame through the `frameBytes` reader in
 `apps/server/src/observe/persistence.ts`, so nothing in the loop changes.
@@ -104,6 +110,7 @@ timeout and retry rules as any command.
 | action | payload | what the rig does |
 |---|---|---|
 | `capture` | `{ reason }` | take one frame now and upload it |
+| `desk.survey` | `{ reason, poses }` | sweep the desk: up to four poses, one frame each, uploaded as `survey` |
 | `stream.start` | `{ fps }` | begin capturing at that rate |
 | `stream.stop` | — | stop capturing |
 | `camera.zoom` | `{ factor }` | optical or digital zoom, if the camera has it |
@@ -115,7 +122,12 @@ timeout and retry rules as any command.
 
 Every action acks with `{ status, result? }`; `result` for `arm.*` includes the achieved pose, and
 for `capture` the frame's `seq`. An action that cannot be performed — no arm, no zoom, serial
-error — acks `failed` with a reason. **Nothing is pretended.**
+error — acks `failed` with a reason. **Nothing is pretended.** `desk.survey` acks with its own
+`survey` block — the reason it was asked, how long it took, and the poses it took, each with the pose
+the arm reached, the desk millimetres it aimed at when there was a calibration, and the `seq` of the
+frame that landed for it. A sweep that took no frame at all is `failed` with `no_frame`; a sweep that
+ran past its 20 s cap is `failed` with `survey_timeout` and the poses it did take, because a partial
+sweep is a true report rather than a reading the server may treat as complete.
 
 ### Physical interventions
 
@@ -133,7 +145,8 @@ reversible (the next action, or `arm.home`, undoes it).
   "arm": { "model":"...", "dof":6, "serial":"usbmodem14201" } | null,
   "transport": ["ws"] }
 
-{ "t":"desk.health", "fps":2, "lastFrameAt":"...", "armPose":{ "pan":0,"tilt":-12 }, "tempC":48 }
+{ "t":"desk.health", "fps":2, "lastFrameAt":"...", "armPose":{ "pan":0,"tilt":-12 }, "tempC":48,
+  "framesSent":241, "following":true, "surveying":false }
 ```
 
 A missing `arm` means aim actions are never sent. That is the whole capability negotiation.

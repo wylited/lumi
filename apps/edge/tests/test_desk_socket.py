@@ -44,13 +44,29 @@ def frame() -> Frame:
     return Frame(jpeg=b"\xff\xd8jpeg", width=640, height=480, captured_at=CAPTURED_AT)
 
 
-def ack(action_id: str, status: str, *, pose=None, seq=None, zoom=None, duration_ms=None, error=None) -> dict:
+def ack(
+    action_id: str,
+    status: str,
+    *,
+    pose=None,
+    seq=None,
+    zoom=None,
+    duration_ms=None,
+    survey=None,
+    error=None,
+) -> dict:
     """The whole ack, spelled out: the contract's result carries every field."""
     return {
         "t": "action.ack",
         "actionId": action_id,
         "status": status,
-        "result": {"pose": pose, "seq": seq, "zoom": zoom, "durationMs": duration_ms},
+        "result": {
+            "pose": pose,
+            "seq": seq,
+            "zoom": zoom,
+            "durationMs": duration_ms,
+            "survey": survey,
+        },
         "error": error,
     }
 
@@ -133,6 +149,9 @@ async def test_a_connection_announces_the_desk_and_keeps_it_alive(tmp_path):
             # Follow me switch has nothing to turn on. `test_the_health_says_whether_...`
             # covers the other two answers.
             "following": None,
+            # This rig was handed no surveyor either, and `surveying` is not nullable: a
+            # sweep is something a rig is doing now or is not.
+            "surveying": False,
         }
 
         # The token rides in the query string and the protocol is negotiated, so

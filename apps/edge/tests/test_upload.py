@@ -79,6 +79,19 @@ async def test_a_201_carries_the_frames_identity_and_the_headers_the_server_read
 
 
 @pytest.mark.asyncio
+async def test_the_source_header_is_camera_unless_a_sweep_asks_for_survey(config, stub):
+    """The header is how the server keeps a desk reading out of the live frames' ring."""
+    server = stub(lambda _request: (201, "application/json", UPLOADED))
+    uploader = Uploader(replace(config, api_url=server.url), Tokens("t"), LOG)
+
+    await uploader.upload(frame(), 1)
+    await uploader.upload(frame(), 2, "survey")
+    await uploader.aclose()
+
+    assert [request.headers["x-heli-source"] for request in server.requests] == ["camera", "survey"]
+
+
+@pytest.mark.asyncio
 async def test_a_409_is_a_closed_session_not_a_failure_to_report(config, stub):
     server = stub(lambda _request: (409, "application/json", b'{"error":"no_open_session"}'))
     uploader = Uploader(replace(config, api_url=server.url), Tokens("t"), LOG)

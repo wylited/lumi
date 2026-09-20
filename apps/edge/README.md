@@ -202,7 +202,8 @@ the one whose chest is nearest that aim point.
 
 **What the app can already ask for:** `capture`, `stream.start { fps }`, `stream.stop`, `arm.aim
 { pan, tilt }`, `arm.point { x, y }` (desk-plane millimetres, needs a calibration),
-`arm.nod { times }`, `arm.home`. `arm.track { on }` is the new one (below).
+`arm.nod { times }`, `arm.home`, and `desk.survey { reason, poses }` (the sweep, below). `arm.track
+{ on }` is the new one (below).
 
 **Frames are resized, never cropped.** The setup rectangle is the arm's calibration and the app's
 overlay; the rig uploads the whole frame downscaled, so the overlay's rectangle and the picture share
@@ -235,6 +236,47 @@ aim point. It is off by default — an observer that moves on its own is a decis
   project's own hand-tuned value) the arm does not move: a person sitting still is not chased by a
   camera twitching at keypoint jitter. It is deliberately tight, because a person sitting at the
   desk measures 0.01–0.03 off the aim point and a coarser band would silently mean "never move".
+
+---
+
+## Sweeping the desk
+
+`desk.survey { reason, poses }` is the server asking the rig what the desk looks like. The rig
+walks up to four poses across it and takes one frame at each — the frames are the reading, and the
+ack carries what it took:
+
+```jsonc
+{ "status": "done",
+  "result": { "survey": { "reason": "survey:manual", "startedAt": "...", "durationMs": 5200,
+                          "poses": [ { "index": 0, "seq": 41, "pose": { "pan": -2, "tilt": -12 }, "aim": null },
+                                     { "index": 1, "seq": 42, "pose": { "pan": 10, "tilt": -12 }, "aim": null } ] } } }
+```
+
+- **One pose is the start reading.** The server asks for a single pose at session start: the camera
+  already points at the desk, and moving the arm two minutes after someone sat down is a gesture
+  nobody asked for. The sweep then takes one frame and commands nothing at all.
+- **The cadence is parked and the follow loop frozen for the whole sweep**, not per pose: one
+  camera and one arm are being shared, and a tick that woke up between two poses would take a frame
+  of the rig mid-turn. Both are let go when the sweep ends, whatever happened during it.
+- **The frames travel tagged `x-heli-source: survey`.** The server keeps the sources in separate
+  sets, so a deliberate reading of the desk never lands in the ring the per-tick assessment reads.
+- **The whole sweep is capped at 20 s.** A sweep that runs out of time reports `survey_timeout` and
+  the poses it did take, and a sweep that took no frame at all is `failed` with `no_frame`: a `done`
+  with an empty pose list would tell the server a reading exists when the camera never answered.
+  `desk.survey` is also the one action the server waits longer for and never retries — a retried
+  sweep would move the arm and take frames again.
+- **`desk.health.surveying`** says a sweep is in flight, so the app can say so on the row rather
+  than offering a second sweep behind the first.
+
+Two things this cannot do on a rig with no calibration (`~/.heli/rig.json` carrying no `rect_mm`,
+or fewer than three measured poses):
+
+- **The sweep pans in steps instead of walking the desk.** `±12°` around the start pose, `8°` lower
+  so the desk is in frame rather than the wall. A pose outside the joint's travel is refused by the
+  driver, skipped, and simply missing from the report.
+- **No physical point.** The point at the pile needs desk millimetres, and desk millimetres need
+  the rectangle: without it a sweep with two frames reports `aim: null` on both. `--calibrate`
+  (above) is what turns the point on.
 
 ---
 

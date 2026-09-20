@@ -54,8 +54,13 @@ class Uploader:
         self._log = log
         self._client: httpx.AsyncClient | None = None
 
-    async def upload(self, frame: Frame, seq: int) -> UploadOutcome:
-        """Post one frame. The token is the only thing worth retrying."""
+    async def upload(self, frame: Frame, seq: int, source: str = "camera") -> UploadOutcome:
+        """Post one frame. The token is the only thing worth retrying.
+
+        `source` is the tag the server stores the frame under: the cadence's own frames
+        are `camera`, and a sweep's are `survey`, which is what keeps a deliberate reading
+        of the desk out of the per-tick assessment.
+        """
         token = self._token()
         if token is None:
             # No credentials at all. A request would be a guaranteed 401, so the
@@ -64,14 +69,14 @@ class Uploader:
             self._log.debug("no desk token: the frame was not sent")
             return self._refused(0, "unauthorized")
 
-        response = await self._post(frame, seq, token)
+        response = await self._post(frame, seq, token, source)
         if response is not None and response.status_code == 401:
             # The desk token is short-lived by design, so an expired one is the
             # expected failure. A second 401 is a configuration answer, not a
             # transient one, and is not retried again.
             refreshed = self._token(refresh=True)
             if refreshed is not None:
-                response = await self._post(frame, seq, refreshed)
+                response = await self._post(frame, seq, refreshed, source)
         if response is None:
             return self._refused(0, "transport")
         return self._read(response)
@@ -102,7 +107,7 @@ class Uploader:
             self._client = httpx.AsyncClient(timeout=UPLOAD_TIMEOUT_S)
         return self._client
 
-    async def _post(self, frame: Frame, seq: int, token: str) -> httpx.Response | None:
+    async def _post(self, frame: Frame, seq: int, token: str, source: str) -> httpx.Response | None:
         try:
             return await self._http().post(
                 f"{self._cfg.api_url}{FRAMES_PATH}",
@@ -111,6 +116,11 @@ class Uploader:
                     "content-type": "image/jpeg",
                     "authorization": f"Bearer {token}",
                     "x-heli-captured-at": frame.captured_at,
+                    # Which lens this frame came from, in the contract's vocabulary. A
+                    # survey frame is not a live one: the server keeps the sources apart
+                    # rather than letting a desk reading overwrite the frame the loop is
+                    # assessing.
+                    "x-heli-source": source,
                     "x-heli-seq": str(seq),
                 },
             )

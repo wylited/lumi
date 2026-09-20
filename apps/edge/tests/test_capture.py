@@ -57,16 +57,41 @@ class FakeSource:
         self.opened = False
 
 
+class ParkedSource(FakeSource):
+    """A camera whose first `grab()` parks until the test lets it go.
+
+    That park is the window the hold guard alone cannot close: `hold()` stops ticks that
+    have not started, and this tick is already inside `_take()` when the hold goes up.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.gate = asyncio.Event()
+        self.parked = asyncio.Event()
+        self._parks = 0
+
+    async def grab(self) -> Frame:
+        if self._parks == 0:
+            self._parks = 1
+            self.parked.set()
+            await self.gate.wait()
+        return await super().grab()
+
+
 class FakeUploader:
     """An uploader whose answer — and whose patience — the test decides."""
 
     def __init__(self, outcome: UploadOutcome | None = None, gate: asyncio.Event | None = None) -> None:
         self.uploaded: list[tuple[Frame, int]] = []
+        #: The tag each frame travelled under, in order: the cadence's own frames are
+        #: `camera`, a sweep's are `survey`, and the two are what the server keeps apart.
+        self.sources: list[str] = []
         self.outcome = outcome or ok()
         self.gate = gate
 
-    async def upload(self, frame: Frame, seq: int) -> UploadOutcome:
+    async def upload(self, frame: Frame, seq: int, source: str = "camera") -> UploadOutcome:
         self.uploaded.append((frame, seq))
+        self.sources.append(source)
         if self.gate is not None:
             await self.gate.wait()
         return self.outcome
@@ -159,10 +184,11 @@ async def test_capture_now_works_while_the_cadence_is_stopped(config):
     loop.set_fps(0)
 
     assert await loop.tick() is None, "a stopped cadence takes no frames on its own"
-    frame = await loop.capture_now()
+    result = await loop.capture_now()
 
-    assert frame is not None
+    assert result is not None
     assert len(uploader.uploaded) == 1, "the capture action uploads its own frame before it returns"
+    assert result.seq == 1, "and hands the caller the seq it uploaded it under"
     assert loop.state()["lastSeq"] == 1
     assert loop.state()["fps"] == 0.0
 
@@ -199,6 +225,85 @@ async def test_a_camera_that_goes_away_keeps_the_rig_up(config, caplog, monkeypa
     assert caplog.text.count("retrying every") == 1, "one line for the outage, not one per retry"
     assert "camera is back" in caplog.text
     assert 2 <= source.opens <= 10, "it retried on a delay rather than spinning"
+
+
+@pytest.mark.asyncio
+async def test_a_hold_parks_the_cadence_and_capture_now_nests_inside_it(config, caplog):
+    """A hold is what a sweep takes for its whole run: the cadence stops for the duration,
+    and a `capture` action inside it takes its own frame without handing the cadence back."""
+    source = FakeSource()
+    uploader = FakeUploader()
+    loop = CaptureLoop(source, uploader, config, LOG)
+
+    loop.hold()
+    with caplog.at_level(logging.DEBUG, logger="test.capture"):
+        assert await loop.tick() is None, "a held cadence takes no frames"
+    assert source.taken == 0
+    assert "skipped_for_capture" in caplog.text
+
+    result = await loop.capture_now()
+    assert result is not None, "a capture inside a hold still takes its frame"
+    assert len(uploader.uploaded) == 1
+
+    assert await loop.tick() is None, "and the cadence is still parked afterwards"
+    assert source.taken == 1
+
+    loop.release()
+    assert await loop.tick() is not None, "the cadence comes back when the holder lets go"
+
+
+@pytest.mark.asyncio
+async def test_a_tick_parked_in_the_take_is_dropped_when_a_hold_goes_up(config):
+    """The window the hold guard alone cannot close: `hold()` stops ticks that have not
+    started, not one already inside `_take()`. That tick's frame is the holder's window,
+    and numbering it would move `state()['lastSeq']` - which the holder's own frame is
+    named by - out from under it, so it is dropped instead."""
+    source = ParkedSource()
+    uploader = FakeUploader()
+    loop = CaptureLoop(source, uploader, config, LOG)
+
+    tick = asyncio.create_task(loop.tick())
+    await source.parked.wait()  # the tick is inside `grab()`, past the hold guard
+
+    loop.hold()
+    result = await loop.capture_now("survey")
+    source.gate.set()  # let the parked tick finish, still under the hold
+    dropped = await tick
+
+    assert result is not None
+    assert dropped is None, "a frame taken under a hold is dropped, not numbered"
+    assert source.taken == 2, "the tick really did take a frame; it did not send it"
+    assert uploader.sources == ["survey"], "the tick's frame is not uploaded at all"
+    assert uploader.uploaded == [(result.frame, result.seq)], "and the holder's frame is"
+    assert result.seq == 1, "the holder's frame is the only one numbered"
+    assert loop.state()["lastSeq"] == result.seq, "the dropped tick never moved the cadence's number"
+
+    loop.release()
+
+
+@pytest.mark.asyncio
+async def test_a_release_that_was_never_held_does_not_free_the_cadence(config):
+    source = FakeSource()
+    loop = CaptureLoop(source, FakeUploader(), config, LOG)
+
+    loop.release()  # an unmatched release is a bug, not a licence to capture unwatched
+    loop.hold()
+
+    assert await loop.tick() is None
+
+
+@pytest.mark.asyncio
+async def test_a_frame_taken_off_the_cadence_carries_its_own_source(config):
+    """The tag is what the server files the frame under: a sweep's frames must not land in
+    the ring the per-tick assessment reads."""
+    uploader = FakeUploader()
+    loop = CaptureLoop(FakeSource(), uploader, config, LOG)
+
+    await loop.tick()
+    await settle()
+    await loop.capture_now("survey")
+
+    assert uploader.sources == ["camera", "survey"]
 
 
 @pytest.mark.asyncio

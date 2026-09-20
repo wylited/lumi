@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+from dataclasses import dataclass
 
 from .camera import CameraUnavailable, Frame, FrameSource
 from .config import Config
@@ -19,6 +20,21 @@ from .upload import UploadOutcome, Uploader
 CAMERA_RETRY_S = 5.0  # an unplugged camera is a state to retry, not an exit
 PAUSED_POLL_S = 0.2  # how often a stopped cadence checks on an upload already in flight
 SESSION_BACKOFF = 5  # a 409 means nobody is watching: a fifth of the cadence, not silence
+
+
+@dataclass(frozen=True)
+class CaptureResult:
+    """One frame taken off the cadence: the frame, its seq, and what the server said.
+
+    `seq` is the number `capture_now` gave this frame and uploaded it under, handed back
+    as a value the caller holds. `state()['lastSeq']` cannot stand in for it: that is the
+    *cadence's* number, which `desk.health` reads as such, and a hold does not stop a tick
+    that is already inside `_take()` from moving it on.
+    """
+
+    frame: Frame
+    seq: int
+    outcome: UploadOutcome
 
 
 class CaptureLoop:
@@ -44,11 +60,13 @@ class CaptureLoop:
         self._rejected = 0
         self._last_frame_at: str | None = None
         self._pending: asyncio.Task[UploadOutcome] | None = None
-        #: True while `capture_now` holds the camera and the uploader. The cadence
-        #: consults it for the same reason it consults `_settle()`: one frame at a
-        #: time, so a `capture` action and a tick cannot post two frames for one.
-        self._capturing = False
-        self._last_outcome: UploadOutcome | None = None
+        #: How many things are holding the camera and the uploader. The cadence consults
+        #: it for the same reason it consults `_settle()`: one frame at a time, so a
+        #: `capture` action and a tick cannot post two frames for one. Counted rather
+        #: than a flag because a hold lasts as long as its holder's whole run, not one
+        #: frame: a sweep holds across three poses, and a `capture` action nested inside
+        #: that hold must not hand the cadence back when it is done with its own frame.
+        self._holds = 0
         self._camera_down = False
         self._no_session = False
         self._streak: str | None = None
@@ -66,9 +84,10 @@ class CaptureLoop:
         that refused the last frame. None of those is an exception — the loop is
         expected to keep going.
         """
-        if self._capturing:
-            # A `capture` action is taking its frame right now. Let it own the
-            # camera and the uploader; this tick is one the cadence does not need.
+        if self._holds > 0:
+            # Something is holding the camera right now - a `capture` action taking its
+            # frame, or a sweep taking several. Let it own the camera and the uploader;
+            # this tick is one the cadence does not need.
             self._log.debug("skipped_for_capture")
             return None
         if self._settle():
@@ -84,41 +103,59 @@ class CaptureLoop:
         frame = await self._take()
         if frame is None:
             return None
+        if self._holds > 0:
+            # The guard above let this tick in, and a hold went up while it was inside
+            # `_take()` - so the frame it just took is the holder's window, not the
+            # cadence's, and numbering it would move the seq out from under the holder's
+            # own frame. Drop it rather than send it: a frame taken mid-sweep is not news.
+            self._log.debug("skipped_for_capture")
+            return None
         self._seq += 1
         self._start(frame, self._seq)
         return frame
 
-    async def capture_now(self) -> Frame | None:
-        """The `capture` action: one frame now, off the cadence, uploaded before it returns.
+    def hold(self) -> None:
+        """Park the cadence until the matching `release()`.
+
+        Used by whoever needs the camera and the uploader for more than one frame: a
+        sweep holds across its poses, and a `capture` action holds around its own. A hold
+        stops the ticks that have not started yet, and the one that is already inside
+        `_take()` is dropped when it comes back; the frames a holder takes still go up,
+        and `capture_now` is how a holder takes one.
+        """
+        self._holds += 1
+
+    def release(self) -> None:
+        """Let the cadence back in. Never goes below zero: an unmatched release is a bug,
+        not a reason to stop capturing."""
+        self._holds = max(0, self._holds - 1)
+
+    async def capture_now(self, source: str = "camera") -> CaptureResult | None:
+        """The `capture` action — or one pose of a sweep: one frame now, off the cadence.
 
         Waits for an upload already in flight, and claims the slot while it takes
         its own — the server attributes one frame at a time, and two POSTs would
         land two frames for one request. The claim covers the *take* as well as the
         POST, because every `await` in `_take()` is a yield the cadence could wake
-        up on. When this returns, `state()['lastSeq']` is the seq of the frame just
-        taken and `last_outcome` is what the server said about it.
+        up on. What comes back is this caller's own frame, held rather than read
+        back: the seq it was uploaded under and the server's answer to it, so
+        neither the loop's counter nor the last upload finishing can name
+        somebody else's frame. `source` is the tag the frame travels under: the
+        cadence's own frames are `camera`, and a sweep's are `survey`, so the
+        server reads the two sets apart.
         """
-        self._capturing = True
+        self.hold()
         try:
             await self._drain()
             frame = await self._take()
             if frame is None:
                 return None
-            self._seq += 1
-            await self._upload(frame, self._seq)
-            return frame
+            seq = self._seq + 1
+            self._seq = seq
+            outcome = await self._upload(frame, seq, source)
+            return CaptureResult(frame=frame, seq=seq, outcome=outcome)
         finally:
-            self._capturing = False
-
-    @property
-    def last_outcome(self) -> UploadOutcome | None:
-        """What the server said about the last frame this loop sent.
-
-        The `capture` action reads this to ack the truth: a frame the server
-        refused (409 with no session, 422, a transport error) must not be acked
-        `done` with a seq the server never stored.
-        """
-        return self._last_outcome
+            self.release()
 
     async def run(self) -> None:
         """Capture at the cadence until the rig is stopped.
@@ -213,8 +250,10 @@ class CaptureLoop:
                 self._log.exception("the on_frame callback raised")
         return frame
 
-    def _start(self, frame: Frame, seq: int) -> None:
-        self._pending = asyncio.create_task(self._upload(frame, seq), name=f"heli-rig-upload-{seq}")
+    def _start(self, frame: Frame, seq: int, source: str = "camera") -> None:
+        self._pending = asyncio.create_task(
+            self._upload(frame, seq, source), name=f"heli-rig-upload-{seq}"
+        )
 
     def _camera_failure(self, exc: Exception, was_down: bool) -> None:
         """One log line per outage: the first failure is news, its repeats are not."""
@@ -228,10 +267,10 @@ class CaptureLoop:
             # so with the traceback, and keep the loop alive anyway.
             self._log.exception("the camera path failed: %s", exc)
 
-    async def _upload(self, frame: Frame, seq: int) -> UploadOutcome:
+    async def _upload(self, frame: Frame, seq: int, source: str = "camera") -> UploadOutcome:
         """Upload one frame and fold the outcome into the cadence. Never raises."""
         try:
-            outcome = await self._uploader.upload(frame, seq)
+            outcome = await self._uploader.upload(frame, seq, source)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -240,9 +279,6 @@ class CaptureLoop:
             self._log.exception("the upload raised")
             outcome = UploadOutcome(ok=False, status=0, ref=None, seq=None, width=None, height=None, error="transport", rejected=False)
         self._record(outcome)
-        # Kept for the `capture` action, which acks what the server said about the
-        # frame it asked for: one field, written by whichever upload finished.
-        self._last_outcome = outcome
         return outcome
 
     def _settle(self) -> bool:

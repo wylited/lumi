@@ -28,6 +28,7 @@ from . import AGENT_VERSION
 from .camera import CameraUnavailable, DeferredSource, FrameSource, open_source
 from .capture import CAMERA_RETRY_S, CaptureLoop
 from .config import Config, load
+from .survey import Surveyor
 from .upload import UploadOutcome, Uploader
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
@@ -137,6 +138,10 @@ async def run_rig(cfg: Config, log: logging.Logger) -> None:
     # the newest one on its own cadence. One camera reader, two consumers.
     tracker = _tracker(cfg, arm, log)
     capture = CaptureLoop(source, uploader, cfg, log, on_frame=tracker.observe if tracker else None)
+    # The sweep shares the camera with the cadence and the arm with the follow loop, so it
+    # is built beside them and handed the same tracker: it freezes that loop itself for the
+    # whole of a sweep, and there is one owner of the freeze rather than two.
+    surveyor = Surveyor(capture, arm, cfg, log, tracker=tracker)
     tasks = [asyncio.create_task(capture.run(), name="heli-rig-capture")]
     if tracker is not None:
         tasks.append(asyncio.create_task(tracker.run(), name="heli-rig-follow"))
@@ -158,7 +163,7 @@ async def run_rig(cfg: Config, log: logging.Logger) -> None:
         # rather than becoming a user token the desk route will reject.
         client = DeskClient(
             cfg,
-            Dispatcher(capture, arm, speaker, cfg, log, tracker=tracker),
+            Dispatcher(capture, arm, speaker, cfg, log, tracker=tracker, surveyor=surveyor),
             capture,
             arm,
             speaker,

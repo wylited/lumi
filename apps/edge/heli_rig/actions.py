@@ -11,9 +11,9 @@ The arm is the only thing here that blocks. Every call into it goes through
 `asyncio.to_thread`, since the driver talks over a serial port and would
 otherwise stop the capture loop for as long as the arm takes to move.
 
-An ack's `result` is sent whole — `pose`, `seq`, `zoom` and `durationMs`, null
-where they mean nothing. The contract makes every field nullable, so a reader
-never has to guess whether a missing key is a missing value or a version skew.
+An ack's `result` is sent whole — `pose`, `seq`, `zoom`, `durationMs` and the sweep's own
+`survey`, null where they mean nothing. The contract makes every field nullable, so a
+reader never has to guess whether a missing key is a missing value or a version skew.
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from .camera import FrameSource
     from .capture import CaptureLoop
     from .config import Config
+    from .survey import SurveyReport, Surveyor
 
 __all__ = ["Dispatcher"]
 
@@ -61,6 +62,7 @@ class Dispatcher:
         cfg: Config,
         log: logging.Logger,
         tracker: Any | None = None,
+        surveyor: Surveyor | None = None,
     ) -> None:
         self._tracker = tracker
         self._capture = capture
@@ -68,6 +70,10 @@ class Dispatcher:
         self._speaker = speaker
         self._cfg = cfg
         self._log = log
+        #: The sweep, or None on a rig built without one. Held rather than reached for
+        #: through the capture loop: the sweep is a collaborator with its own state, the
+        #: way the tracker is, and a rig that cannot sweep says so by name.
+        self._surveyor = surveyor
 
     @property
     def tracker(self) -> Any | None:
@@ -78,6 +84,25 @@ class Dispatcher:
         rather than being given the same object a second time and the two drifting apart.
         """
         return self._tracker
+
+    @property
+    def surveying(self) -> bool:
+        """Whether a sweep is in flight right now (`desk.health.surveying`).
+
+        The sweep's own flag lives on the surveyor that is running it, and the socket holds
+        the dispatcher, so this is the one hop between them. A rig with no surveyor answers
+        `false` rather than `null`: `surveying` is a claim about now, and a rig that cannot
+        sweep is not mid-sweep.
+        """
+        surveyor = self._surveyor
+        if surveyor is None:
+            return False
+        try:
+            return bool(surveyor.surveying)
+        except Exception:
+            # A heartbeat is a claim about now and must never be the thing that stops the
+            # heartbeats: a surveyor that cannot answer is reported as not sweeping.
+            return False
 
     async def handle(self, action: dict) -> dict:
         """Dispatch one action and return the ack the server will read."""
@@ -123,10 +148,41 @@ class Dispatcher:
         if kind == "arm.track":
             return await self._track(action_id, payload)
 
+        if kind == "desk.survey":
+            # Before the arm branch and deliberately not in `_ARM_ACTIONS`: a sweep is
+            # several moves, and it brackets the follow loop itself rather than being
+            # bracketed per move the way a single `arm.aim` is.
+            return await self._survey(action_id, payload)
+
         if kind in _ARM_ACTIONS:
             return await self._arm_action(action_id, action, payload)
 
         return _ack(action_id, "failed", error="unknown_action")
+
+    # ---- the sweep ---------------------------------------------------------
+
+    async def _survey(self, action_id: str, payload: dict) -> dict:
+        """`desk.survey`: sweep the desk, and ack the poses and frames it took.
+
+        The report is acked whatever it holds — a sweep that took two poses of three is a
+        sweep that happened — and `done` is decided by whether any frame landed, not by
+        whether the sweep finished: an ack of `done` with no poses would tell the server a
+        reading exists when the camera never answered.
+        """
+        surveyor = self._surveyor
+        if surveyor is None:
+            return _ack(action_id, "failed", error="survey_unavailable")
+
+        self._log.info("desk.survey: reason=%s poses=%s", payload.get("reason"), payload.get("poses"))
+        report = await surveyor.sweep(int(payload.get("poses") or 3), payload.get("reason"))
+        if not report.poses:
+            self._log.warning("desk.survey took no frames (%s)", report.error)
+        return _ack(
+            action_id,
+            "done" if report.poses else "failed",
+            survey=_survey_dict(report),
+            error=report.error,
+        )
 
     # ---- following a person ------------------------------------------------
 
@@ -160,39 +216,29 @@ class Dispatcher:
     # ---- capture -----------------------------------------------------------
 
     async def _capture_once(self, action_id: str, payload: dict) -> dict:
-        """One frame now, and the seq the frame was numbered with.
+        """One frame now, and the seq the frame was uploaded under.
 
-        `capture_now` takes the frame and hands it to the uploader; the seq
-        belongs to the capture loop, which numbers what it sends, so the ack
-        reads the number back from the loop instead of inventing one.
+        `capture_now` takes the frame, numbers it and hands it to the uploader
+        before it returns, and what it returns is this caller's own frame: the
+        seq it went up as and the server's answer to it. Neither is read back
+        from the loop, because the loop's counter belongs to the cadence - a tick
+        already inside `_take()` when this frame's hold went up is dropped, and
+        the last upload to finish is not necessarily this one.
         """
         self._log.info("capture: reason=%s", payload.get("reason"))
 
-        frame = await self._capture.capture_now()
-        if frame is None:
+        result = await self._capture.capture_now()
+        if result is None:
             return _ack(action_id, "failed", error="no_frame")
 
-        outcome = self._capture.last_outcome
-        if outcome is not None and not outcome.ok:
+        if not result.outcome.ok:
             # The frame exists and the server refused it: no session open (409), a
             # frame it would not take (422), a transport error. Acking `done` with
             # this frame's seq would name a stored frame that does not exist, which
             # is the one thing this module promises not to do.
-            return _ack(action_id, "failed", error=outcome.error or f"http_{outcome.status}")
+            return _ack(action_id, "failed", error=result.outcome.error or f"http_{result.outcome.status}")
 
-        try:
-            state = self._capture.state() or {}
-        except Exception as exc:
-            # The frame exists; only its number is unknown. An ack without a seq
-            # is still true, while a `failed` would deny the frame was taken.
-            self._log.warning("the frame for %s could not be numbered: %s", action_id, exc)
-            state = {}
-
-        seq = state.get("lastSeq")
-        if isinstance(seq, int) and not isinstance(seq, bool):
-            return _ack(action_id, "done", seq=seq)
-        self._log.warning("a frame was taken for %s but the loop reports no seq", action_id)
-        return _ack(action_id, "done")
+        return _ack(action_id, "done", seq=result.seq)
 
     # ---- camera controls ---------------------------------------------------
 
@@ -303,6 +349,19 @@ def _ms_since(started: float) -> int:
     return max(0, int(round((time.monotonic() - started) * 1000)))
 
 
+def _survey_dict(report: SurveyReport) -> dict:
+    """The sweep's report, in the ack's own field names."""
+    return {
+        "reason": report.reason,
+        "startedAt": report.started_at,
+        "durationMs": report.duration_ms,
+        "poses": [
+            {"index": pose.index, "seq": pose.seq, "pose": pose.pose, "aim": pose.aim}
+            for pose in report.poses
+        ],
+    }
+
+
 def _ack(
     action_id: str,
     status: str,
@@ -311,6 +370,7 @@ def _ack(
     seq: int | None = None,
     zoom: float | None = None,
     duration_ms: int | None = None,
+    survey: dict | None = None,
     error: str | None = None,
 ) -> dict:
     """The whole ack: the result carries every field the contract names."""
@@ -318,6 +378,12 @@ def _ack(
         "t": "action.ack",
         "actionId": action_id,
         "status": status,
-        "result": {"pose": pose, "seq": seq, "zoom": zoom, "durationMs": duration_ms},
+        "result": {
+            "pose": pose,
+            "seq": seq,
+            "zoom": zoom,
+            "durationMs": duration_ms,
+            "survey": survey,
+        },
         "error": error,
     }

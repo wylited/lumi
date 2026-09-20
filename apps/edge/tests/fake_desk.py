@@ -30,6 +30,7 @@ from websockets.exceptions import ConnectionClosed
 
 from heli_rig.arm.driver import ArmPose
 from heli_rig.camera import Frame
+from heli_rig.capture import CaptureResult
 from heli_rig.config import Config, load
 from heli_rig.upload import UploadOutcome
 
@@ -51,6 +52,10 @@ __all__ = [
 SUBPROTOCOL = "heli.v1"
 
 DESK_PATH = "/ws/desk"
+
+#: What `FakeCapture` answers with when the test did not script a refusal: a frame
+#: the server took, so a `capture` action can ack the seq the fake handed back.
+ACCEPTED = UploadOutcome(ok=True, status=201, ref="ref", seq=None, width=640, height=480, error=None, rejected=False)
 
 log = logging.getLogger("tests.fake_desk")
 
@@ -202,10 +207,12 @@ class FakeSource:
 class FakeCapture:
     """A capture loop: the frames it was given, and the cadence it was asked for.
 
-    `state()['lastSeq']` counts from `last_seq`, so a test can tell the seq of
-    the frame that was just taken (`capture_now` climbs by one) from the seq of
-    any other frame. `outcome` is what the server said about that frame, which is
-    what the `capture` action reads to decide between `done` and `failed`.
+    `capture_now` answers the way the real loop does - the frame it took, the seq it
+    uploaded it under, and what the server said - so the `capture` action acks the seq
+    this fake handed it. `outcome` is what the server said about that frame: None means
+    the upload was taken, and a refused one is what the action has to report instead of a
+    `done` naming a frame the server never stored. `state()['lastSeq']` counts from
+    `last_seq`, which is the cadence's own number and what the heartbeat reports.
     """
 
     def __init__(
@@ -232,7 +239,7 @@ class FakeCapture:
         #: report instead of a `done` naming a frame the server never stored.
         self.outcome = outcome
 
-    async def capture_now(self) -> Frame | None:
+    async def capture_now(self) -> CaptureResult | None:
         self.capture_calls += 1
         if not self._frames:
             return None
@@ -240,11 +247,7 @@ class FakeCapture:
         self.last_seq += 1
         self.frames_sent += 1
         self.last_frame_at = frame.captured_at
-        return frame
-
-    @property
-    def last_outcome(self) -> UploadOutcome | None:
-        return self.outcome
+        return CaptureResult(frame=frame, seq=self.last_seq, outcome=self.outcome or ACCEPTED)
 
     def set_fps(self, fps: float) -> None:
         self._fps = float(fps)
