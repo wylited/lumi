@@ -19,6 +19,7 @@ notes for every commit below. Read your phase entry before you start.
 | P6 | [`phases/P6-hackathon-day.md`](./phases/P6-hackathon-day.md) | all four |
 | P7 | [`phases/P7-onboarding-and-live.md`](./phases/P7-onboarding-and-live.md) | **2 · server** and **3 · desktop + web** |
 | P8 | [`phases/P8-phone.md`](./phases/P8-phone.md) | **1 · the loop** (the app is verified on the phone by 4) |
+| P9 | [`phases/P9-desk-survey.md`](./phases/P9-desk-survey.md) | all four — contracts first, then four lanes |
 | policy | [`02-intervention-policy.md`](./02-intervention-policy.md) | 1 |
 
 **How a person works with agents.** Each owner runs one agent per row, not per phase. An agent gets
@@ -310,6 +311,45 @@ pair → `/ws/mobile` → four phone signals acked → `GET /v1/mobile/phones` r
 `still` follows it. `083` is **written and typechecked** but not ticked: its `Done when` needs the
 phone itself, which is `085`. The app's usage stats need a development build (`expo run:android`);
 in Expo Go it degrades to motion and speech, and says so on screen.
+
+---
+
+## P9 · The desk survey
+
+**The rig sweeps the desk, the model reads the clutter, the policy decides whether to say it.** Once
+in a while the arm is aimed across the desk, the frames come up tagged as a source of their own, one
+vision call reads them, and the reading lands on an observation row where the policy — never the
+model — decides whether it becomes a spoken line, and whether the arm points at the pile it saw. Full
+`Do` and `Done when` in `phases/P9-desk-survey.md`.
+
+The camera is the scarce thing, so the design is built around not spending it: the sweep is one desk
+action, up to four frames and **one** model call, the cheapest moment is when the person has stepped
+away (no tracking to interrupt and an unobstructed desk), and a 5-minute gap and a 45-minute clutter
+gap bound how often the desk can be mentioned. A row is added to a phase, not repaired, so these take
+the first free ids after P8.
+
+| ✓ | id | commit | depends | ∥ | owner |
+|---|----|--------|---------|---|-------|
+| ☐ | HELI-090 | `docs(repo): the desk survey phase and its rows` | — | **no** | — |
+| ☐ | HELI-091 | `feat(contracts): the clutter reading, the survey action and its frames` | 090 | **no** | 2 · server |
+| ☐ | HELI-092 | `feat(edge): the desk sweep, and the source on the wire` | 091 | yes | 4 · hardware + rig |
+| ☐ | HELI-093 | `feat(server): the survey frame source and its frames` | 091 | yes | 2 · server |
+| ☐ | HELI-094 | `feat(server): the clutter prompt and the provider's second reading` | 091 | yes | 1 · the loop |
+| ☐ | HELI-095 | `feat(server): the survey pass, the clutter rule and the point` | 093, 094 | **no** | 1 · the loop |
+| ☐ | HELI-096 | `feat(desktop): the desk reading on the live view, and a sweep on demand` | 091 | yes | 3 · desktop + web |
+| ☐ | HELI-097 | `fix(server): keep survey rows out of the window folds` | 095 | yes | 2 · server |
+
+`091` is the gate: every desk-shaped row waits on it. `092`, `093`, `094` and `096` are disjoint lanes
+and start together; `095` consumes `093`'s frame source and `094`'s provider. `095` is the only row
+that touches `observe/index.ts`. `097` is the review's finding: a survey row carries the window it was
+taken on, so every read that folds observations into per-minute metrics has to leave it out.
+
+**`093`, `094` and `095` land as one commit.** They are three rows, but they share two seam files —
+`observe/types.ts` (`094` adds `SurveyInput` and `VisionProvider.survey`, `095` adds the reader,
+writer and desk seams) and `observe/persistence.ts` (`093` adds the reader's frame-source loop, `095`
+the survey read) — and the seam file is what the other two compile against. Split them and the middle
+commit cannot typecheck on its own, which is worse than one commit with three ids in its message. The
+rest of the ledger is one row per commit.
 
 ---
 

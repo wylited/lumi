@@ -100,7 +100,7 @@ outcome`. Get this row right and every screen is a query.
 ## Signals we read (v1)
 
 **Desk** — presence, away, posture, phone in hand, on-screen vs notebook, hand activity, ambient
-noise, speech activity.
+noise, speech activity, desk clutter (a periodic sweep of the desk, read once, kept on the session).
 
 **Machine** — frontmost app, window title, browser tab title and (with an extension) URL, idle
 time, input cadence and bursts, context switches per minute, session length, break compliance,
