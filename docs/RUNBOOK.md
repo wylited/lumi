@@ -175,9 +175,9 @@ What to look for in the logs:
 - the assess step logs **latency and token usage** on every call
   (`apps/server/src/observe/assess.ts`, `apps/server/src/models/deepseek.ts`);
 - provider **429 / rate-limit** errors from the DeepSeek adapter;
-- the orchestrator logs `latencyMs` per window and emits silence if the loop exceeds its 12 s budget
-  (`DEFAULT_LOOP_CONFIG.budgetMs` in `apps/server/src/observe/index.ts`). It was 6 s and that made
-  the cap the decision-maker: DeepSeek Flash answers these two-image windows in 3.4–7.8 s, so
+- the orchestrator logs `latencyMs` per window and emits silence if the loop exceeds its 15 s budget
+  (`DEFAULT_LOOP_CONFIG.budgetMs` in `apps/server/src/observe/index.ts`). It was 6 s, then 12 s, and that made
+  the cap the decision-maker: DeepSeek Flash answers these two-image windows in 3.4–10.5 s, so
   windows were being thrown away for a policy that had nothing to do with the model.
 
 There is no offline assessor. A window whose assessment fails is recorded as silence, and the loop

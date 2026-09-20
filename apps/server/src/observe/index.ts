@@ -30,15 +30,22 @@ export interface LoopConfig {
 }
 
 /**
- * `budgetMs` is the hard cap on one pass. It is 12 s, not 6 s, because the cap
- * was measured against the real provider and lost: `deepseek-flash` with the two
- * images (desk camera + screen) answers in 3.4–6.1 s, so a 6 s cap forced
- * `loop.budget_exceeded` and recorded silence on 3 of 8 consecutive windows —
- * decisions dropped by a stopwatch rather than by the policy. A hosted vision
- * call is the slowest thing in the pass by an order of magnitude, and a late
- * interruption is still better than none.
+ * `budgetMs` is the hard cap on one pass. It is 15 s, because the cap has been
+ * measured against the real provider twice and lost both times.
+ *
+ * At 6 s it forced `loop.budget_exceeded` and recorded silence on 3 of 8
+ * consecutive windows — decisions dropped by a stopwatch rather than by the
+ * policy. At 12 s it held for a while, then a window came in at 10.4 s and
+ * 10.5 s: the tail is long, because completion length varies with how much the
+ * model has to say about the frames (955 tokens on that one). A pass that is
+ * still running when the next tick arrives does not overlap it — the loop
+ * refuses to start a second pass (`current.inFlight`) — so the cost of a wide
+ * budget is a skipped tick, and the cost of a narrow one is a silent window on
+ * the demonstration that cannot have one.
+ *
+ * A late interruption is still better than none.
  */
-export const DEFAULT_LOOP_CONFIG: LoopConfig = { budgetMs: 12_000, historyLimit: 20 }
+export const DEFAULT_LOOP_CONFIG: LoopConfig = { budgetMs: 15_000, historyLimit: 20 }
 
 export interface WindowResult {
   observationId: string
