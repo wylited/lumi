@@ -249,3 +249,26 @@ def test_stop_is_safe_when_idle_and_ends_a_line_in_flight(tmp_path, monkeypatch)
     assert state["interrupted"] == 0
     assert not Path(state["lastWav"]).exists()
     assert any(event[0] == "term" for event in _events(tmp_path))
+
+
+def test_warming_hands_the_device_a_short_wav_at_the_line_rate(tmp_path, monkeypatch):
+    """The warm-up runs through the real path — the speech rate, and not a line."""
+    speaker = Speaker(player=_fake_player(tmp_path, monkeypatch))
+
+    speaker.warm()
+
+    formats = [event for event in _events(tmp_path) if event[0] == "wav"]
+    assert len(formats) == 1
+    rate, channels, frames = formats[0][2].split()
+    assert (rate, channels) == ("16000", "1")
+    assert 0 < int(frames) <= 16000 * 0.1
+    assert speaker.state()["lastError"] is None
+
+
+def test_a_rig_that_cannot_warm_still_boots(tmp_path, monkeypatch):
+    """`warm()` is called at start-up, so it reports and never raises."""
+    speaker = Speaker(player=str(tmp_path / "no-such-player"))
+
+    speaker.warm()
+
+    assert speaker.state()["lastError"].startswith("no_player:")

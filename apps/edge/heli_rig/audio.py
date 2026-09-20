@@ -26,6 +26,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import wave
 from pathlib import Path
 
@@ -36,6 +37,20 @@ log = logging.getLogger("heli_rig.audio")
 # `afplay` exits on its own; this is only the grace period before escalating to
 # SIGKILL on a player that ignores SIGTERM, which must not stall the socket.
 _STOP_TIMEOUT_S = 1.0
+
+#: How long past the line's own length the player is allowed to take before it is
+#: written off. It is 3 s, not 1 s, because the *first* playback in a fresh
+#: process pays CoreAudio's start-up: measured on the demo Mac, `afplay` took more
+#: than 3.2 s over a 2.18 s line on the first line of a run and 1.8 s on the next
+#: one. A wedged device still cannot stall the socket — this is a bound, not a
+#: wait — and `warm()` is what keeps the first real line off that cold path.
+_FINISH_MARGIN_S = 3.0
+
+#: The warm-up tone: how long, and at which rate. Silent, because nobody should
+#: hear the rig clearing its throat; 16 kHz because that is what the server's
+#: speech adapter sends (`pcm_16000`), so the device comes up on the real path.
+_WARMUP_MS = 60
+_WARMUP_RATE_HZ = 16_000
 
 _BYTES_PER_SAMPLE = 2
 _TEMP_PREFIX = "heli-audio-"
@@ -193,16 +208,17 @@ class Speaker:
 
         failed: str | None = None
         stderr = b""
+        started = time.monotonic()
         try:
-            # Bounded by the line's own length plus the grace `stop()` allows. A
-            # player that never exits — a wedged output device, another process
-            # holding it — must not stall the socket: `play` is awaited by the
-            # receive loop, so every action behind it would go unanswered.
-            _, stderr = proc.communicate(timeout=duration / 1000.0 + _STOP_TIMEOUT_S)
+            # Bounded by the line's own length plus the finish margin. A player
+            # that never exits — a wedged output device, another process holding
+            # it — must not stall the socket: `play` is awaited by the receive
+            # loop, so every action behind it would go unanswered.
+            _, stderr = proc.communicate(timeout=duration / 1000.0 + _FINISH_MARGIN_S)
         except subprocess.TimeoutExpired:
             failed = (
                 f"player_timeout: {self._player} did not finish "
-                f"{duration / 1000.0 + _STOP_TIMEOUT_S:.1f}s after a {duration:.0f} ms line"
+                f"{duration / 1000.0 + _FINISH_MARGIN_S:.1f}s after a {duration:.0f} ms line"
             )
             proc.kill()
             try:
@@ -235,13 +251,34 @@ class Speaker:
             with self._lock:
                 self._plays += 1
                 self._last_error = None
-            self._log.debug("played %.0f ms", duration)
+            self._log.debug(
+                "played %.0f ms in %.0f ms", duration, (time.monotonic() - started) * 1000
+            )
         else:
             detail = (stderr or b"").decode("utf-8", "replace").strip()
             error = f"player_exit_{code}" + (f": {detail}" if detail else "")
             self._fail(error)
             self._log.warning("%s exited %s", self._player, code)
         return duration
+
+    def warm(self) -> None:
+        """Bring the audio device up before the first line needs it.
+
+        The first playback in a fresh process pays CoreAudio's own start-up, and
+        that cost lands on whichever line is first — on the demo Mac, `afplay` ran
+        past the whole timeout over a 2.18 s line at the start of a run and then
+        1.8 s over the next one. A silent 60 ms WAV at the line's own rate pays it
+        at boot, where nothing is waiting for a sentence.
+        """
+        samples = int(_WARMUP_RATE_HZ * _WARMUP_MS / 1000)
+        self.play(b"\x00" * (samples * _BYTES_PER_SAMPLE), _WARMUP_RATE_HZ, 1, duration_ms=_WARMUP_MS)
+        error = self.state()["lastError"]
+        if error is None:
+            self._log.info("audio device warmed: %d ms of silence through %s", _WARMUP_MS, self._player)
+        else:
+            # Not fatal: the first real line will pay the start-up instead, and the
+            # warning above this one already says what went wrong.
+            self._log.warning("the audio device did not warm up: %s", error)
 
     def stop(self) -> None:
         """Kill the player. Safe when nothing is playing."""

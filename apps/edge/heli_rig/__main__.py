@@ -117,6 +117,10 @@ async def run_rig(cfg: Config, log: logging.Logger) -> None:
         from .audio import Speaker
 
         speaker = Speaker(log=log)
+        # Once, at boot: the first playback in a fresh process pays CoreAudio's
+        # start-up, and the line that pays it is the first one — which on a demo
+        # is the one everybody is watching for.
+        await asyncio.to_thread(speaker.warm)
     elif not cfg.speaker:
         # `HELI_SPEAKER=false` is a rig that hears nothing: the socket acks the line
         # `no_speaker` rather than pretending, which is what its own path already does
